@@ -1,0 +1,228 @@
+import { Request, Response } from "express";
+import jwt from "jsonwebtoken";
+import utils from "../../../utils/utils.js";
+import { createToken, verifyToken } from "../utils/token.js";
+import { encryptPassword } from "../../../middlewares/auth.middleware.js";
+import nodemailer from "nodemailer";
+import { OAuth2Client } from "google-auth-library";
+import { CustomError, ErrorCode } from "../../../pkg/error/custom_error.js";
+import { config } from "../../../config.js";
+import UserService from "../../../services/user/service/service.js";
+import { Context } from "../../../services/common/domain/context.js";
+
+interface GooglePayload {
+  name: string;
+  email: string;
+  sub: string;
+  email_verified: boolean;
+  imageURL?: string;
+}
+
+class AuthService {
+  private userService: UserService;
+
+  constructor(userService: UserService) {
+    this.userService = userService;
+  }
+
+  async googleAuth(context: Context, req: Request): Promise<any | CustomError> {
+    try {
+      const reqToken = req.query.token as string;
+
+      if (!reqToken) {
+        throw new CustomError(ErrorCode.BAD_REQUEST, "No token provided");
+      }
+
+      const client = new OAuth2Client(config.GOOGLE_CLIENT_ID);
+
+      // Verify Google token
+      const ticket = await client.verifyIdToken({
+        idToken: reqToken,
+        audience: config.GOOGLE_CLIENT_ID,
+      });
+
+      const payload = ticket.getPayload() as GooglePayload;
+
+      if (!payload) {
+        throw new CustomError(ErrorCode.UNAUTHORIZED, "Invalid token");
+      }
+
+      // Check if user already exists
+      let user = await this.userService.getUserByEmail(payload.email);
+
+      if (!user) {
+        user = await this.userService.addUser(
+          payload.name,
+          payload.email,
+          payload.email,
+          null,
+          "",
+          payload.sub,
+          payload.email_verified,
+          payload.imageURL
+        );
+      }
+
+      const token = createToken({ id: user._id as string, email: user.email });
+      return {
+        token: token,
+        user: user,
+      };
+    } catch (error) {
+      throw utils.ThrowableError(error);
+    }
+  }
+
+  async login(context: Context, req: Request): Promise<any | CustomError> {
+    try {
+      const { email, password } = req.body;
+
+      if (!email || !password) {
+        throw new CustomError(ErrorCode.BAD_REQUEST, "Email and password are required");
+      }
+
+      const user = await this.userService.getUserByEmail(email);
+      if (!user) {
+        throw new CustomError(ErrorCode.BAD_REQUEST, "Invalid credentials");
+      }
+
+      if (!user.password) {
+        throw new CustomError(ErrorCode.BAD_REQUEST, "Please login with Google");
+      }
+
+      const isPasswordValid = await user.comparePassword(password);
+      if (!isPasswordValid) {
+        throw new CustomError(ErrorCode.BAD_REQUEST, "Invalid credentials");
+      }
+
+      const token = createToken({ id: user._id as string, email: user.email });
+      return {
+        token: token,
+        user: user,
+      };
+    } catch (error) {
+      throw utils.ThrowableError(error);
+    }
+  }
+
+  async register(context: Context, req: Request): Promise<any> {
+    try {
+      const { name, email, password } = req.body;
+
+      if (!name || !email || !password) {
+        throw new CustomError(ErrorCode.BAD_REQUEST, "All fields are required");
+      }
+
+      const existingUser = await this.userService.getUserByEmail(email);
+      if (existingUser) {
+        throw new CustomError(ErrorCode.BAD_REQUEST, "Email already registered");
+      }
+
+      const hashedPassword = await encryptPassword(password);
+      const user = await this.userService.addUser(name, email, email, hashedPassword,"", null, false);
+
+      const token = createToken({ id: user._id as string, email: user.email });
+      return {
+        token: token,
+        user: user,
+      };
+    } catch (error) {
+      throw utils.ThrowableError(error);
+    }
+  }
+
+  async verifyToken(context: Context, req: Request): Promise<any> {
+    try {
+      const accessToken = req.headers.accesstoken;
+      const refreshToken = req.headers.refreshtoken;
+
+      if (!accessToken || !refreshToken) {
+        throw new CustomError(ErrorCode.UNAUTHORIZED, "Authentication tokens are missing");
+      }
+
+      const result = await verifyToken(accessToken.toString(), refreshToken.toString());
+
+      return result;
+    } catch (error) {
+      if (error instanceof CustomError) {
+        throw error;
+      }
+      throw new CustomError(ErrorCode.INTERNAL_SERVER_ERROR, "Authentication verification failed");
+    }
+  }
+
+  async forgotPassword(context: Context, req: Request): Promise<any> {
+    try {
+      const { email } = req.body;
+
+      if (!email) {
+        throw new CustomError(ErrorCode.BAD_REQUEST, "Email is required");
+      }
+
+      const user = await this.userService.getUserByEmail(email);
+      if (!user) {
+        throw new CustomError(ErrorCode.BAD_REQUEST, "User not found");
+      }
+
+      const resetToken = jwt.sign(
+        { id: user._id },
+        "", // config.JWT_SECRET as string,
+        { expiresIn: "1h" }
+      );
+
+      // Send email with reset token
+      const transporter = nodemailer.createTransport({
+        service: "gmail",
+        auth: {
+          // user: config.EM,
+          // pass: config.EMAIL_PASS
+        },
+      });
+
+      const mailOptions = {
+        // from: config.EMAIL_USER,
+        to: email,
+        subject: "Password Reset",
+        text: `Click the link to reset your password: ${config.FRONTEND_URL}/reset-password?token=${resetToken}`,
+      };
+
+      await transporter.sendMail(mailOptions);
+      return {
+        message: "Password reset email sent",
+      };
+    } catch (error) {
+      throw utils.ThrowableError(error);
+    }
+  }
+
+  async resetPassword(context: Context, req: Request): Promise<any> {
+    try {
+      const { token, password } = req.body;
+
+      if (!token || !password) {
+        throw new CustomError(ErrorCode.BAD_REQUEST, "Token and password are required");
+        return;
+      }
+
+      const decoded = jwt.verify(token, "" /*config.JWT_SECRET as string*/) as {
+        id: string;
+      };
+      const user = await this.userService.getUserById(decoded.id);
+
+      if (!user) {
+        throw new CustomError(ErrorCode.NOT_FOUND, "User not found");
+      }
+
+      const hashedPassword = await encryptPassword(password);
+      await this.userService.updateUserPassword(user._id as string, hashedPassword);
+
+      return {
+        message: "Password reset successful",
+      };
+    } catch (error) {
+      throw utils.ThrowableError(error);
+    }
+  }
+}
+
+export default AuthService;

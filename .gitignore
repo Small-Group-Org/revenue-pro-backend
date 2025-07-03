@@ -1,0 +1,76 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Runtime data
+pids
+*.pid
+*.seed
+*.pid.lock
+
+# Dependency directories
+node_modules/
+jspm_packages/
+
+# Environment files
+.env
+.env.*.local
+
+# Build output
+build/
+.cache/
+
+# TypeScript
+*.tsbuildinfo
+
+# Static build files
+out/
+.next/
+.nuxt/
+.svelte-kit/
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Optional npm cache directory
+.npm/
+
+# Optional eslint cache
+.eslintcache
+
+# Optional stylelint cache
+.stylelintcache
+
+# Optional prettier cache
+.prettiercache
+
+# Coverage files
+coverage/
+*.lcov
+
+# Debugging files
+*.log
+*.tgz
+*.gz
+*.zip
+
+# Temporary files
+tmp/
+temp/
+
+# System files
+.DS_Store
+Thumbs.db
+*.bak
+*.orig
+
+package-lock.json
+
+uploads
