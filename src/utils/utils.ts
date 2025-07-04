@@ -33,8 +33,8 @@ class utils {
   }
 
   public sendErrorResponse(res: Response, error: any): Response {
-    var code = 500;
-    var message = error;
+    let code = 500;
+    let message = error;
 
     if (error instanceof CustomError) {
       code = ErrorCodeStatusMap[error.code];
