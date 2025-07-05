@@ -2,6 +2,7 @@ import { Request, Response } from "express";
 import UserService from "../services/user/service/service.js";
 import { UserRole } from "../middlewares/auth.middleware.js";
 import { IUser } from "../services/user/domain/user.domain.js";
+import utils from "../utils/utils.js";
 
 class AdminController {
   private userService: UserService;
@@ -15,19 +16,13 @@ class AdminController {
       const { email, password, name, role = UserRole.CLIENT, userId } = req.body;
 
       if (!email || !name) {
-        res.status(400).json({
-          success: false,
-          message: "Email and name are required",
-        });
+        utils.sendErrorResponse(res, "Email and name are required");
         return;
       }
 
       // Password is required only for new users
       if (!userId && !password) {
-        res.status(400).json({
-          success: false,
-          message: "Password is required for new users",
-        });
+        utils.sendErrorResponse(res, "Password is required for new users");
         return;
       }
 
@@ -40,7 +35,7 @@ class AdminController {
         isEmailVerified: false,
       });
 
-      res.status(201).json({
+      utils.sendSuccessResponse(res, 201, {
         success: true,
         message: userId ? "User updated successfully" : "User created successfully",
         data: {
@@ -51,11 +46,7 @@ class AdminController {
         },
       });
     } catch (error) {
-      res.status(500).json({
-        success: false,
-        message: "Error upserting user",
-        error: error instanceof Error ? error.message : "Unknown error",
-      });
+      utils.sendErrorResponse(res, error);
     }
   };
 
@@ -74,16 +65,12 @@ class AdminController {
     try {
       const role = (req.query?.role ?? "") as string;
       const users = await this.userService.getAllUsers(role);
-      res.status(200).json({
+      utils.sendSuccessResponse(res, 200, {
         success: true,
         data: users.map(this.formatUser),
       });
     } catch (error) {
-      res.status(500).json({
-        success: false,
-        message: "Failed to fetch users.",
-        error: error instanceof Error ? error.message : String(error),
-      });
+      utils.sendErrorResponse(res, error);
     }
   };
 }

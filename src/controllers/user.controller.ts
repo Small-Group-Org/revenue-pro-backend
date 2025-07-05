@@ -1,5 +1,6 @@
 import { Request, Response } from "express";
 import UserService from "../services/user/service/service.js";
+import utils from "../utils/utils.js";
 
 class UserController {
   private userService: UserService;
@@ -14,14 +15,11 @@ class UserController {
       const user = await this.userService.getUserById(userId);
 
       if (!user) {
-        res.status(404).json({
-          success: false,
-          message: "User not found",
-        });
+        utils.sendErrorResponse(res, "User not found");
         return;
       }
 
-      res.status(200).json({
+      utils.sendSuccessResponse(res, 200, {
         success: true,
         data: {
           id: user._id,
@@ -33,11 +31,7 @@ class UserController {
         },
       });
     } catch (error) {
-      res.status(500).json({
-        success: false,
-        message: "Error fetching user profile",
-        error: error instanceof Error ? error.message : "Unknown error",
-      });
+      utils.sendErrorResponse(res, error);
     }
   };
 
@@ -54,14 +48,11 @@ class UserController {
       });
 
       if (!updatedUser) {
-        res.status(404).json({
-          success: false,
-          message: "User not found",
-        });
+        utils.sendErrorResponse(res, "User not found");
         return;
       }
 
-      res.status(200).json({
+      utils.sendSuccessResponse(res, 200, {
         success: true,
         message: "Profile updated successfully",
         data: {
@@ -74,13 +65,9 @@ class UserController {
         },
       });
     } catch (error) {
-      res.status(500).json({
-        success: false,
-        message: "Error updating user profile",
-        error: error instanceof Error ? error.message : "Unknown error",
-      });
+      utils.sendErrorResponse(res, error);
     }
   };
 }
 
-export default new UserController(); 
+export default new UserController();

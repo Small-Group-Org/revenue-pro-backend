@@ -36,6 +36,7 @@ export const verifyTokenMiddleware = async (
     const result = await verifyToken(accessToken.toString(), refreshToken.toString());
     req.context.setUserId(result?.user?._id.toString());
     req.context.setOrgId(result?.user?._id.toString());
+    req.context.setUser(result?.user);
     next();
   } catch (error) {
     res.status(401).json({
