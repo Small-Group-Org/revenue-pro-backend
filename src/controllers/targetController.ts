@@ -1,16 +1,12 @@
 import { Request, Response } from "express";
-import { TargetRepository } from "../services/target/repository/repository.js";
-import { IWeeklyTarget, ITargetQuery } from "../services/target/domain/target.domain.js";
 import { TargetService } from "../services/target/service/service.js";
 import utils from "../utils/utils.js";
 import { parseISO } from "date-fns";
 
 export class TargetController {
-  private repository: TargetRepository;
   private service: TargetService;
 
   constructor() {
-    this.repository = new TargetRepository();
     this.service = new TargetService();
     this.upsertTarget = this.upsertTarget.bind(this);
     this.getTargets = this.getTargets.bind(this);
