@@ -45,12 +45,12 @@ export class TargetService {
 
     for (const target of targets) {
       aggregated.revenue += target.revenue || 0;
-      aggregated.avgJobSize += target.avgJobSize || 0;
-      aggregated.appointmentRate += target.appointmentRate || 0;
-      aggregated.showRate += target.showRate || 0;
-      aggregated.closeRate += target.closeRate || 0;
-      aggregated.com += target.com || 0;
     }
+    aggregated.avgJobSize = targets[0].avgJobSize || 0;
+    aggregated.appointmentRate = targets[0].appointmentRate || 0;
+    aggregated.showRate = targets[0].showRate || 0;
+    aggregated.closeRate = targets[0].closeRate || 0;
+    aggregated.com = targets[0].com || 0;
 
     return aggregated as IWeeklyTargetDocument;
   }
@@ -96,11 +96,11 @@ export class TargetService {
     const monthlyProratedData: Partial<IWeeklyTarget> = {
       ...data,
       revenue: data.revenue ? data.revenue / weeksInMonth.length : 0,
-      avgJobSize: data.avgJobSize ? data.avgJobSize / weeksInMonth.length : 0,
-      appointmentRate: data.appointmentRate ? data.appointmentRate / weeksInMonth.length : 0,
-      showRate: data.showRate ? data.showRate / weeksInMonth.length : 0,
-      closeRate: data.closeRate ? data.closeRate / weeksInMonth.length : 0,
-      com: data.com ? data.com / weeksInMonth.length : 0,
+      avgJobSize: data.avgJobSize ? data.avgJobSize: 0,
+      appointmentRate: data.appointmentRate ? data.appointmentRate  : 0,
+      showRate: data.showRate ? data.showRate : 0,
+      closeRate: data.closeRate ? data.closeRate  : 0,
+      com: data.com ? data.com : 0,
     };
     const monthlyUpsertPromises = weeksInMonth.map(week =>
       this.upsertWeeklyTarget(userId, week.startDate, monthlyProratedData, 'monthly')
