@@ -105,12 +105,13 @@ export class TargetController {
           results = await this.service.getWeeklyTarget(userId, parsedStartDate);
           break;
         case "monthly":
-          results = await this.service.getAggregatedMonthlyTarget(userId, parsedStartDate.getFullYear(), parsedStartDate.getMonth() + 1); // Pass year and month
+          results = await this.service.getAggregatedMonthlyTarget(userId, parsedStartDate.getFullYear(), parsedStartDate.getMonth() + 1, "monthly"); // Pass year and month
           break;
         case "yearly":
           results = await this.service.getAggregatedYearlyTarget(
             userId,
-            parsedStartDate.getFullYear()
+            parsedStartDate.getFullYear(),
+            "yearly"
           );
           break;
       }

@@ -1,5 +1,5 @@
 import { Model } from 'mongoose';
-import { IWeeklyTarget, ITargetQuery } from '../domain/target.domain.js';
+import { IWeeklyTarget } from '../domain/target.domain.js';
 import WeeklyTarget, { IWeeklyTargetDocument } from './models/target.model.js';
 
 export class TargetRepository {
@@ -21,26 +21,14 @@ export class TargetRepository {
     );
   }
 
-  async getTargets(query: ITargetQuery): Promise<IWeeklyTargetDocument[]> {
-    const startDate = query.startDate;
-    const endDate = query.endDate;
-
-    return this.model.find({
-      userId: query.userId,
-      startDate: {
-        $gte: startDate,
-        $lte: endDate
-      }
-    }).sort({ startDate: 1 });
-  }
-
-  async getTargetsByDateRange(startDate: Date, endDate: Date, userId: string): Promise<IWeeklyTargetDocument[]> {
+  async getTargetsByDateRangeAndQueryType(startDate: Date, endDate: Date, userId: string, queryType: string): Promise<IWeeklyTargetDocument[]> {
     return this.model.find({
       userId,
       startDate: {
         $gte: startDate,
         $lte: endDate
-      }
+      },
+      queryType
     }).sort({ startDate: 1 });
   }
 
