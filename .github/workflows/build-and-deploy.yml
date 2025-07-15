@@ -1,0 +1,43 @@
+name: Trigger Deployment on PR Merge
+
+on:
+  pull_request:
+    types: [closed]
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: "Branch to deploy from"
+        required: true
+        type: string
+        default: "main"
+      pr_number:
+        description: "PR number for commenting (-1 for no comment)"
+        required: false
+        type: number
+        default: -1
+      skip_build:
+        description: "Skip building new image"
+        required: false
+        type: boolean
+        default: true
+
+jobs:
+  trigger-deployment:
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'pull_request' && github.event.pull_request.merged == true)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Build and Deploy Workflow
+        uses: peter-evans/repository-dispatch@v2
+        with:
+          token: ${{ secrets.ORG_ACCESS_TOKEN }}
+          repository: Small-Group-Org/small-group-services-deployments
+          event-type: build-and-deploy
+          client-payload: |
+            {
+              "service_name": "${{ github.event.repository.name }}",
+              "branch": "${{ github.event_name == 'workflow_dispatch' && inputs.branch || 'main' }}",
+              "pr_number": ${{ github.event_name == 'workflow_dispatch' && inputs.pr_number || github.event.pull_request.number }},
+              "skip_build": ${{ github.event_name == 'workflow_dispatch' && inputs.skip_build || false }}
+            }
