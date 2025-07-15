@@ -15,10 +15,16 @@ import logger, {
 const app: Express = express();
 
 // CORS setup
-app.use(cors());
+app.use(cors({
+  origin: '*',
+  credentials: false, // Do not allow credentials when using '*'
+}));
 
 // Ensure preflight is handled
-app.options("*", cors());
+app.options("*", cors({
+  origin: '*',
+  credentials: false,
+}));
 
 // Add request ID and logging middleware
 app.use(requestIdMiddleware);
