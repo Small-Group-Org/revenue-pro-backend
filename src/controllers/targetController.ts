@@ -28,9 +28,10 @@ export class TargetController {
         return;
       }
 
-      const validTypes = ["weekly", "monthly", "yearly"];
+      // Only allow monthly and yearly upserts
+      const validTypes = ["monthly", "yearly"];
       if (!validTypes.includes(queryType as string)) {
-        utils.sendErrorResponse(res, "queryType must be one of: weekly, monthly, yearly");
+        utils.sendErrorResponse(res, "queryType must be one of: monthly, yearly");
         return;
       }
 
@@ -40,8 +41,29 @@ export class TargetController {
         return;
       }
 
-      // Use the service.upsertTargetByPeriod instead of upsertWeeklyTarget
-      const result = await this.service.upsertTargetByPeriod(userId, parsedStartDate, queryType, targetData);
+      // Only pass the allowed fields for target
+      const allowedFields = [
+        "appointmentRate",
+        "avgJobSize",
+        "closeRate",
+        "com",
+        "revenue",
+        "showRate",
+        "startDate",
+        "endDate",
+        "queryType",
+        "userId",
+        "year",
+        "weekNumber"
+      ];
+      const filteredTargetData: any = {};
+      for (const key of allowedFields) {
+        if (key in targetData) {
+          filteredTargetData[key] = targetData[key];
+        }
+      }
+
+      const result = await this.service.upsertTargetByPeriod(userId, parsedStartDate, queryType, filteredTargetData);
       utils.sendSuccessResponse(res, 200, { success: true, data: result });
     } catch (error) {
       console.error("Error in upsertTarget:", error);
@@ -70,8 +92,6 @@ export class TargetController {
         utils.sendErrorResponse(res, "type must be one of: weekly, monthly, yearly");
         return;
       }
-
-     
 
       const parsedStartDate = parseISO(startDate as string);
       if (isNaN(parsedStartDate.getTime())) {

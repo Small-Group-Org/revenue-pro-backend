@@ -9,16 +9,13 @@ const weeklyTargetSchema = new Schema<IWeeklyTargetDocument>({
   endDate: { type: Date, required: true },
   year: { type: Number, required: true },
   weekNumber: { type: Number, required: true },
-  leads: { type: Number, default: 0 },
-  revenue: { type: Number, default: 0 },
-  avgJobSize: { type: Number, default: 0 },
-  appointmentRate: { type: Number, default: 0 },
-  showRate: { type: Number, default: 0 },
-  closeRate: { type: Number, default: 0 },
-  adSpendBudget: { type: Number, default: 0 },
-  costPerLead: { type: Number, default: 0 },
-  costPerEstimateSet: { type: Number, default: 0 },
-  costPerJobBooked: { type: Number, default: 0 }
+  appointmentRate: { type: Number, required: true },
+  avgJobSize: { type: Number, required: true },
+  closeRate: { type: Number, required: true },
+  com: { type: Number, required: true },
+  revenue: { type: Number, required: true },
+  showRate: { type: Number, required: true },
+  queryType: { type: String, required: true },
 }, { timestamps: true });
 
 // Index on startDate for efficient queries

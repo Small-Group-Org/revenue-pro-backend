@@ -1,9 +1,14 @@
 export interface IActual {
-    weekStartDate: Date;
-    leads: number;
-    estimatesSet: number;
-    estimatesRan: number;
-    jobsBooked: number;
-    revenue: number;
-    budgetSpent: number;
-  }
+  appointmentRate: number;
+  avgJobSize: number;
+  closeRate: number;
+  com: number;
+  revenue: number;
+  showRate: number;
+  startDate: Date;
+  endDate: Date;
+  queryType: string;
+  userId: string;
+  year: number;
+  weekNumber: number;
+}

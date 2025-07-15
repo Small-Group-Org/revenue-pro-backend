@@ -23,16 +23,13 @@ export interface IWeeklyTarget {
   endDate: Date;
   year: number;
   weekNumber: number;
-  leads: number;
-  revenue: number;
-  avgJobSize: number;
   appointmentRate: number;
-  showRate: number;
+  avgJobSize: number;
   closeRate: number;
-  adSpendBudget: number;
-  costPerLead: number;
-  costPerEstimateSet: number;
-  costPerJobBooked: number;
+  com: number;
+  revenue: number;
+  showRate: number;
+  queryType: string;
 }
 
 export interface ITargetQuery {

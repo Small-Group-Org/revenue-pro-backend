@@ -13,21 +13,18 @@ export class TargetService {
   public async upsertWeeklyTarget(userId: string, date: Date, data: Partial<IWeeklyTarget>): Promise<IWeeklyTargetDocument> {
     const weekInfo = DateUtils.getWeekInfo(date);
     const defaultTarget: IWeeklyTarget = {
-      userId, // Pass userId
+      userId,
       startDate: weekInfo.startDate,
       endDate: weekInfo.endDate,
       year: weekInfo.year,
       weekNumber: weekInfo.weekNumber,
-      leads: 0,
-      revenue: 0,
-      avgJobSize: 0,
       appointmentRate: 0,
-      showRate: 0,
+      avgJobSize: 0,
       closeRate: 0,
-      adSpendBudget: 0,
-      costPerLead: 0,
-      costPerEstimateSet: 0,
-      costPerJobBooked: 0
+      com: 0,
+      revenue: 0,
+      showRate: 0,
+      queryType: 'weekly',
     };
 
     // Try to find an existing target
@@ -49,92 +46,44 @@ export class TargetService {
   private _aggregateTargets(targets: IWeeklyTargetDocument[]): IWeeklyTargetDocument {
     if (targets.length === 0) {
       return {
-        userId: '', // This will be overwritten or should be handled by the calling function for clarity
+        userId: '',
         startDate: new Date(),
         endDate: new Date(),
-        leads: 0,
-        revenue: 0,
-        avgJobSize: 0,
         appointmentRate: 0,
-        showRate: 0,
+        avgJobSize: 0,
         closeRate: 0,
-        adSpendBudget: 0,
-        costPerLead: 0,
-        costPerEstimateSet: 0,
-        costPerJobBooked: 0,
-        year: new Date().getFullYear(), // Default year
-        weekNumber: 0 // Default weekNumber for empty aggregate
+        com: 0,
+        revenue: 0,
+        showRate: 0,
+        queryType: '',
+        year: new Date().getFullYear(),
+        weekNumber: 0
       } as IWeeklyTargetDocument;
     }
 
     const aggregated: IWeeklyTarget = {
-      userId: targets[0].userId, // Assuming all targets belong to the same user
-      startDate: targets[0].startDate, // This might not be meaningful for aggregated data, consider adjusting
-      endDate: targets[targets.length - 1].endDate, // Same as above
+      userId: targets[0].userId,
+      startDate: targets[0].startDate,
+      endDate: targets[targets.length - 1].endDate,
       year: targets[0].year,
       weekNumber: targets[0].weekNumber,
-      leads: 0,
-      revenue: 0,
-      avgJobSize: 0,
       appointmentRate: 0,
-      showRate: 0,
+      avgJobSize: 0,
       closeRate: 0,
-      adSpendBudget: 0,
-      costPerLead: 0,
-      costPerEstimateSet: 0,
-      costPerJobBooked: 0
+      com: 0,
+      revenue: 0,
+      showRate: 0,
+      queryType: targets[0].queryType || '',
     };
 
-    let validCountAvgJobSize = 0;
-    let validCountAppointmentRate = 0;
-    let validCountShowRate = 0;
-    let validCountCloseRate = 0;
-    let validCountCostPerLead = 0;
-    let validCountCostPerEstimateSet = 0;
-    let validCountCostPerJobBooked = 0;
-
     for (const target of targets) {
-      aggregated.leads += target.leads || 0;
       aggregated.revenue += target.revenue || 0;
-      aggregated.adSpendBudget += target.adSpendBudget || 0;
-
-      if (target.avgJobSize !== undefined && target.avgJobSize !== null) {
-        aggregated.avgJobSize += target.avgJobSize;
-        validCountAvgJobSize++;
-      }
-      if (target.appointmentRate !== undefined && target.appointmentRate !== null) {
-        aggregated.appointmentRate += target.appointmentRate;
-        validCountAppointmentRate++;
-      }
-      if (target.showRate !== undefined && target.showRate !== null) {
-        aggregated.showRate += target.showRate;
-        validCountShowRate++;
-      }
-      if (target.closeRate !== undefined && target.closeRate !== null) {
-        aggregated.closeRate += target.closeRate;
-        validCountCloseRate++;
-      }
-      if (target.costPerLead !== undefined && target.costPerLead !== null) {
-        aggregated.costPerLead += target.costPerLead;
-        validCountCostPerLead++;
-      }
-      if (target.costPerEstimateSet !== undefined && target.costPerEstimateSet !== null) {
-        aggregated.costPerEstimateSet += target.costPerEstimateSet;
-        validCountCostPerEstimateSet++;
-      }
-      if (target.costPerJobBooked !== undefined && target.costPerJobBooked !== null) {
-        aggregated.costPerJobBooked += target.costPerJobBooked;
-        validCountCostPerJobBooked++;
-      }
+      aggregated.avgJobSize += target.avgJobSize || 0;
+      aggregated.appointmentRate += target.appointmentRate || 0;
+      aggregated.showRate += target.showRate || 0;
+      aggregated.closeRate += target.closeRate || 0;
+      aggregated.com += target.com || 0;
     }
-
-    aggregated.avgJobSize = validCountAvgJobSize > 0 ? aggregated.avgJobSize / validCountAvgJobSize : 0;
-    aggregated.appointmentRate = validCountAppointmentRate > 0 ? aggregated.appointmentRate / validCountAppointmentRate : 0;
-    aggregated.showRate = validCountShowRate > 0 ? aggregated.showRate / validCountShowRate : 0;
-    aggregated.closeRate = validCountCloseRate > 0 ? aggregated.closeRate / validCountCloseRate : 0;
-    aggregated.costPerLead = validCountCostPerLead > 0 ? aggregated.costPerLead / validCountCostPerLead : 0;
-    aggregated.costPerEstimateSet = validCountCostPerEstimateSet > 0 ? aggregated.costPerEstimateSet / validCountCostPerEstimateSet : 0;
-    aggregated.costPerJobBooked = validCountCostPerJobBooked > 0 ? aggregated.costPerJobBooked / validCountCostPerJobBooked : 0;
 
     return aggregated as IWeeklyTargetDocument;
   }
@@ -144,54 +93,48 @@ export class TargetService {
     date: Date,
     queryType: 'weekly' | 'monthly' | 'yearly',
     data: Partial<IWeeklyTarget>
-  ): Promise<IWeeklyTargetDocument[] | IWeeklyTargetDocument> {
+  ): Promise<IWeeklyTargetDocument> {
     switch (queryType) {
       case 'weekly':
         return this.upsertWeeklyTarget(userId, date, data);
       case 'monthly':
         const weeksInMonth = DateUtils.getWeeksInMonth(date.getFullYear(), date.getMonth() + 1);
         if (weeksInMonth.length === 0) {
-          return [];
+          return this._aggregateTargets([]);
         }
-        const monthlyProratedData = {
+        const monthlyProratedData: Partial<IWeeklyTarget> = {
           ...data,
-          leads: data.leads ? data.leads / weeksInMonth.length : 0,
           revenue: data.revenue ? data.revenue / weeksInMonth.length : 0,
           avgJobSize: data.avgJobSize ? data.avgJobSize / weeksInMonth.length : 0,
           appointmentRate: data.appointmentRate ? data.appointmentRate / weeksInMonth.length : 0,
           showRate: data.showRate ? data.showRate / weeksInMonth.length : 0,
           closeRate: data.closeRate ? data.closeRate / weeksInMonth.length : 0,
-          adSpendBudget: data.adSpendBudget ? data.adSpendBudget / weeksInMonth.length : 0,
-          costPerLead: data.costPerLead ? data.costPerLead / weeksInMonth.length : 0,
-          costPerEstimateSet: data.costPerEstimateSet ? data.costPerEstimateSet / weeksInMonth.length : 0,
-          costPerJobBooked: data.costPerJobBooked ? data.costPerJobBooked / weeksInMonth.length : 0,
+          com: data.com ? data.com / weeksInMonth.length : 0,
         };
         const monthlyUpsertPromises = weeksInMonth.map(week =>
           this.upsertWeeklyTarget(userId, week.startDate, monthlyProratedData)
         );
-        return Promise.all(monthlyUpsertPromises);
+        const monthlyResults = await Promise.all(monthlyUpsertPromises);
+        return this._aggregateTargets(monthlyResults);
       case 'yearly':
         const weeksInYear = DateUtils.getWeeksInYear(date.getFullYear());
         if (weeksInYear.length === 0) {
-          return [];
+          return this._aggregateTargets([]);
         }
-        const yearlyProratedData = {
+        const yearlyProratedData: Partial<IWeeklyTarget> = {
           ...data,
-          leads: data.leads ? data.leads / weeksInYear.length : 0,
           revenue: data.revenue ? data.revenue / weeksInYear.length : 0,
           avgJobSize: data.avgJobSize ? data.avgJobSize / weeksInYear.length : 0,
           appointmentRate: data.appointmentRate ? data.appointmentRate / weeksInYear.length : 0,
           showRate: data.showRate ? data.showRate / weeksInYear.length : 0,
           closeRate: data.closeRate ? data.closeRate / weeksInYear.length : 0,
-          adSpendBudget: data.adSpendBudget ? data.adSpendBudget / weeksInYear.length : 0,
-          costPerLead: data.costPerLead ? data.costPerLead / weeksInYear.length : 0,
-          costPerEstimateSet: data.costPerEstimateSet ? data.costPerEstimateSet / weeksInYear.length : 0,
-          costPerJobBooked: data.costPerJobBooked ? data.costPerJobBooked / weeksInYear.length : 0,
+          com: data.com ? data.com / weeksInYear.length : 0,
         };
         const yearlyUpsertPromises = weeksInYear.map(week =>
           this.upsertWeeklyTarget(userId, week.startDate, yearlyProratedData)
         );
-        return Promise.all(yearlyUpsertPromises);
+        const yearlyResults = await Promise.all(yearlyUpsertPromises);
+        return this._aggregateTargets(yearlyResults);
       default:
         throw new Error('Invalid queryType');
     }
@@ -206,16 +149,13 @@ export class TargetService {
         userId,
         startDate: weekInfo.startDate,
         endDate: weekInfo.endDate,
-        leads: 0,
-        revenue: 0,
-        avgJobSize: 0,
         appointmentRate: 0,
-        showRate: 0,
+        avgJobSize: 0,
         closeRate: 0,
-        adSpendBudget: 0,
-        costPerLead: 0,
-        costPerEstimateSet: 0,
-        costPerJobBooked: 0,
+        com: 0,
+        revenue: 0,
+        showRate: 0,
+        queryType: '',
         year: weekInfo.year,
         weekNumber: weekInfo.weekNumber
       } as IWeeklyTargetDocument;
