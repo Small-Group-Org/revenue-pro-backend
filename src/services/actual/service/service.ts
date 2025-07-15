@@ -4,7 +4,7 @@ import { IActual } from '../domain/actual.domain.js';
 export class ActualService {
   public async upsert(data: Partial<IActual>): Promise<IActualDocument> {
     const filter = {
-      weekStartDate: data.weekStartDate,
+      startDate: data.startDate,
     };
 
     const actual = await Actual.findOneAndUpdate(

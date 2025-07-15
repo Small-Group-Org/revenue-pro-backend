@@ -39,59 +39,42 @@ export class ReportService {
     if (!targetData) throw new Error(`No targets found for the year ${year}`);
 
     const actualsData = await Actual.find({
-      weekStartDate: { $gte: startDate, $lte: endDate },
+      startDate: { $gte: startDate, $lte: endDate },
     });
 
+    // Aggregate actuals using only available fields
     const aggregatedActuals = actualsData.reduce(
       (acc, curr) => ({
-        leads: acc.leads + curr.leads,
-        estimatesSet: acc.estimatesSet + curr.estimatesSet,
-        estimatesRan: acc.estimatesRan + curr.estimatesRan,
-        jobsBooked: acc.jobsBooked + curr.jobsBooked,
+        appointmentRate: acc.appointmentRate + curr.appointmentRate,
+        avgJobSize: acc.avgJobSize + curr.avgJobSize,
+        closeRate: acc.closeRate + curr.closeRate,
+        com: acc.com + curr.com,
         revenue: acc.revenue + curr.revenue,
-        budgetSpent: acc.budgetSpent + curr.budgetSpent,
+        showRate: acc.showRate + curr.showRate,
       }),
-      { leads: 0, estimatesSet: 0, estimatesRan: 0, jobsBooked: 0, revenue: 0, budgetSpent: 0 }
+      { appointmentRate: 0, avgJobSize: 0, closeRate: 0, com: 0, revenue: 0, showRate: 0 }
     );
 
-    const actuals = {
-      ...aggregatedActuals,
-      appointmentRate: safeDivide(aggregatedActuals.estimatesSet, aggregatedActuals.leads),
-      showRate: safeDivide(aggregatedActuals.estimatesRan, aggregatedActuals.estimatesSet),
-      closeRate: safeDivide(aggregatedActuals.jobsBooked, aggregatedActuals.estimatesRan),
-      leadToSale: safeDivide(aggregatedActuals.jobsBooked, aggregatedActuals.leads),
-      costPerLead: safeDivide(aggregatedActuals.budgetSpent, aggregatedActuals.leads),
-      costPerEstimateSet: safeDivide(aggregatedActuals.budgetSpent, aggregatedActuals.estimatesSet),
-      costPerJobBooked: safeDivide(aggregatedActuals.budgetSpent, aggregatedActuals.jobsBooked),
-      avgJobSize: safeDivide(aggregatedActuals.revenue, aggregatedActuals.jobsBooked),
-    };
+    const actuals = { ...aggregatedActuals };
 
-    const monthlyTarget = targetData.monthly.find(m => m.month === month + 1);
+    // For targets, use only available fields from the model
     const relevantTargets = {
-      leads: timeframe === 'yearly' ? targetData.monthly.reduce((sum, m) => sum + m.leads, 0) : monthlyTarget?.leads || 0,
-      revenue: timeframe === 'yearly' ? targetData.monthly.reduce((sum, m) => sum + m.revenue, 0) : monthlyTarget?.revenue || 0,
       appointmentRate: targetData.appointmentRate,
-      showRate: targetData.showRate,
+      avgJobSize: targetData.avgJobSize || 0,
       closeRate: targetData.closeRate,
-      avgJobSize: monthlyTarget?.avgJobSize || 0,
-      costPerLead: targetData.costPerLead,
-      costPerEstimateSet: targetData.costPerEstimateSet,
-      costPerJobBooked: targetData.costPerJobBooked,
-      jobsBooked: 0,
+      com: targetData.com || 0,
+      revenue: targetData.revenue || 0,
+      showRate: targetData.showRate,
     };
-    relevantTargets.jobsBooked = relevantTargets.leads * relevantTargets.appointmentRate * relevantTargets.showRate * relevantTargets.closeRate;
 
+    // Performance calculation (example, adjust as needed)
     const performance = {
       revenue: calculatePerformance(actuals.revenue, relevantTargets.revenue),
-      leads: calculatePerformance(actuals.leads, relevantTargets.leads),
-      jobsBooked: calculatePerformance(actuals.jobsBooked, relevantTargets.jobsBooked),
       appointmentRate: calculatePerformance(actuals.appointmentRate, relevantTargets.appointmentRate),
-      showRate: calculatePerformance(actuals.showRate, relevantTargets.showRate),
-      closeRate: calculatePerformance(actuals.closeRate, relevantTargets.closeRate),
       avgJobSize: calculatePerformance(actuals.avgJobSize, relevantTargets.avgJobSize),
-      costPerLead: calculatePerformance(relevantTargets.costPerLead, actuals.costPerLead),
-      costPerEstimateSet: calculatePerformance(relevantTargets.costPerEstimateSet, actuals.costPerEstimateSet),
-      costPerJobBooked: calculatePerformance(relevantTargets.costPerJobBooked, actuals.costPerJobBooked),
+      closeRate: calculatePerformance(actuals.closeRate, relevantTargets.closeRate),
+      com: calculatePerformance(actuals.com, relevantTargets.com),
+      showRate: calculatePerformance(actuals.showRate, relevantTargets.showRate),
     };
 
     return {

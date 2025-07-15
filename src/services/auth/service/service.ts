@@ -62,7 +62,7 @@ class AuthService {
       }
 
       const hashedPassword = await encryptPassword(password);
-      const user = await this.userService.addUser(name, email, email, hashedPassword,"", null, false);
+      const user = await this.userService.addUser(name, email, email, hashedPassword, "", false);
 
       const token = createToken({ id: user._id as string, email: user.email });
       return {

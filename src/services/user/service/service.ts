@@ -16,7 +16,6 @@ export default class UserService {
     username: string,
     password: string | null,
     role: string = "USER",
-    googleID: string | null,
     isEmailVerified: boolean,
     imageURL?: string,
   ): Promise<IUser> {
@@ -32,9 +31,8 @@ export default class UserService {
         username,
         password,
         role,
-        googleID,
         isEmailVerified,
-        imageURL,
+        imageURL
       );
     } catch (error) {
       throw utils.ThrowableError(error);
@@ -130,7 +128,6 @@ export default class UserService {
         email, // using email as username
         password,
         role,
-        null, // no googleID for manually created users
         isEmailVerified
       );
     } catch (error) {
