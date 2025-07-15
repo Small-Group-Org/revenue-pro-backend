@@ -4,73 +4,16 @@ import utils from "../../../utils/utils.js";
 import { createToken, verifyToken } from "../utils/token.js";
 import { encryptPassword } from "../../../middlewares/auth.middleware.js";
 import nodemailer from "nodemailer";
-import { OAuth2Client } from "google-auth-library";
 import { CustomError, ErrorCode } from "../../../pkg/error/custom_error.js";
 import { config } from "../../../config.js";
 import UserService from "../../../services/user/service/service.js";
 import { Context } from "../../../services/common/domain/context.js";
-
-interface GooglePayload {
-  name: string;
-  email: string;
-  sub: string;
-  email_verified: boolean;
-  imageURL?: string;
-}
 
 class AuthService {
   private userService: UserService;
 
   constructor(userService: UserService) {
     this.userService = userService;
-  }
-
-  async googleAuth(context: Context, req: Request): Promise<any | CustomError> {
-    try {
-      const reqToken = req.query.token as string;
-
-      if (!reqToken) {
-        throw new CustomError(ErrorCode.BAD_REQUEST, "No token provided");
-      }
-
-      const client = new OAuth2Client(config.GOOGLE_CLIENT_ID);
-
-      // Verify Google token
-      const ticket = await client.verifyIdToken({
-        idToken: reqToken,
-        audience: config.GOOGLE_CLIENT_ID,
-      });
-
-      const payload = ticket.getPayload() as GooglePayload;
-
-      if (!payload) {
-        throw new CustomError(ErrorCode.UNAUTHORIZED, "Invalid token");
-      }
-
-      // Check if user already exists
-      let user = await this.userService.getUserByEmail(payload.email);
-
-      if (!user) {
-        user = await this.userService.addUser(
-          payload.name,
-          payload.email,
-          payload.email,
-          null,
-          "",
-          payload.sub,
-          payload.email_verified,
-          payload.imageURL
-        );
-      }
-
-      const token = createToken({ id: user._id as string, email: user.email });
-      return {
-        token: token,
-        user: user,
-      };
-    } catch (error) {
-      throw utils.ThrowableError(error);
-    }
   }
 
   async login( req: Request): Promise<any | CustomError> {

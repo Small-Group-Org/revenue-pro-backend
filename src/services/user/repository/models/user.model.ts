@@ -8,7 +8,6 @@ export interface IUserModel extends Model<IUser> {
 
 const userSchema = new Schema<IUser, IUserModel>(
   {
-    googleID: String,
     username: String,
     email: {
       type: String,

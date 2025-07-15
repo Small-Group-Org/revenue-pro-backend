@@ -10,7 +10,6 @@ export class UserRepositoryService {
     username: string,
     password: string | null,
     role: string = "",
-    googleID: string | null,
     isEmailVerified: boolean,
     imageURL?: string,
   ): Promise<IUser> {
@@ -21,7 +20,6 @@ export class UserRepositoryService {
         username,
         password,
         role,
-        googleID,
         isEmailVerified,
         imageURL,
       });

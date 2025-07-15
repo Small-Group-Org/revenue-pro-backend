@@ -11,15 +11,6 @@ class AuthController {
     this.authService = authService;
   }
 
-  public googleAuth = async (req: Request, res: Response): Promise<void> => {
-    try {
-      const resp = await this.authService.googleAuth(req.context, req);
-      utils.sendSuccessResponse(res, 200, { token: resp.token, user: resp.user });
-    } catch (error) {
-      utils.sendErrorResponse(res, error);
-    }
-  };
-
   public login = async (req: Request, res: Response): Promise<void> => {
     try {
       const resp = await this.authService.login(req);
