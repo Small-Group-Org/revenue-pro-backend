@@ -75,4 +75,3 @@ Thumbs.db
 package-lock.json
 
 uploads
-src/controllers/TargetController.ts
