@@ -6,6 +6,7 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 
+dist/
 # Runtime data
 pids
 *.pid
@@ -74,3 +75,4 @@ Thumbs.db
 package-lock.json
 
 uploads
+src/controllers/TargetController.ts
