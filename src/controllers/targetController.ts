@@ -26,6 +26,7 @@ export class TargetController {
       // Accept both a single object and an array of targets
       // If the request body has a 'targets' array, use it; otherwise, treat the body as a single target object
       const targets = Array.isArray(req.body) ? req.body : [req.body];
+      
       const allowedFields = [
         "appointmentRate",
         "avgJobSize",
@@ -49,11 +50,12 @@ export class TargetController {
           // errors.push({ error: "startDate and queryType are required for each target (monthly or yearly)" });
           continue;
         }
+        
         const validTypes = ["monthly", "yearly"];
-        if (!validTypes.includes(queryType as string)) {
+        // if (!validTypes.includes(queryType as string)) {
           // errors.push({ error: "queryType must be one of: monthly, yearly" });
-          continue;
-        }
+          // continue;
+        // }
         // const date = new Date(startDate);
         // const parsedStartDate = date.toISOString().slice(0, 19).replace('T', ' ');
 
@@ -63,6 +65,7 @@ export class TargetController {
             filteredTargetData[key] = targetData[key];
           }
         }
+        
         try {
           // Handles both monthly and yearly upserts based on queryType
           const result = await this.service.upsertTargetByPeriod(
@@ -71,8 +74,8 @@ export class TargetController {
             endDate,
             queryType,
             filteredTargetData
-          );
-          results.push({ result });
+          );   
+        results.push(result);
         } catch (err) {
           // errors.push({ error: err instanceof Error ? err.message : err });
         }

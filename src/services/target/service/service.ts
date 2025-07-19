@@ -79,7 +79,7 @@ export class TargetService {
       revenue: data?.revenue ?? 0,
       showRate: data?.showRate ?? 0,
       queryType: queryType,
-    };
+    };    
 
     // Try to find an existing target
     const existingTarget = await this.targetRepository.findTargetByStartDate(
@@ -87,7 +87,7 @@ export class TargetService {
       startDate,
       queryType
     );
-
+      
     let target: IWeeklyTargetDocument | null;
     if (existingTarget) {
       // If target exists, update it
@@ -96,12 +96,14 @@ export class TargetService {
         ...data,
         queryType,
       });
+      console.log("existing target");
     } else {
       // If no target exists, create a new one
       target = await this.targetRepository.createTarget({
         ...defaultTarget,
         queryType,
       });
+      console.log("new target");
     }
 
     if (!target) throw new Error("Failed to update or create weekly target.");
@@ -150,7 +152,8 @@ export class TargetService {
   ): Promise<IWeeklyTargetDocument | IWeeklyTargetDocument[]> {
     switch (queryType) {
       case "weekly":
-        this.upsertWeeklyTarget(userId, startDate, endDate, data, "monthly");
+        return this.upsertWeeklyTarget(userId, startDate, endDate, data, "monthly");
+        
       case "monthly":
         return this._upsertMonthlyTarget(
           userId,
