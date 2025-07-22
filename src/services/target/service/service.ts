@@ -241,21 +241,49 @@ export class TargetService {
   public async getAggregatedYearlyTarget(
     userId: string,
     startDate: string,
-    endDate:string,
+    endDate: string,
     queryType: string
   ): Promise<IWeeklyTargetDocument[]> {
+    // Parse the year from startDate
+    const year = new Date(startDate).getFullYear();
     const results: IWeeklyTargetDocument[] = [];
-    for (let month = 1; month <= 12; month++) {
-      const monthlyTargets = await this.getAggregatedMonthlyTarget(
+    for (let month = 0; month < 12; month++) {
+      const monthStart = new Date(year, month, 1);
+      const monthEnd = new Date(year, month + 1, 0);
+      const monthStartStr = monthStart.toISOString().slice(0, 10);
+      const monthEndStr = monthEnd.toISOString().slice(0, 10);
+      // Get all weeks in this month
+      const weeklyTargets = await this.getAggregatedMonthlyTarget(
         userId,
-        startDate,
-        endDate,
-        queryType
+        monthStartStr,
+        monthEndStr,
+        "monthly"
       );
-      const aggregatedYearly = this._aggregateTargets(monthlyTargets, queryType);
-      results.push(aggregatedYearly);
+      let aggregated;
+  if (weeklyTargets.length === 0) {
+    aggregated = {
+      userId,
+      startDate: monthStartStr,
+      endDate: monthEndStr,
+      appointmentRate: 0,
+      avgJobSize: 0,
+      closeRate: 0,
+      com: 0,
+      revenue: 0,
+      showRate: 0,
+      queryType: "monthly",
+      year,
+      weekNumber: 0,
+    } as unknown as IWeeklyTargetDocument;
+  } else {
+    aggregated = this._aggregateTargets(weeklyTargets, "monthly");
+    aggregated.year = year;
+    aggregated.startDate = monthStartStr;
+    aggregated.endDate = monthEndStr;
+    aggregated.queryType = "monthly";
+  }
+  results.push(aggregated);
     }
-    // const aggregatedYearly = this._aggregateTargets(results, queryType);
     return results;
   }
 }
