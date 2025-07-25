@@ -8,6 +8,6 @@ const controller = new ActualController();
 router.post('/upsert', controller.upsertActual);
 
 // Get actuals by period (weekly/monthly/yearly)
-router.get('/get', controller.getActuals);
+router.get('/get', controller.getActualAndTargetReport);
 
 export default router;

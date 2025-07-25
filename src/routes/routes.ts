@@ -63,8 +63,8 @@ const configureRoutes = (app: Express): void => {
   authenticatedRoutes.forEach((route: Route) => {
     app.use(
       route.path,
-      addContext,
-      verifyTokenMiddleware,
+      // addContext,
+      // verifyTokenMiddleware,
       ...(route.middlewares ?? []),
       route.router
     );
