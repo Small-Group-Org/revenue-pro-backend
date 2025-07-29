@@ -153,7 +153,6 @@ export class TargetService {
     switch (queryType) {
       case "weekly":
         return this.upsertWeeklyTarget(userId, startDate, endDate, data, "monthly");
-        
       case "monthly":
         return this._upsertMonthlyTarget(
           userId,
@@ -163,23 +162,13 @@ export class TargetService {
           queryType
         );
       case "yearly":
-        // Check if the provided date is in the current year and month or earlier
-        const d = new Date(startDate);
-        const now = new Date();
-        const isPastOrCurrentMonth =
-          d.getFullYear() < now.getFullYear() ||
-          (d.getFullYear() === now.getFullYear() &&
-            d.getMonth() <= now.getMonth());
-        if (isPastOrCurrentMonth) {
-          // Return a zero-filled target if the date is in the current or past month
-          return this._aggregateTargets([], queryType);
-        }
+        // Always upsert all months in the year as 'monthly' (no isPastOrCurrentMonth check)
         return this._upsertMonthlyTarget(
           userId,
           startDate,
           endDate,
           data,
-          queryType
+          "monthly"
         );
       default:
         throw new Error("Invalid queryType");
