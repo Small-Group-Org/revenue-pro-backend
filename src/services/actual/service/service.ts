@@ -10,21 +10,19 @@ export class ActualService {
     this.actualRepository = new ActualRepository();
   }
 
-  /**
-   * Get Actuals for a year, aggregated by month (array of 12 objects).
-   */
   public async getActualYearlyMonthlyAggregate(
     userId: string,
     year: number
   ): Promise<IWeeklyActual[]> {
     const results: IWeeklyActual[] = [];
+
     for (let month = 0; month < 12; month++) {
       const monthStart = new Date(year, month, 1);
       const monthEnd = new Date(year, month + 1, 0);
       const monthStartStr = monthStart.toISOString().slice(0, 10);
       const monthEndStr = monthEnd.toISOString().slice(0, 10);
-      // Get all weeks in this month
       const weeks = DateUtils.getMonthWeeks(monthStartStr, monthEndStr);
+
       const weeklyActuals = await Promise.all(
         weeks.map(async ({ weekStart, weekEnd }) => {
           const actual = await this.actualRepository.findActualByStartDate(userId, weekStart);
@@ -33,7 +31,7 @@ export class ActualService {
             : this._zeroFilledActual(weekStart, weekEnd, userId);
         })
       );
-      // Aggregate all weeks in the month into a single object
+
       let aggregated: IWeeklyActual;
       if (weeklyActuals.length === 0) {
         aggregated = this._zeroFilledActual(monthStartStr, monthEndStr, userId);
@@ -43,16 +41,19 @@ export class ActualService {
           acc.awarenessBrandingBudgetSpent += curr.awarenessBrandingBudgetSpent || 0;
           acc.leadGenerationBudgetSpent += curr.leadGenerationBudgetSpent || 0;
           acc.revenue += curr.revenue || 0;
-          acc.jobsBooked += curr.jobsBooked || 0;
+          acc.sales += curr.sales || 0;
+          acc.leads += curr.leads || 0;
           acc.estimatesRan += curr.estimatesRan || 0;
           acc.estimatesSet += curr.estimatesSet || 0;
           return acc;
         }, this._zeroFilledActual(monthStartStr, monthEndStr, userId));
       }
+
       aggregated.startDate = monthStartStr;
       aggregated.endDate = monthEndStr;
       results.push(aggregated);
     }
+
     return results;
   }
 
@@ -69,15 +70,13 @@ export class ActualService {
       awarenessBrandingBudgetSpent: 0,
       leadGenerationBudgetSpent: 0,
       revenue: 0,
-      jobsBooked: 0,
+      sales: 0,
+      leads: 0,
       estimatesRan: 0,
       estimatesSet: 0,
     };
   }
 
-  /**
-   * Upsert Actual Data for a single week.
-   */
   public async upsertActualWeekly(
     userId: string,
     startDate: string,
@@ -94,7 +93,8 @@ export class ActualService {
       awarenessBrandingBudgetSpent: data.awarenessBrandingBudgetSpent ?? 0,
       leadGenerationBudgetSpent: data.leadGenerationBudgetSpent ?? 0,
       revenue: data.revenue ?? 0,
-      jobsBooked: data.jobsBooked ?? 0,
+      sales: data.sales ?? 0,
+      leads: data.leads ?? 0,
       estimatesRan: data.estimatesRan ?? 0,
       estimatesSet: data.estimatesSet ?? 0,
     };
@@ -119,9 +119,6 @@ export class ActualService {
     return actual;
   }
 
-  /**
-   * Get Actual for one week.
-   */
   public async getActualWeekly(
     userId: string,
     date: string
@@ -137,9 +134,6 @@ export class ActualService {
       : this._zeroFilledActual(week.weekStart, week.weekEnd, userId);
   }
 
-  /**
-   * Get Actuals for a month (array of weekly actuals).
-   */
   public async getActualMonthly(
     userId: string,
     startDate: string,
@@ -160,9 +154,6 @@ export class ActualService {
     );
   }
 
-  /**
-   * Get Actuals for a year (array of weekly actuals).
-   */
   public async getActualYearly(
     userId: string,
     year: number
@@ -186,9 +177,9 @@ export class ActualService {
     userId: string,
     startDate: string,
     endDate: string
-  ) {
-    // Get all week ranges between startDate and endDate
+  ): Promise<IWeeklyActual[]> {
     const weeks = DateUtils.getMonthWeeks(startDate, endDate);
+
     return await Promise.all(
       weeks.map(async ({ weekStart, weekEnd }) => {
         const actual = await this.actualRepository.findActualByStartDate(
@@ -202,9 +193,6 @@ export class ActualService {
     );
   }
 
-  /**
-   * Wrapper to get actuals by period type.
-   */
   public async getActualByPeriod(
     userId: string,
     startDate: string,
