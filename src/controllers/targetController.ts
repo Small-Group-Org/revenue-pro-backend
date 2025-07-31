@@ -51,6 +51,8 @@ export class TargetController {
           continue;
         }
         
+        console.log(`Processing target: ${startDate} to ${endDate}, queryType: ${queryType}`);
+        
         const validTypes = ["monthly", "yearly"];
         // if (!validTypes.includes(queryType as string)) {
           // errors.push({ error: "queryType must be one of: monthly, yearly" });
@@ -75,8 +77,17 @@ export class TargetController {
             queryType,
             filteredTargetData
           );   
-        results.push(result);
+          
+          console.log(`Result type: ${Array.isArray(result) ? 'array' : 'single'}, length: ${Array.isArray(result) ? result.length : 1}`);
+          
+          // Handle case where result might be an array (for yearly queryType)
+          if (Array.isArray(result)) {
+            results.push(...result);
+          } else {
+            results.push(result);
+          }
         } catch (err) {
+          console.error('Error processing target:', err);
           // errors.push({ error: err instanceof Error ? err.message : err });
         }
       }
@@ -103,7 +114,7 @@ export class TargetController {
           ? userIdRaw[0]
           : "";
 
-      // Ensure startDate and endDate are strings
+      // Ensure startDate, endDate, and queryType are strings
       const startDateStr =
         typeof startDate === "string"
           ? startDate
@@ -116,13 +127,19 @@ export class TargetController {
           : Array.isArray(endDate)
           ? endDate[0]
           : "";
+      const queryTypeStr =
+        typeof queryType === "string"
+          ? queryType
+          : Array.isArray(queryType)
+          ? queryType[0]
+          : "";
 
       if (typeof userId !== "string") {
         utils.sendErrorResponse(res, "Invalid userId");
         return;
       }
 
-      if (!startDateStr || !queryType) {
+      if (!startDateStr || !queryTypeStr) {
         utils.sendErrorResponse(
           res,
           "startDate and type are required query parameters"
@@ -131,7 +148,7 @@ export class TargetController {
       }
 
       const validTypes = ["weekly", "monthly", "yearly"];
-      if (!validTypes.includes(queryType as string)) {
+      if (!validTypes.includes(queryTypeStr as string)) {
         utils.sendErrorResponse(
           res,
           "type must be one of: weekly, monthly, yearly"
@@ -140,12 +157,12 @@ export class TargetController {
       }
 
       let results;
-      switch (queryType) {
+      switch (queryTypeStr) {
         case "weekly":
           results = await this.service.getWeeklyTarget(
             userId as string,
             startDateStr as string,
-            endDate as string
+            endDateStr as string
           );
           break;
         case "monthly":
@@ -164,11 +181,18 @@ export class TargetController {
             );
             return;
           }
+          if (!endDateStr) {
+            utils.sendErrorResponse(
+              res,
+              "endDate is required for yearly query"
+            );
+            return;
+          }
           results = await this.service.getAggregatedYearlyTarget(
             userId,
-            startDate as string,
-            endDate as string,
-            "yearly"
+            startDateStr,
+            endDateStr,
+            queryTypeStr as string
           );
           break;
       }

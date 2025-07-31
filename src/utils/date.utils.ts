@@ -61,43 +61,46 @@ export class DateUtils {
     const startDate = new Date(startDateStr);
     const endDate = new Date(endDateStr);
 
-    const targetMonth = startDate.getMonth() + 1; // 1-12
-
+    const result: WeekRange[] = [];
+    
+    // Start from the beginning of the week containing startDate
     const current = new Date(startDate);
     current.setDate(current.getDate() - ((current.getDay() + 6) % 7)); // move to Monday
 
-    const result: WeekRange[] = [];
-
+    // Continue until we've covered the entire month
     while (current <= endDate) {
-      let daysInTargetMonth = 0;
-      const weekDates: Date[] = [];
+      const weekStart = new Date(current);
+      const weekEnd = new Date(current);
+      weekEnd.setDate(weekStart.getDate() + 6);
 
-      for (let i = 0; i < 7; i++) {
-        const day = new Date(current);
-        day.setDate(current.getDate() + i);
-        weekDates.push(day);
-
-        if (day.getMonth() + 1 === targetMonth) {
-          daysInTargetMonth++;
-        }
-      }
-
-      if (daysInTargetMonth >= 4) {
-        const weekStart = weekDates[0];
-        const weekEnd = weekDates[6];
-
-        result.push({
-          year: weekStart.getFullYear(),
-          weekNumber: this.getISOWeekNumber(weekStart),
-          weekStart: weekStart.toISOString().split("T")[0],
-          weekEnd: weekEnd.toISOString().split("T")[0],
-        });
-      }
+      result.push({
+        year: weekStart.getFullYear(),
+        weekNumber: this.getISOWeekNumber(weekStart),
+        weekStart: weekStart.toISOString().split("T")[0],
+        weekEnd: weekEnd.toISOString().split("T")[0],
+      });
 
       current.setDate(current.getDate() + 7); // move to next Monday
     }
 
     return result;
+  }
+
+  // Test function to verify getMonthWeeks works
+  static testGetMonthWeeks() {
+    console.log("=== Testing getMonthWeeks ===");
+    
+    const testCases = [
+      { start: "2025-01-01", end: "2025-01-31" },
+      { start: "2025-02-01", end: "2025-02-28" },
+      { start: "2025-03-01", end: "2025-03-31" }
+    ];
+    
+    testCases.forEach(({ start, end }) => {
+      const weeks = this.getMonthWeeks(start, end);
+      console.log(`${start} to ${end}: ${weeks.length} weeks`);
+      console.log(weeks);
+    });
   }
 
   static getYearWeeks(year: number): WeekRange[] {

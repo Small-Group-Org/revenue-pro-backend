@@ -15,7 +15,11 @@ export class TargetRepository {
 
   async updateTarget(targetData: IWeeklyTarget): Promise<IWeeklyTargetDocument | null> {
     return this.model.findOneAndUpdate(
-      { userId: targetData.userId, startDate: targetData.startDate },
+      { 
+        userId: targetData.userId, 
+        year: targetData.year, 
+        weekNumber: targetData.weekNumber 
+      },
       targetData,
       { new: true }
     );
@@ -27,13 +31,22 @@ export class TargetRepository {
       startDate: {
         $gte: startDate,
         $lte: endDate
-      },
-      queryType
+      }
+      // Removed queryType filter since we want to get all targets in the date range regardless of queryType
     }).sort({ startDate: 1 });
   }
 
   async findTargetByStartDate(userId: string, startDate: string, queryType:string): Promise<IWeeklyTargetDocument | null> {
-    return this.model.findOne({ userId, startDate, queryType });
+    // Get week details from the startDate to find the correct year and weekNumber
+    const { DateUtils } = await import('../../../utils/date.utils.js');
+    const weekData = DateUtils.getWeekDetails(startDate);
+    
+    // Use the unique index fields: userId, year, weekNumber
+    return this.model.findOne({ 
+      userId, 
+      year: weekData.year, 
+      weekNumber: weekData.weekNumber 
+    });
   }
 
   /**
@@ -44,10 +57,17 @@ export class TargetRepository {
    * @returns Array of IWeeklyTargetDocument (may include nulls if not found)
    */
   async getMonthlyTargetsByWeeks(userId: string, weeksInMonth: { startDate: Date }[], queryType: string): Promise<(IWeeklyTargetDocument | null)[]> {
+    const { DateUtils } = await import('../../../utils/date.utils.js');
+    
     const results = await Promise.all(
-      weeksInMonth.map(week =>
-        this.model.findOne({ userId, startDate: week.startDate, queryType })
-      )
+      weeksInMonth.map(async week => {
+        const weekData = DateUtils.getWeekDetails(week.startDate.toISOString().split('T')[0]);
+        return this.model.findOne({ 
+          userId, 
+          year: weekData.year, 
+          weekNumber: weekData.weekNumber 
+        });
+      })
     );
     return results;
   }
