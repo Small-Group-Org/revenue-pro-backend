@@ -25,15 +25,62 @@ export class TargetRepository {
     );
   }
 
+  async debugAllTargetsForUser(userId: string): Promise<IWeeklyTargetDocument[]> {
+    console.log(`=== Repository: debugAllTargetsForUser ===`);
+    console.log(`Getting ALL targets for userId: ${userId}`);
+    
+    const allTargets = await this.model.find({ userId }).sort({ startDate: 1 });
+    
+    console.log(`Total targets found for userId ${userId}: ${allTargets.length}`);
+    if (allTargets.length > 0) {
+      console.log(`All targets:`, allTargets.map(t => ({
+        startDate: t.startDate,
+        endDate: t.endDate,
+        queryType: t.queryType,
+        userId: t.userId,
+        year: t.year,
+        weekNumber: t.weekNumber
+      })));
+    }
+    
+    return allTargets;
+  }
+
   async getTargetsByDateRangeAndQueryType(startDate: Date, endDate: Date, userId: string, queryType: string): Promise<IWeeklyTargetDocument[]> {
-    return this.model.find({
+    console.log(`=== Repository: getTargetsByDateRangeAndQueryType ===`);
+    console.log(`Querying for userId: ${userId}`);
+    console.log(`Date range: ${startDate.toISOString()} to ${endDate.toISOString()}`);
+    console.log(`QueryType filter: ${queryType}`);
+    
+    // Convert Date objects to string format (YYYY-MM-DD) for string comparison
+    const startDateStr = startDate.toISOString().split('T')[0];
+    const endDateStr = endDate.toISOString().split('T')[0];
+    
+    console.log(`String date range: ${startDateStr} to ${endDateStr}`);
+    
+    const query = {
       userId,
       startDate: {
-        $gte: startDate,
-        $lte: endDate
+        $gte: startDateStr,
+        $lte: endDateStr
       }
-      // Removed queryType filter since we want to get all targets in the date range regardless of queryType
-    }).sort({ startDate: 1 });
+    };
+    
+    console.log(`MongoDB query:`, JSON.stringify(query, null, 2));
+    
+    const results = await this.model.find(query).sort({ startDate: 1 });
+    
+    console.log(`Found ${results.length} targets in database`);
+    if (results.length > 0) {
+      console.log(`Sample results:`, results.slice(0, 3).map(t => ({
+        startDate: t.startDate,
+        endDate: t.endDate,
+        queryType: t.queryType,
+        userId: t.userId
+      })));
+    }
+    
+    return results;
   }
 
   async findTargetByStartDate(userId: string, startDate: string, queryType:string): Promise<IWeeklyTargetDocument | null> {

@@ -11,6 +11,7 @@ export class TargetController {
     this.service = new TargetService();
     this.upsertTarget = this.upsertTarget.bind(this);
     this.getTargets = this.getTargets.bind(this);
+    this.debugTargets = this.debugTargets.bind(this);
   }
 
   async upsertTarget(req: Request, res: Response): Promise<void> {
@@ -118,6 +119,24 @@ export class TargetController {
     } catch (error) {
       console.error("Error in upsertTarget (monthly/yearly):", error);
       console.error("Error stack:", error instanceof Error ? error.stack : 'No stack trace');
+      utils.sendErrorResponse(res, error);
+    }
+  }
+
+  async debugTargets(req: Request, res: Response): Promise<void> {
+    try {
+      const { userId } = req.query;
+      const userIdStr = typeof userId === "string" ? userId : Array.isArray(userId) ? userId[0] : "";
+      
+      if (!userIdStr) {
+        utils.sendErrorResponse(res, "userId is required");
+        return;
+      }
+      
+      const debugResult = await this.service.debugTargetsInDatabase(userIdStr as string);
+      utils.sendSuccessResponse(res, 200, { success: true, data: debugResult });
+    } catch (error) {
+      console.error("Error in debugTargets:", error);
       utils.sendErrorResponse(res, error);
     }
   }
