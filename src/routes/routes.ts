@@ -5,6 +5,8 @@ import reportRouter from "./report.routes.js"
 import targetRouter from "./target.routes.js"
 import adminRouter from "./admin.routes.js"
 import userRoutes from "./user.routes.js"
+import leadRouter from "./leads.route.js";
+
 
 import {
   addContext,
@@ -42,7 +44,12 @@ const authenticatedRoutes: Route[] = [
     path: "/api/v1/users",
     router: userRoutes,
     middlewares: [],
-  }
+  },
+  {
+  path: "/api/v1/leads",
+  router: leadRouter,
+  middlewares: [], // add auth middlewares if needed
+},
 ];
 
 const routes: Route[] = [
