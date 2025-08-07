@@ -6,6 +6,7 @@ import targetRouter from "./target.routes.js"
 import adminRouter from "./admin.routes.js"
 import userRoutes from "./user.routes.js"
 import leadRouter from "./leads.route.js";
+import createLeadRouter from "./createLead.route.js"
 
 
 import {
@@ -58,6 +59,11 @@ const routes: Route[] = [
     router: authRouter,
     middlewares: [],
   },
+  {
+    path: "/api/v1/hooks/create-lead",
+    router: createLeadRouter,
+    middlewares: [],
+  }
 ];
 
 const configureRoutes = (app: Express): void => {
