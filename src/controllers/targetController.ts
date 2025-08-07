@@ -1,8 +1,7 @@
 import { Request, Response } from "express";
 import { TargetService } from "../services/target/service/service.js";
 import utils from "../utils/utils.js";
-import { parseISO } from "date-fns";
-import moment from "moment-timezone";
+import { IWeeklyTargetDocument } from "@/services/target/repository/models/target.model.js";
 
 export class TargetController {
   private service: TargetService;
@@ -11,14 +10,10 @@ export class TargetController {
     this.service = new TargetService();
     this.upsertTarget = this.upsertTarget.bind(this);
     this.getTargets = this.getTargets.bind(this);
-    this.debugTargets = this.debugTargets.bind(this);
   }
 
   async upsertTarget(req: Request, res: Response): Promise<void> {
     try {
-      console.log("=== Upsert Target Request ===");
-      console.log("Request body:", JSON.stringify(req.body, null, 2));
-      
       const user = req.context.getUser();
       let userId: string;
       if (user && user.role === "ADMIN" && req.body.userId) {
@@ -27,13 +22,14 @@ export class TargetController {
         userId = req.context.getUserId();
       }
       
-      console.log("User ID:", userId);
-      console.log("User role:", user?.role);
-
-      // Accept both a single object and an array of targets
-      // If the request body has a 'targets' array, use it; otherwise, treat the body as a single target object
-      const targets = Array.isArray(req.body) ? req.body : [req.body];
-      console.log("Number of targets to process:", targets.length);
+      let targets: any[];
+      
+      if (Array.isArray(req.body)) {
+        targets = req.body;
+        userId = targets[0].userId;
+      } else {
+        targets = [req.body];
+      }
       
       const allowedFields = [
         "appointmentRate",
@@ -52,64 +48,93 @@ export class TargetController {
       const results: any[] = [];
       const errors: any[] = [];
 
-      for (let i = 0; i < targets.length; i++) {
-        const target = targets[i];
-        console.log(`Processing target ${i + 1}/${targets.length}:`, target);
-        
-        const { startDate, endDate, queryType, ...targetData } = target;
-        if (!startDate || !queryType) {
-          console.log(`Skipping target ${i + 1}: missing startDate or queryType`);
-          continue;
-        }
-        
-        console.log(`Processing target: ${startDate} to ${endDate}, queryType: ${queryType}`);
-        
-        const validTypes = ["monthly", "yearly"];
-        // if (!validTypes.includes(queryType as string)) {
-          // errors.push({ error: "queryType must be one of: monthly, yearly" });
-          // continue;
-        // }
-        // const date = new Date(startDate);
-        // const parsedStartDate = date.toISOString().slice(0, 19).replace('T', ' ');
+      const isYearlyTargetArray = targets.length > 1 && targets.every(target => target.queryType === "yearly");
+      
+      if (isYearlyTargetArray) {
+        for (let i = 0; i < targets.length; i++) {
+          const target = targets[i];
+          const { startDate, endDate, queryType, ...targetData } = target;
 
-        const filteredTargetData: any = {};
-        for (const key of allowedFields) {
-          if (key in targetData) {
-            filteredTargetData[key] = targetData[key];
+          if (!startDate || !queryType) {
+            continue;
+          }
+
+          const filteredTargetData: any = {};
+          for (const key of allowedFields) {
+            if (key in targetData) {
+              filteredTargetData[key] = targetData[key];
+            }
+          }
+          
+          try {
+            const result = await this.service.upsertTargetByPeriod(
+              userId,
+              startDate,
+              endDate,
+              "monthly",
+              filteredTargetData
+            ) as  IWeeklyTargetDocument[];
+
+            result.map((weeklyData) => ({...weeklyData, queryType: "yearly"}))
+            results.push(result);
+          } catch (err) {
+            console.error(`Error processing target ${i + 1}:`, err);
+            errors.push({ 
+              targetIndex: i, 
+              error: err instanceof Error ? err.message : String(err),
+              stack: err instanceof Error ? err.stack : undefined
+            });
           }
         }
-        
-        console.log(`Filtered target data:`, filteredTargetData);
-        
-        try {
-          // Handles both monthly and yearly upserts based on queryType
-          const result = await this.service.upsertTargetByPeriod(
-            userId,
-            startDate,
-            endDate,
-            queryType,
-            filteredTargetData
-          );   
+      } else {
+        // Process individual targets (weekly/monthly/single yearly)
+        for (let i = 0; i < targets.length; i++) {
+          const target = targets[i];
+          console.log(`Processing target ${i + 1}/${targets.length}:`, target);
           
-          console.log(`Result type: ${Array.isArray(result) ? 'array' : 'single'}, length: ${Array.isArray(result) ? result.length : 1}`);
-          
-          // Handle case where result might be an array (for yearly queryType)
-          if (Array.isArray(result)) {
-            results.push(...result);
-          } else {
-            results.push(result);
+          const { startDate, endDate, queryType, ...targetData } = target;
+          if (!startDate || !queryType) {
+            console.log(`Skipping target ${i + 1}: missing startDate or queryType`);
+            continue;
           }
-        } catch (err) {
-          console.error(`Error processing target ${i + 1}:`, err);
-          errors.push({ 
-            targetIndex: i, 
-            error: err instanceof Error ? err.message : String(err),
-            stack: err instanceof Error ? err.stack : undefined
-          });
+
+          const filteredTargetData: any = {};
+          for (const key of allowedFields) {
+            if (key in targetData) {
+              filteredTargetData[key] = targetData[key];
+            }
+          }
+          
+          console.log(`Filtered target data:`, filteredTargetData);
+          
+          try {
+            // Handles weekly, monthly, and yearly upserts based on queryType
+            const result = await this.service.upsertTargetByPeriod(
+              userId,
+              startDate,
+              endDate,
+              queryType,
+              filteredTargetData
+            );   
+            
+            console.log(`Result type: ${Array.isArray(result) ? 'array' : 'single'}, length: ${Array.isArray(result) ? result.length : 1}`);
+            
+            // Handle case where result might be an array (for yearly queryType)
+            if (Array.isArray(result)) {
+              results.push(...result);
+            } else {
+              results.push(result);
+            }
+          } catch (err) {
+            console.error(`Error processing target ${i + 1}:`, err);
+            errors.push({ 
+              targetIndex: i, 
+              error: err instanceof Error ? err.message : String(err),
+              stack: err instanceof Error ? err.stack : undefined
+            });
+          }
         }
       }
-
-      console.log(`Processing complete. Results: ${results.length}, Errors: ${errors.length}`);
 
       utils.sendSuccessResponse(res, 200, {
         success: true,
@@ -117,26 +142,8 @@ export class TargetController {
         errors,
       });
     } catch (error) {
-      console.error("Error in upsertTarget (monthly/yearly):", error);
+      console.error("Error in upsertTarget:", error);
       console.error("Error stack:", error instanceof Error ? error.stack : 'No stack trace');
-      utils.sendErrorResponse(res, error);
-    }
-  }
-
-  async debugTargets(req: Request, res: Response): Promise<void> {
-    try {
-      const { userId } = req.query;
-      const userIdStr = typeof userId === "string" ? userId : Array.isArray(userId) ? userId[0] : "";
-      
-      if (!userIdStr) {
-        utils.sendErrorResponse(res, "userId is required");
-        return;
-      }
-      
-      const debugResult = await this.service.debugTargetsInDatabase(userIdStr as string);
-      utils.sendSuccessResponse(res, 200, { success: true, data: debugResult });
-    } catch (error) {
-      console.error("Error in debugTargets:", error);
       utils.sendErrorResponse(res, error);
     }
   }
@@ -194,33 +201,31 @@ export class TargetController {
         return;
       }
 
-      let targetResults: any[] = []; // Added type annotation
+      // Note: queryType is only used for timeframe determination
+      // The response will include the target for each week in the timeframe (if it exists)
+      // Since there can only be one target per week per user, no filtering by queryType is needed
+      let results;
       switch (queryTypeStr) {
         case "weekly":
-          // For weekly, also return organized by months but with all weeks in the range
-          targetResults = await this.service.getAllWeeksOrganizedByMonths(
-            userId as string, startDateStr as string, endDateStr as string, queryTypeStr
+          // For weekly, return array with a single object that contains the week
+          const weeklyTarget = await this.service.getWeeklyTarget(
+            userId as string,
+            startDateStr as string,
           );
+          results = [weeklyTarget]; // Wrap in array as required
           break;
         case "monthly":
-          if (!startDateStr) {
-            utils.sendErrorResponse(
-              res,
-              "startDate is required for monthly query"
-            );
-            return;
-          }
-          if (!endDateStr) {
-            utils.sendErrorResponse(
-              res,
-              "endDate is required for monthly query"
-            );
-            return;
-          }
-          // For monthly queries, return all weekly targets organized by months
-          targetResults = await this.service.getAllWeeksOrganizedByMonths(
-            userId as string, startDateStr as string, endDateStr as string, queryTypeStr
+          // For monthly, return all weekly targets organized by months
+          const monthlyResults = await this.service.getAllWeeksOrganizedByMonths(
+            userId as string, 
+            startDateStr as string, 
+            endDateStr as string, 
+            queryTypeStr
           );
+          // Monthly should return a single object in an array representing the month
+          // Since getAllWeeksOrganizedByMonths returns array of arrays, we take the first month
+          // and wrap it in an array to match the format: [monthWithWeeks]
+          results = monthlyResults.length > 0 ? [monthlyResults[0]] : [[]];
           break;
         case "yearly":
           if (!startDateStr) {
@@ -230,21 +235,22 @@ export class TargetController {
             );
             return;
           }
-          if (!endDateStr) {
-            utils.sendErrorResponse(
-              res,
-              "endDate is required for yearly query"
-            );
-            return;
-          }
-          // For yearly queries, return all weekly targets organized by months
-          targetResults = await this.service.getAllWeeksOrganizedByMonths(
-            userId as string, startDateStr as string, endDateStr as string, queryTypeStr
+          // For yearly queries, use the dedicated yearly function
+          results = await this.service.getYearlyTargetsOrganizedByMonths(
+            userId as string, 
+            startDateStr as string, 
+            endDateStr as string, 
+            queryTypeStr
           );
           break;
       }
 
-      utils.sendSuccessResponse(res, 200, { success: true, data: targetResults });
+      // Log the response structure for debugging
+      console.log(`=== Response Structure for ${queryTypeStr} ===`);
+      console.log(`Results type: ${Array.isArray(results) ? 'array' : 'object'}`);
+      console.log(`Results length: ${Array.isArray(results) ? results.length : 'N/A'}`);
+
+      utils.sendSuccessResponse(res, 200, { success: true, data: results });
     } catch (error) {
       console.error("Error in getTargets:", error);
       utils.sendErrorResponse(res, error);

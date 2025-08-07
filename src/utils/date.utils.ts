@@ -65,25 +65,47 @@ export class DateUtils {
     
     // Start from the beginning of the week containing startDate
     const current = new Date(startDate);
-    current.setDate(current.getDate() - ((current.getDay() + 6) % 7)); // move to Monday
+    current.setDate(current.getDate() - ((current.getDay() + 6) % 7)); // move to first Monday
 
-    // Continue until we've covered the entire month
+    // Continue until we've covered the entire month range
     while (current <= endDate) {
       const weekStart = new Date(current);
       const weekEnd = new Date(current);
       weekEnd.setDate(weekStart.getDate() + 6);
 
-      result.push({
-        year: weekStart.getFullYear(),
-        weekNumber: this.getISOWeekNumber(weekStart),
-        weekStart: weekStart.toISOString().split("T")[0],
-        weekEnd: weekEnd.toISOString().split("T")[0],
-      });
+      // Count how many days of this week fall within the month range
+      const daysInMonth = this.countDaysInRange(weekStart, weekEnd, startDate, endDate);
+      
+      // Only include the week if more than 3 days belong to the month
+      if (daysInMonth > 3) {
+        result.push({
+          year: weekStart.getFullYear(),
+          weekNumber: this.getISOWeekNumber(weekStart),
+          weekStart: weekStart.toISOString().split("T")[0],
+          weekEnd: weekEnd.toISOString().split("T")[0],
+        });
+      }
 
       current.setDate(current.getDate() + 7); // move to next Monday
     }
 
     return result;
+  }
+
+  // Helper function to count days in a week that fall within the month range
+  private static countDaysInRange(weekStart: Date, weekEnd: Date, monthStart: Date, monthEnd: Date): number {
+    const rangeStart = weekStart > monthStart ? weekStart : monthStart;
+    const rangeEnd = weekEnd < monthEnd ? weekEnd : monthEnd;
+    
+    if (rangeStart > rangeEnd) {
+      return 0; // No overlap
+    }
+    
+    // Calculate the number of days (inclusive)
+    const timeDiff = rangeEnd.getTime() - rangeStart.getTime();
+    const daysDiff = Math.floor(timeDiff / (1000 * 60 * 60 * 24)) + 1;
+    
+    return daysDiff;
   }
 
   // Test function to verify getMonthWeeks works

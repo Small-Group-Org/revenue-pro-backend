@@ -10,7 +10,4 @@ router.post('/upsert', controller.upsertTarget);
 // Get targets by period (weekly/monthly/yearly)
 router.get('/get', controller.getTargets);
 
-// Debug endpoint to check what targets exist in the database
-router.get('/debug', controller.debugTargets);
-
 export default router;

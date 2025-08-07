@@ -78,8 +78,6 @@ export class ActualController {
           const weeklyTarget = await targetService.getWeeklyTarget(
             String(userId),
             String(startDateStr),
-            String(endDateStr),
-            "weekly"
           );
           targetResults = [weeklyTarget];
           break;

@@ -35,36 +35,12 @@ export class TargetService {
         weekNumber: 0,
       } as unknown as IWeeklyTargetDocument;
     }
-
-    // Use the passed dates if available, otherwise calculate from first target
-    let finalStartDate: string;
-    let finalEndDate: string;
-    let year: number;
-    
-    if (startDate && endDate) {
-      // Use the passed dates (this is what we want for monthly aggregation)
-      finalStartDate = startDate;
-      finalEndDate = endDate;
-      year = new Date(startDate).getFullYear();
-    } else {
-      // Fallback to calculating from first target (for backward compatibility)
-      const firstTarget = targets[0];
-      const firstDate = new Date(firstTarget.startDate);
-      year = firstDate.getFullYear();
-      const month = firstDate.getMonth();
-      
-      const monthStart = new Date(year, month, 1);
-      const monthEnd = new Date(year, month + 1, 0);
-      
-      finalStartDate = monthStart.toISOString().split('T')[0];
-      finalEndDate = monthEnd.toISOString().split('T')[0];
-    }
     
     const aggregated: IWeeklyTarget = {
       userId: targets[0].userId,
-      startDate: finalStartDate,
-      endDate: finalEndDate,
-      year: year,
+      startDate: startDate || targets[0].startDate,
+      endDate: endDate || targets[targets.length - 1].endDate,
+      year: targets[0].year,
       weekNumber: targets[0].weekNumber,
       appointmentRate: 0,
       avgJobSize: 0,
@@ -72,15 +48,12 @@ export class TargetService {
       com: 0,
       revenue: 0,
       showRate: 0,
-      queryType: targets[0].queryType || "",
+      queryType: targets[0].queryType || queryType,
     };
 
-    // Sum up revenue from all weekly targets
     for (const target of targets) {
       aggregated.revenue += target.revenue || 0;
     }
-    
-    // Use values from the first target for other fields (they should be the same across weeks)
     aggregated.avgJobSize = targets[0].avgJobSize || 0;
     aggregated.appointmentRate = targets[0].appointmentRate || 0;
     aggregated.showRate = targets[0].showRate || 0;
@@ -154,14 +127,8 @@ export class TargetService {
 
       const weekInfo = DateUtils.getWeekDetails(startDate);
 
-      // Find any existing target for this week
-      let existingTarget = await this.targetRepository.findTargetByStartDate(userId, weekInfo.weekStart, "yearly");
-      if (!existingTarget) {
-        existingTarget = await this.targetRepository.findTargetByStartDate(userId, weekInfo.weekStart, "monthly");
-      }
-      if (!existingTarget) {
-        existingTarget = await this.targetRepository.findTargetByStartDate(userId, weekInfo.weekStart, "weekly");
-      }
+      // Find any existing target for this week (there can only be one due to unique index)
+      const existingTarget = await this.targetRepository.findTargetByStartDate(userId, weekInfo.weekStart);
 
       if (existingTarget) {
         console.log(`Found existing target with queryType: ${existingTarget.queryType}`);
@@ -228,39 +195,20 @@ export class TargetService {
   ): Promise<IWeeklyTargetDocument | IWeeklyTargetDocument[]> {
     try {
       console.log(`=== Processing monthly target ===`);
-      console.log(`userId: ${userId}`);
-      console.log(`startDate: ${startDate}`);
-      console.log(`endDate: ${endDate}`);
-      console.log(`queryType: ${queryType}`);
-      console.log(`data:`, data);
       
       // Check if the target date is in the past or current period
       if (this.isDateInPastOrCurrent(startDate, "monthly")) {
-        console.log(`Target month is current or previous. Returning existing data without changes.`);
-        
-        // Get existing targets for this month
         const existingTargets = await this.getWeeklyTargetsInRange(userId, startDate, endDate, queryType);
         
         if (existingTargets.length > 0) {
-          console.log(`Found ${existingTargets.length} existing targets for current/previous month`);
-          // Return array of existing weekly targets
           return existingTargets;
         } else {
-          console.log(`No existing targets found for current/previous month`);
-          // Return empty array for current/previous month with no existing data
           return [];
         }
       }
       
-      // For future months, proceed with the normal logic
-      console.log(`Target month is future. Proceeding with week conversion.`);
-      
       const weeksInMonth = DateUtils.getMonthWeeks(startDate, endDate);
-      console.log(`Weeks found: ${weeksInMonth.length}`);
-      console.log('Weeks:', JSON.stringify(weeksInMonth, null, 2));
-      
       if (weeksInMonth.length === 0) {
-        console.log('No weeks found, returning empty array');
         return [];
       }
       
@@ -275,10 +223,7 @@ export class TargetService {
         com: data.com ? data.com : 0,
       };
       
-      console.log(`Monthly prorated data:`, monthlyProratedData);
-      
       const monthlyUpsertPromises = weeksInMonth.map((week, index) => {
-        console.log(`Creating weekly target ${index + 1}: ${week.weekStart} to ${week.weekEnd}`);
         return this.upsertWeeklyTarget(
           userId,
           week.weekStart,
@@ -289,10 +234,6 @@ export class TargetService {
       });
       
       const monthlyResults = await Promise.all(monthlyUpsertPromises);
-      console.log(`Created ${monthlyResults.length} weekly targets`);
-      
-      // Return the array of weekly targets instead of aggregated monthly summary
-      console.log(`Returning array of ${monthlyResults.length} weekly targets`);
       return monthlyResults;
     } catch (error) {
       console.error('Error in _upsertMonthlyTarget:', error);
@@ -309,19 +250,11 @@ export class TargetService {
   ): Promise<IWeeklyTargetDocument[][]> {
     try {
       console.log(`=== Processing yearly target ===`);
-      console.log(`userId: ${userId}`);
-      console.log(`startDate: ${startDate}`);
-      console.log(`endDate: ${endDate}`);
-      console.log(`queryType: ${queryType}`);
-      console.log(`data:`, data);
-      
+
+      // Original yearly logic for full year targets
       const year = new Date(startDate).getFullYear();
       const currentDate = new Date();
       const currentMonth = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
-      
-      console.log(`Year: ${year}`);
-      console.log(`Current month: ${currentMonth.toISOString()}`);
-      console.log(`Yearly revenue: ${data.revenue}`);
       
       // Check if the target year is in the past or current
       if (this.isDateInPastOrCurrent(startDate, "yearly")) {
@@ -337,7 +270,32 @@ export class TargetService {
           const targetsByMonth = new Map<string, IWeeklyTargetDocument[]>();
           
           for (const target of existingTargets) {
-            const monthKey = new Date(target.startDate).getFullYear() + '-' + (new Date(target.startDate).getMonth() + 1);
+            const weekStart = new Date(target.startDate);
+            const weekEnd = new Date(target.endDate);
+            
+            // Count days in each month for this week
+            const daysInMonth = new Map<number, number>();
+            for (let d = new Date(weekStart); d <= weekEnd; d.setDate(d.getDate() + 1)) {
+              const month = d.getMonth();
+              daysInMonth.set(month, (daysInMonth.get(month) || 0) + 1);
+            }
+            
+            // Determine the month with the most days
+            let maxDays = 0;
+            let targetMonth = weekStart.getMonth();
+            for (const [month, days] of daysInMonth.entries()) {
+              if (days > maxDays) {
+                maxDays = days;
+                targetMonth = month;
+              }
+            }
+            
+            let targetYear = weekStart.getFullYear();
+            if (targetMonth === 0 && weekStart.getMonth() === 11) {
+              targetYear = weekEnd.getFullYear();
+            }
+            
+            const monthKey = `${targetYear}-${String(targetMonth + 1).padStart(2, '0')}`;
             if (!targetsByMonth.has(monthKey)) {
               targetsByMonth.set(monthKey, []);
             }
@@ -367,7 +325,6 @@ export class TargetService {
         
         // Check if this month is current or previous
         if (monthStart <= currentMonth) {
-          console.log(`Calculating revenue for current/previous month ${month + 1}`);
           
           // Get existing targets for this month
           const existingTargets = await this.getWeeklyTargetsInRange(
@@ -378,15 +335,11 @@ export class TargetService {
           );
           
           if (existingTargets.length > 0) {
-            console.log(`Found ${existingTargets.length} existing targets for month ${month + 1}`);
             // Sum up the revenue for this month
             const monthRevenue = existingTargets.reduce((sum, target) => sum + (target.revenue || 0), 0);
             totalCurrentPreviousRevenue += monthRevenue;
-            console.log(`Month ${month + 1} revenue: ${monthRevenue}`);
             currentPreviousTargets.push(...existingTargets);
           } else {
-            console.log(`No existing targets found for month ${month + 1}`);
-            // Create zero-filled weekly targets for current/previous months
             const weeksInMonth = DateUtils.getMonthWeeks(
               monthStart.toISOString().split('T')[0], 
               monthEnd.toISOString().split('T')[0]
@@ -414,13 +367,7 @@ export class TargetService {
         }
       }
       
-      console.log(`Total current/previous months revenue: ${totalCurrentPreviousRevenue}`);
-      
-      // Calculate remaining revenue for future months
       const remainingRevenue = (data.revenue || 0) - totalCurrentPreviousRevenue;
-      console.log(`Remaining revenue for future months: ${remainingRevenue}`);
-      
-      // Count future months and their total weeks
       let futureMonthsCount = 0;
       let totalFutureWeeks = 0;
       
@@ -433,16 +380,13 @@ export class TargetService {
             monthStart.toISOString().split('T')[0], 
             monthEnd.toISOString().split('T')[0]
           );
+          console.log(`Weeks in month: ${weeksInMonth.length} for month ${month + 1}`);
           totalFutureWeeks += weeksInMonth.length;
         }
       }
       
-      console.log(`Future months count: ${futureMonthsCount}`);
-      console.log(`Total future weeks: ${totalFutureWeeks}`);
-      
       // Calculate revenue per week for future months
       const revenuePerWeek = totalFutureWeeks > 0 ? remainingRevenue / totalFutureWeeks : 0;
-      console.log(`Revenue per week for future months: ${revenuePerWeek}`);
       
       // Create array of arrays - one array per month
       const monthlyTargets: IWeeklyTargetDocument[][] = [];
@@ -463,43 +407,87 @@ export class TargetService {
           );
           
           if (existingTargets.length > 0) {
-            monthTargets.push(...existingTargets);
+            // Filter targets to only include those that belong to this month based on majority of days
+            for (const target of existingTargets) {
+              const weekStart = new Date(target.startDate);
+              const weekEnd = new Date(target.endDate);
+              
+              // Count days in each month for this week
+              const daysInMonth = new Map<number, number>();
+              for (let d = new Date(weekStart); d <= weekEnd; d.setDate(d.getDate() + 1)) {
+                const month = d.getMonth();
+                daysInMonth.set(month, (daysInMonth.get(month) || 0) + 1);
+              }
+              
+              // Determine the month with the most days
+              let maxDays = 0;
+              let targetMonth = weekStart.getMonth();
+              for (const [weekMonth, days] of daysInMonth.entries()) {
+                if (days > maxDays) {
+                  maxDays = days;
+                  targetMonth = weekMonth;
+                }
+              }
+              
+              // Only include this target if it belongs to the current month being processed
+              if (targetMonth === month) {
+                monthTargets.push(target);
+              }
+            }
           } else {
             // Create zero-filled weekly targets for current/previous months
             const weeksInMonth = DateUtils.getMonthWeeks(
               monthStart.toISOString().split('T')[0], 
               monthEnd.toISOString().split('T')[0]
             );
-            
+
             for (const week of weeksInMonth) {
-              const zeroFilledTarget = await this.upsertWeeklyTarget(
-                userId,
-                week.weekStart,
-                week.weekEnd,
-                {
-                  ...data,
-                  revenue: 0, // Zero revenue for current/previous months
-                  avgJobSize: data.avgJobSize || 0,
-                  appointmentRate: data.appointmentRate || 0,
-                  showRate: data.showRate || 0,
-                  closeRate: data.closeRate || 0,
-                  com: data.com || 0,
-                },
-                queryType
-              );
-              monthTargets.push(zeroFilledTarget);
+              const weekStart = new Date(week.weekStart);
+              const weekEnd = new Date(week.weekEnd);
+              
+              // Count days in each month for this week
+              const daysInMonth = new Map<number, number>();
+              for (let d = new Date(weekStart); d <= weekEnd; d.setDate(d.getDate() + 1)) {
+                const weekMonth = d.getMonth();
+                daysInMonth.set(weekMonth, (daysInMonth.get(weekMonth) || 0) + 1);
+              }
+              
+              // Determine the month with the most days
+              let maxDays = 0;
+              let targetMonth = weekStart.getMonth();
+              for (const [weekMonth, days] of daysInMonth.entries()) {
+                if (days > maxDays) {
+                  maxDays = days;
+                  targetMonth = weekMonth;
+                }
+              }
+              
+              // Only create this target if it belongs to the current month being processed
+              if (targetMonth === month) {
+                const zeroFilledTarget = await this.upsertWeeklyTarget(
+                  userId,
+                  week.weekStart,
+                  week.weekEnd,
+                  {
+                    ...data,
+                    revenue: 0, // Zero revenue for current/previous months
+                    avgJobSize: data.avgJobSize || 0,
+                    appointmentRate: data.appointmentRate || 0,
+                    showRate: data.showRate || 0,
+                    closeRate: data.closeRate || 0,
+                    com: data.com || 0,
+                  },
+                  queryType
+                );
+                monthTargets.push(zeroFilledTarget);
+              }
             }
           }
         } else {
-          // Future month: create weekly targets with calculated revenue
-          console.log(`Processing future month ${month + 1}: ${monthStart.toISOString()} to ${monthEnd.toISOString()}`);
-          
           const weeksInMonth = DateUtils.getMonthWeeks(
             monthStart.toISOString().split('T')[0], 
             monthEnd.toISOString().split('T')[0]
           );
-          
-          console.log(`Month ${month + 1} has ${weeksInMonth.length} weeks`);
           
           if (weeksInMonth.length > 0) {
             const monthlyData: Partial<IWeeklyTarget> = {
@@ -512,19 +500,39 @@ export class TargetService {
               com: data.com || 0,
             };
             
-            console.log(`Monthly data for future month ${month + 1}:`, monthlyData);
-            
             // Create weekly targets for this month
             for (const week of weeksInMonth) {
-              console.log(`Creating weekly target for week: ${week.weekStart} to ${week.weekEnd}`);
-              const weeklyTarget = await this.upsertWeeklyTarget(
-                userId,
-                week.weekStart,
-                week.weekEnd,
-                monthlyData,
-                queryType
-              );
-              monthTargets.push(weeklyTarget);
+              const weekStart = new Date(week.weekStart);
+              const weekEnd = new Date(week.weekEnd);
+              
+              // Count days in each month for this week
+              const daysInMonth = new Map<number, number>();
+              for (let d = new Date(weekStart); d <= weekEnd; d.setDate(d.getDate() + 1)) {
+                const weekMonth = d.getMonth();
+                daysInMonth.set(weekMonth, (daysInMonth.get(weekMonth) || 0) + 1);
+              }
+              
+              // Determine the month with the most days
+              let maxDays = 0;
+              let targetMonth = weekStart.getMonth();
+              for (const [weekMonth, days] of daysInMonth.entries()) {
+                if (days > maxDays) {
+                  maxDays = days;
+                  targetMonth = weekMonth;
+                }
+              }
+              
+              // Only create this target if it belongs to the current month being processed
+              if (targetMonth === month) {
+                const weeklyTarget = await this.upsertWeeklyTarget(
+                  userId,
+                  week.weekStart,
+                  week.weekEnd,
+                  monthlyData,
+                  queryType
+                );
+                monthTargets.push(weeklyTarget);
+              }
             }
           }
         }
@@ -532,7 +540,6 @@ export class TargetService {
         monthlyTargets.push(monthTargets);
       }
       
-      console.log(`Total monthly arrays created: ${monthlyTargets.length}`);
       return monthlyTargets;
     } catch (error) {
       console.error('Error in _upsertYearlyTarget:', error);
@@ -548,15 +555,6 @@ export class TargetService {
     data: Partial<IWeeklyTarget>
   ): Promise<IWeeklyTargetDocument | IWeeklyTargetDocument[] | IWeeklyTargetDocument[][]> {
     try {
-      console.log(`=== upsertTargetByPeriod ===`);
-      console.log(`userId: ${userId}`);
-      console.log(`startDate: ${startDate}`);
-      console.log(`endDate: ${endDate}`);
-      console.log(`queryType: ${queryType}`);
-      console.log(`data:`, data);
-      
-      // Validation is now handled in upsertWeeklyTarget, no need for pre-checks here.
-      
       switch (queryType) {
         case "weekly":
           console.log(`Processing as weekly target`);
@@ -572,7 +570,6 @@ export class TargetService {
             queryType
           );
         case "yearly":
-          console.log(`Processing as yearly target`);
           return this._upsertYearlyTarget(
             userId,
             startDate,
@@ -590,12 +587,46 @@ export class TargetService {
     }
   }
 
+  public async getWeeklyTarget(
+    userId: string,
+    startDate: string,
+  ): Promise<IWeeklyTargetDocument> {
+    const weekInfo = DateUtils.getWeekDetails(startDate);
+    
+    console.log(`=== getWeeklyTarget ===`);
+    console.log(`userId: ${userId}, startDate: ${startDate}, weekStart: ${weekInfo.weekStart}, year: ${weekInfo.year}, weekNumber: ${weekInfo.weekNumber}`);
+    
+    // Search for the target for this week (there can only be one per week per user)
+    let target = await this.targetRepository.findTargetByStartDate(userId, weekInfo.weekStart);
+    
+    if (!target) {
+      console.log(`No target found for week ${weekInfo.weekStart}`);
+      // Return an object with 0 values if no target is found
+      return {
+        userId,
+        startDate: weekInfo.weekStart,
+        endDate: weekInfo.weekEnd,
+        appointmentRate: 0,
+        avgJobSize: 0,
+        closeRate: 0,
+        com: 0,
+        revenue: 0,
+        showRate: 0,
+        queryType: "",
+        year: weekInfo.year,
+        weekNumber: weekInfo.weekNumber,
+      } as unknown as IWeeklyTargetDocument;
+    }
+    
+    console.log(`Found target for week ${weekInfo.weekStart}: queryType=${target.queryType}, revenue=${target.revenue}`);
+    return target;
+  }
+
   public async getWeeklyTargetsInRange(
     userId: string,
     startDate: string,
     endDate: string,
-    queryType: string = "monthly",
-    originalQueryType?: string
+    queryType: string = "any"
   ): Promise<IWeeklyTargetDocument[]> {
     console.log(`=== Getting Weekly Targets In Range ===`);
     console.log(`userId: ${userId}`);
@@ -606,7 +637,6 @@ export class TargetService {
     // Get all weeks in the specified date range
     const weeksInRange = DateUtils.getMonthWeeks(startDate, endDate);
     console.log(`Weeks in range: ${weeksInRange.length}`);
-    console.log('Weeks:', weeksInRange);
     
     if (weeksInRange.length === 0) {
       console.log('No weeks found in the specified range');
@@ -614,138 +644,20 @@ export class TargetService {
     }
     
     // Get weekly targets for each week in the range
+    // Since there can only be one target per week per user, we don't need to filter by queryType
     const weeklyTargets = await Promise.all(
       weeksInRange.map(week => 
-        this.getWeeklyTarget(userId, week.weekStart, week.weekEnd, queryType === "any" ? "any" : queryType, originalQueryType)
+        this.getWeeklyTarget(userId, week.weekStart)
       )
     );
     
     console.log(`Found ${weeklyTargets.length} weekly targets`);
     
-    // Filter targets by queryType (unless queryType is "any")
-    const filteredTargets = queryType === "any" 
-      ? weeklyTargets 
-      : weeklyTargets.filter(target => target.queryType === queryType);
+    // Return all targets without filtering by queryType
+    // queryType parameter is now only used for timeframe determination
+    console.log(`Returning all ${weeklyTargets.length} targets in date range`);
     
-    console.log(`Filtered to ${filteredTargets.length} targets with queryType: ${queryType}`);
-    
-    return filteredTargets;
-  }
-
-  public async getWeeklyTarget(
-    userId: string,
-    startDate: string,
-    endDate?: string,
-    queryType: string = "monthly",
-    originalQueryType?: string
-  ): Promise<IWeeklyTargetDocument> {
-    console.log(`=== Getting Weekly Target ===`);
-    console.log(`userId: ${userId}`);
-    console.log(`startDate: ${startDate}`);
-    console.log(`queryType: ${queryType}`);
-    
-    const weekInfo = DateUtils.getWeekDetails(startDate);
-    console.log(`Week info:`, weekInfo);
-    
-    let target = null;
-    
-    if (queryType === "any") {
-      // For "any" queryType, try to find target with any queryType
-      console.log(`Looking for target with any queryType`);
-      target = await this.targetRepository.findTargetByStartDate(
-        userId,
-        weekInfo.weekStart,
-        "yearly"
-      );
-      
-      if (!target) {
-        target = await this.targetRepository.findTargetByStartDate(
-          userId,
-          weekInfo.weekStart,
-          "monthly"
-        );
-      }
-      
-      if (!target) {
-        target = await this.targetRepository.findTargetByStartDate(
-          userId,
-          weekInfo.weekStart,
-          "weekly"
-        );
-      }
-    } else {
-      // First try to find target with the specified queryType
-      target = await this.targetRepository.findTargetByStartDate(
-        userId,
-        weekInfo.weekStart,
-        queryType
-      );
-      
-      // If not found and queryType is "yearly", also try to find with "monthly" queryType
-      if (!target && queryType === "yearly") {
-        console.log(`Target not found with queryType "yearly", trying "monthly"`);
-        target = await this.targetRepository.findTargetByStartDate(
-          userId,
-          weekInfo.weekStart,
-          "monthly"
-        );
-      }
-    }
-    
-    console.log(`Target found:`, !!target);
-    
-    if (!target) {
-      // Return an object with 0 values if no target is found
-      const defaultTarget = {
-        userId,
-        startDate: weekInfo.weekStart,
-        endDate: weekInfo.weekEnd,
-        appointmentRate: 0,
-        avgJobSize: 0,
-        closeRate: 0,
-        com: 0,
-        revenue: 0,
-        showRate: 0,
-        queryType: queryType === "any" ? "yearly" : queryType,
-        year: weekInfo.year,
-        weekNumber: weekInfo.weekNumber,
-      } as unknown as IWeeklyTargetDocument;
-      
-      console.log(`Returning default target:`, defaultTarget);
-      return defaultTarget;
-    }
-    
-    // If queryType is "any", we should only return targets that match the original requested queryType
-    if (queryType === "any" && originalQueryType) {
-      // Only return the target if it matches the original requested queryType
-      if (target.queryType === originalQueryType) {
-        console.log(`Returning found target matching original queryType:`, target);
-        return target;
-      } else {
-        // Return a default target with 0 values to indicate no matching target found
-        console.log(`Target found but queryType doesn't match. Expected: ${originalQueryType}, Found: ${target.queryType}`);
-        const defaultTarget = {
-          userId,
-          startDate: weekInfo.weekStart,
-          endDate: weekInfo.weekEnd,
-          appointmentRate: 0,
-          avgJobSize: 0,
-          closeRate: 0,
-          com: 0,
-          revenue: 0,
-          showRate: 0,
-          queryType: originalQueryType,
-          year: weekInfo.year,
-          weekNumber: weekInfo.weekNumber,
-        } as unknown as IWeeklyTargetDocument;
-        
-        console.log(`Returning default target for non-matching queryType:`, defaultTarget);
-        return defaultTarget;
-      }
-    }
-    
-    console.log(`Returning found target:`, target);
-    return target;
+    return weeklyTargets;
   }
 
   public async getAggregatedMonthlyTarget(
@@ -768,33 +680,20 @@ export class TargetService {
       return [];
     }
 
-    // Use getWeeklyTarget and pass the queryType parameter
+    // Use getWeeklyTarget to get the target for each week (there can only be one per week per user)
     const weeklyTargets = await Promise.all(
       weeksInMonth.map(week =>
-        this.getWeeklyTarget(userId, week.weekStart, week.weekEnd, queryType)
+        this.getWeeklyTarget(userId, week.weekStart)
       )
     );
     
     console.log(`Found ${weeklyTargets.length} weekly targets`);
     
-    // Filter targets by queryType
-    const filteredTargets = weeklyTargets.filter(target => 
-      !queryType || target.queryType === queryType
-    );
+    // Return all targets without filtering by queryType
+    // queryType parameter is now only used for timeframe determination
+    console.log(`Returning all ${weeklyTargets.length} targets for the month`);
     
-    console.log(`Filtered to ${filteredTargets.length} targets with queryType: ${queryType}`);
-    
-    if (filteredTargets.length === 0) {
-      console.log('No targets found with the specified queryType');
-      // Return a zero-filled monthly summary
-      return [this._aggregateTargets([], queryType, userId, startDate, endDate)];
-    }
-    
-    // Aggregate all weekly targets into a monthly summary
-    const monthlySummary = this._aggregateTargets(filteredTargets, queryType, userId, startDate, endDate);
-    
-    console.log(`Returning monthly summary:`, monthlySummary);
-    return [monthlySummary];
+    return weeklyTargets;
   }
 
   public async getAggregatedYearlyTarget(
@@ -803,84 +702,47 @@ export class TargetService {
     endDate: string,
     queryType: string
   ): Promise<IWeeklyTargetDocument[]> {
-    console.log(`=== Getting Yearly Targets ===`);
-    console.log(`userId: ${userId}`);
-    console.log(`startDate: ${startDate}`);
-    console.log(`endDate: ${endDate}`);
-    console.log(`queryType: ${queryType}`);
-    
-    // Parse the provided date range
-    const startDateObj = new Date(startDate);
-    const endDateObj = new Date(endDate);
-    
-    // Get all weeks in the specified date range
-    const weeksInRange = DateUtils.getMonthWeeks(startDate, endDate);
-    console.log(`Weeks in range: ${weeksInRange.length}`);
-    console.log('Weeks:', weeksInRange);
-    
-    if (weeksInRange.length === 0) {
-      console.log('No weeks found in the specified range');
-      return [];
-    }
-    
-    // Get weekly targets for each week in the range
-    const weeklyTargets = await Promise.all(
-      weeksInRange.map(week => 
-        this.getWeeklyTarget(userId, week.weekStart, week.weekEnd, queryType)
-      )
-    );
-    
-    console.log(`Found ${weeklyTargets.length} weekly targets`);
-    
-    // Filter out targets that don't match the queryType (if specified)
-    const filteredTargets = weeklyTargets.filter(target => 
-      !queryType || target.queryType === queryType
-    );
-    
-    console.log(`Filtered to ${filteredTargets.length} targets with queryType: ${queryType}`);
-    
-    // Group weekly targets by month and aggregate them
-    const monthlyGroups = new Map<string, IWeeklyTargetDocument[]>();
-    
-    for (const target of filteredTargets) {
-      const targetDate = new Date(target.startDate);
-      const monthKey = `${targetDate.getFullYear()}-${String(targetDate.getMonth() + 1).padStart(2, '0')}`;
-      
-      if (!monthlyGroups.has(monthKey)) {
-        monthlyGroups.set(monthKey, []);
-      }
-      monthlyGroups.get(monthKey)!.push(target);
-    }
-    
-    // Aggregate each month's weekly targets into monthly summaries
-    const monthlyResults: IWeeklyTargetDocument[] = [];
-    
-    for (const [monthKey, weekTargets] of monthlyGroups) {
-      if (weekTargets.length > 0) {
-        const year = parseInt(monthKey.split('-')[0]);
-        const month = parseInt(monthKey.split('-')[1]) - 1; // Month is 0-indexed
-        
-        // Calculate month start and end dates
+    // Parse the year from startDate
+    const year = new Date(startDate).getFullYear();
+    const results: IWeeklyTargetDocument[] = [];
+    for (let month = 0; month < 12; month++) {
         const monthStart = new Date(year, month, 1);
         const monthEnd = new Date(year, month + 1, 0);
-        
-        const monthlySummary = this._aggregateTargets(
-          weekTargets, 
-          queryType, 
+      const monthStartStr = monthStart.toISOString().slice(0, 10);
+      const monthEndStr = monthEnd.toISOString().slice(0, 10);
+      // Get all weeks in this month
+      const weeklyTargets = await this.getAggregatedMonthlyTarget(
           userId, 
-          monthStart.toISOString().split('T')[0],
-          monthEnd.toISOString().split('T')[0]
-        );
-        
-        monthlyResults.push(monthlySummary);
-      }
+        monthStartStr,
+        monthEndStr,
+        "monthly"
+      );
+      let aggregated;
+  if (weeklyTargets.length === 0) {
+    aggregated = {
+      userId,
+      startDate: monthStartStr,
+      endDate: monthEndStr,
+      appointmentRate: 0,
+      avgJobSize: 0,
+      closeRate: 0,
+      com: 0,
+      revenue: 0,
+      showRate: 0,
+      queryType: "monthly",
+      year,
+      weekNumber: 0,
+    } as unknown as IWeeklyTargetDocument;
+  } else {
+    aggregated = this._aggregateTargets(weeklyTargets, "monthly");
+    aggregated.year = year;
+    aggregated.startDate = monthStartStr;
+    aggregated.endDate = monthEndStr;
+    aggregated.queryType = "monthly";
+  }
+  results.push(aggregated);
     }
-    
-    // Sort by date
-    monthlyResults.sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime());
-    
-    console.log(`Returning ${monthlyResults.length} monthly summaries`);
-    return monthlyResults;
+    return results;
   }
 
   public async getYearlyTargetsOrganizedByMonths(
@@ -890,87 +752,30 @@ export class TargetService {
     queryType: string
   ): Promise<IWeeklyTargetDocument[][]> {
     console.log(`=== Getting Yearly Targets Organized By Months ===`);
-    console.log(`userId: ${userId}`);
-    console.log(`startDate: ${startDate}`);
-    console.log(`endDate: ${endDate}`);
-    console.log(`queryType: ${queryType}`);
     
-    // Parse start and end dates
-    const startDateObj = new Date(startDate);
-    const endDateObj = new Date(endDate);
-    
-    // Get the first day of start month and last day of end month
-    const startMonthFirstDay = new Date(startDateObj.getFullYear(), startDateObj.getMonth(), 1);
-    const endMonthLastDay = new Date(endDateObj.getFullYear(), endDateObj.getMonth() + 1, 0);
-    
-    console.log(`Start month first day: ${startMonthFirstDay.toISOString().split('T')[0]}`);
-    console.log(`End month last day: ${endMonthLastDay.toISOString().split('T')[0]}`);
-    
-    // Get all weekly targets in the extended date range (to capture full weeks)
-    // Use "any" to get all targets regardless of their stored queryType
-    const allWeeklyTargets = await this.getWeeklyTargetsInRange(
-      userId,
-      startMonthFirstDay.toISOString().split('T')[0],
-      endMonthLastDay.toISOString().split('T')[0],
-      "any",
-      queryType // Pass the original requested queryType
-    );
-    
-    console.log(`Found ${allWeeklyTargets.length} weekly targets in extended range`);
-    
-    // Filter targets based on month boundaries
-    const filteredTargets: IWeeklyTargetDocument[] = [];
-    
-    for (const target of allWeeklyTargets) {
-      const targetStartDate = new Date(target.startDate);
-      const targetEndDate = new Date(target.endDate);
-      
-      // For start month: only include weeks that start within the start month
-      if (targetStartDate.getFullYear() === startDateObj.getFullYear() && 
-          targetStartDate.getMonth() === startDateObj.getMonth()) {
-        filteredTargets.push(target);
-        console.log(`Including target for start month: ${target.startDate} to ${target.endDate}`);
-      }
-      // For end month: include weeks that start within the end month
-      else if (targetStartDate.getFullYear() === endDateObj.getFullYear() && 
-               targetStartDate.getMonth() === endDateObj.getMonth()) {
-        filteredTargets.push(target);
-        console.log(`Including target for end month: ${target.startDate} to ${target.endDate}`);
-      }
-      // For months in between: include all weeks
-      else if (targetStartDate > startMonthFirstDay && targetStartDate < endMonthLastDay) {
-        filteredTargets.push(target);
-        console.log(`Including target for middle month: ${target.startDate} to ${target.endDate}`);
-      }
-    }
-    
-    console.log(`Filtered to ${filteredTargets.length} targets respecting month boundaries`);
-    
-    // Group weekly targets by month
-    const monthlyGroups = new Map<string, IWeeklyTargetDocument[]>();
-    
-    for (const target of filteredTargets) {
-      const targetDate = new Date(target.startDate);
-      const monthKey = `${targetDate.getFullYear()}-${String(targetDate.getMonth() + 1).padStart(2, '0')}`;
-      
-      if (!monthlyGroups.has(monthKey)) {
-        monthlyGroups.set(monthKey, []);
-      }
-      monthlyGroups.get(monthKey)!.push(target);
-    }
-    
-    // Convert to array of arrays, sorted by month
+    const year = new Date(startDate).getFullYear();
     const monthlyTargets: IWeeklyTargetDocument[][] = [];
-    const sortedMonthKeys = Array.from(monthlyGroups.keys()).sort();
     
-    for (const monthKey of sortedMonthKeys) {
-      const weekTargets = monthlyGroups.get(monthKey)!;
-      // Sort weekly targets by start date within each month
-      weekTargets.sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime());
-      monthlyTargets.push(weekTargets);
+    // Iterate through all 12 months
+    for (let month = 0; month < 12; month++) {
+      const monthStart = new Date(year, month, 1);
+      const monthEnd = new Date(year, month + 1, 0);
+      
+      const monthStartStr = `${monthStart.getFullYear()}-${String(monthStart.getMonth() + 1).padStart(2, '0')}-${String(monthStart.getDate()).padStart(2, '0')}`;
+      const monthEndStr = `${monthEnd.getFullYear()}-${String(monthEnd.getMonth() + 1).padStart(2, '0')}-${String(monthEnd.getDate()).padStart(2, '0')}`;
+      
+      const monthResults = await this.getAllWeeksOrganizedByMonths(
+        userId,
+        monthStartStr,
+        monthEndStr,
+        "monthly"
+      );
+      
+      // Add the first (and only) month's data to our yearly results
+      monthlyTargets.push(monthResults.length > 0 ? monthResults[0] : []);
     }
     
-    console.log(`Organized into ${monthlyTargets.length} months`);
+    console.log(`Organized into ${monthlyTargets.length} months for year ${year}`);
     return monthlyTargets;
   }
 
@@ -980,41 +785,33 @@ export class TargetService {
     endDate: string,
     queryType: string
   ): Promise<IWeeklyTargetDocument[][]> {
-    console.log(`=== Getting All Weeks Organized By Months ===`);
-    console.log(`userId: ${userId}`);
-    console.log(`startDate: ${startDate}`);
-    console.log(`endDate: ${endDate}`);
-    console.log(`queryType: ${queryType}`);
+    console.log(`=== Getting Monthly Targets Organized By Months ===`);
     
-    const properDateRange = DateUtils.getProperDateRange(startDate, endDate, queryType);
+    // This function now only handles monthly queries
+    if (queryType !== "monthly") {
+      throw new Error("getAllWeeksOrganizedByMonths only supports monthly queries. Use getYearlyTargetsOrganizedByMonths for yearly queries.");
+    }
     
-    console.log(`Proper date range: ${properDateRange.startDate} to ${properDateRange.endDate}`);
-    
-    // Fetch all weekly targets within the given date range
-    const allWeeklyTargets = await this.getWeeklyTargetsInRange(
-      userId,
-      properDateRange.startDate,
-      properDateRange.endDate,
-      "any" // Get all targets regardless of stored queryType
+    const weeksInRange = DateUtils.getMonthWeeks(startDate, endDate);
+
+    const allWeeklyTargets = await Promise.all(
+      weeksInRange.map(week => 
+        this.getWeeklyTarget(userId, week.weekStart)
+      )
     );
-
-    console.log(`Found ${allWeeklyTargets.length} weekly targets in effective range`);
-
-    // Group weeks by the month where most of their days fall
+    
     const monthlyGroups = new Map<string, IWeeklyTargetDocument[]>();
 
     for (const target of allWeeklyTargets) {
       const weekStart = new Date(target.startDate);
       const weekEnd = new Date(target.endDate);
 
-      // Count days in each month
       const daysInMonth = new Map<number, number>();
       for (let d = new Date(weekStart); d <= weekEnd; d.setDate(d.getDate() + 1)) {
         const month = d.getMonth();
         daysInMonth.set(month, (daysInMonth.get(month) || 0) + 1);
       }
 
-      // Determine the month with the most days
       let maxDays = 0;
       let targetMonth = weekStart.getMonth();
       for (const [month, days] of daysInMonth.entries()) {
@@ -1024,13 +821,40 @@ export class TargetService {
         }
       }
 
+      // Only include weeks that belong to the requested month(s)
+      const requestedStartDate = new Date(startDate);
+      const requestedEndDate = new Date(endDate);
+      const requestedStartMonth = requestedStartDate.getMonth();
+      const requestedStartYear = requestedStartDate.getFullYear();
+      const requestedEndMonth = requestedEndDate.getMonth();
+      const requestedEndYear = requestedEndDate.getFullYear();
+      
       let targetYear = weekStart.getFullYear();
       if (targetMonth === 0 && weekStart.getMonth() === 11) {
         targetYear = weekEnd.getFullYear();
       }
-      const monthKey = `${targetYear}-${String(targetMonth + 1).padStart(2, '0')}`;
+      
+      // Check if the week belongs to any of the requested months
+      let belongsToRequestedMonth = false;
+      for (let year = requestedStartYear; year <= requestedEndYear; year++) {
+        const monthStart = year === requestedStartYear ? requestedStartMonth : 0;
+        const monthEnd = year === requestedEndYear ? requestedEndMonth : 11;
+        
+        for (let month = monthStart; month <= monthEnd; month++) {
+          if (targetYear === year && targetMonth === month) {
+            belongsToRequestedMonth = true;
+            break;
+          }
+        }
+        if (belongsToRequestedMonth) break;
+      }
+      
+      if (!belongsToRequestedMonth) {
+        console.log(`Skipping week ${target.startDate} to ${target.endDate} - doesn't belong to requested month(s)`);
+        continue;
+      }
 
-      console.log(`Week ${target.startDate} to ${target.endDate} assigned to month ${monthKey}`);
+      const monthKey = `${targetYear}-${String(targetMonth + 1).padStart(2, '0')}`;
 
       if (!monthlyGroups.has(monthKey)) {
         monthlyGroups.set(monthKey, []);
@@ -1049,12 +873,5 @@ export class TargetService {
 
     console.log(`Organized into ${monthlyTargets.length} months`);
     return monthlyTargets;
-  }
-
-  public async debugTargetsInDatabase(userId: string): Promise<IWeeklyTargetDocument[]> {
-    console.log(`=== Service: debugTargetsInDatabase ===`);
-    console.log(`Getting all targets for userId: ${userId}`);
-    
-    return this.targetRepository.debugAllTargetsForUser(userId);
   }
 }

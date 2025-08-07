@@ -46,11 +46,10 @@ export class TargetRepository {
     return allTargets;
   }
 
-  async getTargetsByDateRangeAndQueryType(startDate: Date, endDate: Date, userId: string, queryType: string): Promise<IWeeklyTargetDocument[]> {
-    console.log(`=== Repository: getTargetsByDateRangeAndQueryType ===`);
+  async getTargetsByDateRange(startDate: Date, endDate: Date, userId: string): Promise<IWeeklyTargetDocument[]> {
+    console.log(`=== Repository: getTargetsByDateRange ===`);
     console.log(`Querying for userId: ${userId}`);
     console.log(`Date range: ${startDate.toISOString()} to ${endDate.toISOString()}`);
-    console.log(`QueryType filter: ${queryType}`);
     
     // Convert Date objects to string format (YYYY-MM-DD) for string comparison
     const startDateStr = startDate.toISOString().split('T')[0];
@@ -83,27 +82,32 @@ export class TargetRepository {
     return results;
   }
 
-  async findTargetByStartDate(userId: string, startDate: string, queryType:string): Promise<IWeeklyTargetDocument | null> {
+  async findTargetByStartDate(userId: string, startDate: string): Promise<IWeeklyTargetDocument | null> {
     // Get week details from the startDate to find the correct year and weekNumber
     const { DateUtils } = await import('../../../utils/date.utils.js');
     const weekData = DateUtils.getWeekDetails(startDate);
     
-    // Use the unique index fields: userId, year, weekNumber
-    return this.model.findOne({ 
+    // Since there can only be one target per week per user (unique index),
+    // we just find the target for this week
+    const query = { 
       userId, 
       year: weekData.year, 
       weekNumber: weekData.weekNumber 
-    });
+    };
+    
+    console.log(`Repository findTargetByStartDate query:`, query);
+    
+    // Use the unique index fields: userId, year, weekNumber
+    return this.model.findOne(query);
   }
 
   /**
-   * Fetches each week's target for a given user and month, using findTargetByStartDate for each week.
+   * Fetches each week's target for a given user and month.
    * @param userId - The user ID
    * @param weeksInMonth - Array of week info objects (with startDate)
-   * @param queryType - The query type (e.g., 'monthly')
    * @returns Array of IWeeklyTargetDocument (may include nulls if not found)
    */
-  async getMonthlyTargetsByWeeks(userId: string, weeksInMonth: { startDate: Date }[], queryType: string): Promise<(IWeeklyTargetDocument | null)[]> {
+  async getMonthlyTargetsByWeeks(userId: string, weeksInMonth: { startDate: Date }[]): Promise<(IWeeklyTargetDocument | null)[]> {
     const { DateUtils } = await import('../../../utils/date.utils.js');
     
     const results = await Promise.all(
