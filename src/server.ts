@@ -10,6 +10,7 @@ import logger, {
   requestLoggerMiddleware,
   createRequestLogger,
 } from "./utils/logger.js";
+import conversionRateUpdateService from "./services/cron/conversionRateUpdateService.js";
 
 // Initialize express app
 const app: Express = express();
@@ -67,4 +68,8 @@ app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
 const PORT: string | number = config.PORT || 3000;
 app.listen(PORT, () => {
   logger.info(`Server running on port ${PORT}`);
+  
+  // Start the weekly conversion rate update cron job
+  conversionRateUpdateService.startWeeklyCronJob();
+  logger.info("Weekly conversion rate update cron job initialized");
 });
