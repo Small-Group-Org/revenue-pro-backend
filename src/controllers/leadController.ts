@@ -2,7 +2,7 @@ import { Request, Response } from "express";
 import { LeadService } from "../services/leads/service/service.js";
 import utils from "../utils/utils.js";
 import { ParsedQs } from "qs";
-import conversionRateModel from "@/services/leads/repository/models/conversionRate.model.js";
+import conversionRateModel, { IConversionRate } from "@/services/leads/repository/models/conversionRate.model.js";
 import { conversionRateRepository } from"@/services/leads/repository/repository.js";
 
 export class LeadController {
@@ -16,6 +16,7 @@ export class LeadController {
     this.updateLead = this.updateLead.bind(this);
     this.fetchSheetAndUpdateConversion = this.fetchSheetAndUpdateConversion.bind(this);
     this.getConversionRates = this.getConversionRates.bind(this);
+    this.conditionalUpsertConversionRates = this.conditionalUpsertConversionRates.bind(this);
   }
 
   async getLeads(req: Request, res: Response): Promise<void> {
@@ -139,6 +140,50 @@ export class LeadController {
       return res.status(500).json({
         success: false,
         message: error.message || "Failed to fetch conversion rates",
+      });
+    }
+  }
+
+  async conditionalUpsertConversionRates(req: Request, res: Response) {
+    try {
+      const data: IConversionRate[] = req.body;
+      console.log("conversion rate", data);
+      
+
+      if (!Array.isArray(data) || data.length === 0) {
+        return res.status(400).json({
+          success: false,
+          message: "Request body must be a non-empty array of conversion rate objects",
+        });
+      }
+
+      const results = [];
+
+      for (const rate of data) {
+        // Check if an entry with same clientId + keyField + keyName exists
+        const exists = await conversionRateRepository.getConversionRates({
+          clientId: rate.clientId,
+          keyField: rate.keyField,
+          keyName: rate.keyName,
+        });
+
+        if (exists.length === 0) {
+          // Only insert if it doesn’t exist
+          const inserted = await conversionRateRepository.createConversionRate(rate);
+          results.push(inserted);
+        }
+      }
+
+      return res.status(200).json({
+        success: true,
+        message: `${results.length} conversion rate(s) inserted`,
+        data: results,
+      });
+    } catch (error: any) {
+      console.error("Error in conditional upsert:", error);
+      return res.status(500).json({
+        success: false,
+        message: error.message || "Failed to upsert conversion rates",
       });
     }
   }
