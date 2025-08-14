@@ -7,6 +7,7 @@ import adminRouter from "./admin.routes.js"
 import userRoutes from "./user.routes.js"
 import leadRouter from "./leads.route.js";
 import createLeadRouter from "./createLead.route.js"
+import sheetRouter from "./sheet.routes.js"
 
 
 import {
@@ -62,6 +63,11 @@ const routes: Route[] = [
   {
     path: "/api/v1/hooks/create-lead",
     router: createLeadRouter,
+    middlewares: [],
+  },
+  {
+    path: "/api/leads/fetch-sheet",
+    router: sheetRouter,
     middlewares: [],
   }
 ];

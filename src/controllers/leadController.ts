@@ -2,6 +2,7 @@ import { Request, Response } from "express";
 import { LeadService } from "../services/leads/service/service.js";
 import utils from "../utils/utils.js";
 import { ParsedQs } from "qs";
+import conversionRateModel from "@/services/leads/repository/models/conversionRate.model.js";
 
 export class LeadController {
   private service: LeadService;
@@ -12,6 +13,7 @@ export class LeadController {
     this.getLeads = this.getLeads.bind(this);
     this.createLead = this.createLead.bind(this);
     this.updateLead = this.updateLead.bind(this);
+    this.fetchSheetAndUpdateConversion = this.fetchSheetAndUpdateConversion.bind(this);
   }
 
   async getLeads(req: Request, res: Response): Promise<void> {
@@ -77,4 +79,44 @@ export class LeadController {
       utils.sendErrorResponse(res, error);
     }
   }
+
+  async fetchSheetAndUpdateConversion(req: Request, res: Response): Promise<void> {
+    try {
+      const { sheetUrl, clientId } = req.body;
+
+      if (!sheetUrl || !clientId) {
+        utils.sendErrorResponse(res, "sheetUrl and clientId are required");
+        return;
+      }
+
+      console.log("lead fetching started");
+      
+      // 1️⃣ Fetch leads from the Google Sheet
+      const leads = await this.service.fetchLeadsFromSheet(sheetUrl, clientId);
+
+      console.log("leads fetched");
+      
+      // 2 Process leads to calculate conversion rates
+      const conversionData = await this.service.processLeads(leads, clientId);
+
+      // 3 Upsert conversion rates in DB
+      for (const item of conversionData) {
+        await conversionRateModel.findOneAndUpdate(
+          { clientId: item.clientId, keyField: item.keyField, keyName: item.keyName },
+          item,
+          { new: true, upsert: true }
+        ).exec();
+      }
+
+      utils.sendSuccessResponse(res, 200, {
+        success: true,
+        message: "Leads processed and conversion rates updated successfully",
+        data: conversionData,
+      });
+    } catch (error) {
+      console.error("Error in fetchSheetAndUpdateConversion:", error);
+      utils.sendErrorResponse(res, error);
+    }
+  }
 }
+
