@@ -2,6 +2,8 @@ import fetch from "node-fetch";
 import * as XLSX from "xlsx";
 import { ILead, ILeadDocument } from "../domain/leads.domain.js";
 import LeadModel from "../repository/models/leads.model.js";
+import { conversionRateRepository } from "../repository/repository.js";
+import { IConversionRate } from "../repository/models/conversionRate.model.js";
 
 type LeadKeyField = keyof Pick<
   ILead,
@@ -275,5 +277,147 @@ public async fetchLeadsFromSheet(
     }
 
     return result;
+  }
+
+  // ---------------- WEEKLY UPDATE FUNCTIONS ----------------
+
+  /**
+   * Get all unique client IDs from leads collection
+   */
+  public async getAllClientIds(): Promise<string[]> {
+    const clientIds = await LeadModel.distinct("clientId").exec();
+    return clientIds.filter(id => id); // Remove any null/undefined values
+  }
+
+  /**
+   * Update conversion rates by adding new weekly data to existing data
+   * Now uses batch operations for better performance
+   */
+  public async updateConversionRatesWithWeeklyData(
+    clientId: string, 
+    weeklyLeads: ILead[]
+  ): Promise<IConversionRate[]> {
+    // Process new weekly leads to get new conversion data
+    const newWeeklyData = this.processLeads(weeklyLeads, clientId);
+    
+    if (newWeeklyData.length === 0) {
+      console.log(`No conversion data to process for client ${clientId}`);
+      return [];
+    }
+    
+    // Get existing conversion rates for this client
+    const existingRates = await conversionRateRepository.getConversionRates({ clientId });
+    
+    const ratesToUpsert: IConversionRate[] = [];
+
+    for (const newData of newWeeklyData) {
+      // Find existing rate for this key combination
+      const existingRate = existingRates.find(
+        rate => rate.keyField === newData.keyField && rate.keyName === newData.keyName
+      );
+
+      let updatedRate: IConversionRate;
+
+      if (existingRate) {
+        // Update existing rate with new weekly data
+        const totalCount = existingRate.pastTotalCount + newData.pastTotalCount;
+        const totalEst = existingRate.pastTotalEst + newData.pastTotalEst;
+        const conversionRate = Math.floor((totalCount === 0 ? 0 : totalEst / totalCount) * 100) / 100;
+
+        updatedRate = {
+          clientId,
+          keyName: newData.keyName,
+          keyField: newData.keyField,
+          conversionRate,
+          pastTotalCount: totalCount,
+          pastTotalEst: totalEst
+        };
+      } else {
+        // Create new rate if it doesn't exist
+        updatedRate = {
+          clientId: newData.clientId,
+          keyName: newData.keyName,
+          keyField: newData.keyField,
+          conversionRate: newData.conversionRate,
+          pastTotalCount: newData.pastTotalCount,
+          pastTotalEst: newData.pastTotalEst
+        };
+      }
+
+      ratesToUpsert.push(updatedRate);
+    }
+
+    // Batch upsert all conversion rates at once - much more efficient!
+    const upsertedRates = await conversionRateRepository.batchUpsertConversionRates(ratesToUpsert);
+    console.log(`Batch upserted ${upsertedRates.length} conversion rates for client ${clientId}`);
+    
+    return upsertedRates;
+  }
+
+  /**
+   * Process weekly conversion rate updates for all clients
+   */
+  public async processWeeklyConversionRateUpdates(): Promise<{
+    processedClients: number;
+    totalUpdatedRates: number;
+    errors: string[];
+  }> {
+    const errors: string[] = [];
+    let totalUpdatedRates = 0;
+
+    try {
+      // Get all client IDs
+      const clientIds = await this.getAllClientIds();
+      console.log(`Processing weekly updates for ${clientIds.length} clients`);
+
+      // Calculate date range for the past week
+      const today = new Date();
+      const weekStart = new Date(today);
+      weekStart.setDate(today.getDate() - 7);
+      const weekStartStr = weekStart.toISOString().split('T')[0];
+      const weekEndStr = today.toISOString().split('T')[0];
+
+      console.log(`Processing leads from ${weekStartStr} to ${weekEndStr}`);
+
+      for (const clientId of clientIds) {
+        try {
+          // Use existing getLeads function instead of duplicate getWeeklyLeads
+          const weeklyLeads = await this.getLeads(clientId, weekStartStr, weekEndStr);
+          
+          if (weeklyLeads.length === 0) {
+            console.log(`No leads found for client ${clientId} in the past week`);
+            continue;
+          }
+
+          console.log(`Processing ${weeklyLeads.length} leads for client ${clientId}`);
+
+          // Update conversion rates with weekly data using batch operations
+          const updatedRates = await this.updateConversionRatesWithWeeklyData(clientId, weeklyLeads);
+          totalUpdatedRates += updatedRates.length;
+
+          console.log(`Batch updated ${updatedRates.length} conversion rates for client ${clientId}`);
+        } catch (error: any) {
+          const errorMsg = `Error processing client ${clientId}: ${error.message}`;
+          console.error(errorMsg);
+          errors.push(errorMsg);
+        }
+      }
+
+      return {
+        processedClients: clientIds.length,
+        totalUpdatedRates,
+        errors
+      };
+    } catch (error: any) {
+      const errorMsg = `Error in weekly conversion rate update process: ${error.message}`;
+      console.error(errorMsg);
+      errors.push(errorMsg);
+      
+      return {
+        processedClients: 0,
+        totalUpdatedRates: 0,
+        errors
+      };
+    }
   }
 }

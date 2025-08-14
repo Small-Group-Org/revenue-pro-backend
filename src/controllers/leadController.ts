@@ -1,7 +1,7 @@
 import { Request, Response } from "express";
 import { LeadService } from "../services/leads/service/service.js";
 import utils from "../utils/utils.js";
-import { ParsedQs } from "qs";
+import conversionRateUpdateService from "../services/cron/conversionRateUpdateService.js";
 import conversionRateModel, { IConversionRate } from "@/services/leads/repository/models/conversionRate.model.js";
 import { conversionRateRepository } from"@/services/leads/repository/repository.js";
 
@@ -17,6 +17,8 @@ export class LeadController {
     this.fetchSheetAndUpdateConversion = this.fetchSheetAndUpdateConversion.bind(this);
     this.getConversionRates = this.getConversionRates.bind(this);
     this.conditionalUpsertConversionRates = this.conditionalUpsertConversionRates.bind(this);
+    this.triggerWeeklyConversionRateUpdate = this.triggerWeeklyConversionRateUpdate.bind(this);
+    this.getWeeklyUpdateStatus = this.getWeeklyUpdateStatus.bind(this);
   }
 
   async getLeads(req: Request, res: Response): Promise<void> {
@@ -157,34 +159,63 @@ export class LeadController {
         });
       }
 
-      const results = [];
-
-      for (const rate of data) {
-        // Check if an entry with same clientId + keyField + keyName exists
-        const exists = await conversionRateRepository.getConversionRates({
-          clientId: rate.clientId,
-          keyField: rate.keyField,
-          keyName: rate.keyName,
-        });
-
-        if (exists.length === 0) {
-          // Only insert if it doesn’t exist
-          const inserted = await conversionRateRepository.createConversionRate(rate);
-          results.push(inserted);
-        }
-      }
+      // Use batch upsert for better performance instead of individual upserts
+      const results = await conversionRateRepository.batchUpsertConversionRates(data);
 
       return res.status(200).json({
         success: true,
-        message: `${results.length} conversion rate(s) inserted`,
+        message: `${results.length} conversion rate(s) batch upserted (inserted/updated)`,
         data: results,
       });
     } catch (error: any) {
-      console.error("Error in conditional upsert:", error);
+      console.error("Error in batch upsert:", error);
       return res.status(500).json({
         success: false,
-        message: error.message || "Failed to upsert conversion rates",
+        message: error.message || "Failed to batch upsert conversion rates",
       });
+    }
+  }
+
+  /**
+   * Manual trigger for weekly conversion rate update (for testing)
+   */
+  async triggerWeeklyConversionRateUpdate(req: Request, res: Response): Promise<void> {
+    try {
+      if (conversionRateUpdateService.isUpdateRunning()) {
+        utils.sendErrorResponse(res, "Weekly conversion rate update is already running");
+        return;
+      }
+
+      const result = await conversionRateUpdateService.triggerManualUpdate();
+      
+      utils.sendSuccessResponse(res, 200, {
+        success: true,
+        message: "Weekly conversion rate update completed",
+        data: result
+      });
+    } catch (error: any) {
+      console.error("Error in manual weekly update trigger:", error);
+      utils.sendErrorResponse(res, error);
+    }
+  }
+
+  /**
+   * Get status of weekly conversion rate update process
+   */
+  async getWeeklyUpdateStatus(req: Request, res: Response): Promise<void> {
+    try {
+      const isRunning = conversionRateUpdateService.isUpdateRunning();
+      
+      utils.sendSuccessResponse(res, 200, {
+        success: true,
+        data: {
+          isRunning,
+          message: isRunning ? "Weekly update is currently running" : "Weekly update is not running"
+        }
+      });
+    } catch (error: any) {
+      console.error("Error getting weekly update status:", error);
+      utils.sendErrorResponse(res, error);
     }
   }
 }

@@ -52,5 +52,36 @@ export const conversionRateRepository = {
       data,
       { new: true, upsert: true }
     ).exec();
+  },
+
+  /**
+   * Batch upsert multiple conversion rates - much more efficient than individual upserts
+   */
+  async batchUpsertConversionRates(conversionRates: IConversionRate[]): Promise<IConversionRateDocument[]> {
+    if (conversionRates.length === 0) return [];
+
+    // Use MongoDB bulkWrite for efficient batch operations
+    const bulkOps = conversionRates.map((rate) => ({
+      updateOne: {
+        filter: { 
+          clientId: rate.clientId, 
+          keyField: rate.keyField, 
+          keyName: rate.keyName 
+        },
+        update: { $set: rate },
+        upsert: true
+      }
+    }));
+
+    await ConversionRateModel.bulkWrite(bulkOps);
+    
+    // Return the updated documents - fetch them after bulk operation
+    const filters = conversionRates.map(rate => ({
+      clientId: rate.clientId,
+      keyField: rate.keyField,
+      keyName: rate.keyName
+    }));
+    
+    return await ConversionRateModel.find({ $or: filters }).exec();
   }
 };
