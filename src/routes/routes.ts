@@ -1,4 +1,4 @@
-import { Express, Request, Response } from "express";
+import { Express, Request, Response, NextFunction } from "express";
 import authRouter from "./auth.routes.js"
 import actualRouter from "./report.routes.js"
 import reportRouter from "./report.routes.js"
@@ -70,6 +70,21 @@ const configureRoutes = (app: Express): void => {
   // add health route
   app.use("/health", [], (req: Request, res: Response) => {
     res.status(200).json({ message: "I am healthy" });
+  });
+
+  // Add this before your routes
+  app.use((err: any, req: Request, res: Response, next: NextFunction) => {
+    if (err instanceof SyntaxError && 'body' in err) {
+      console.error('JSON Parsing Error:', err.message);
+      console.error('Request body:', req.body);
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid JSON format',
+        message: 'The request body contains invalid JSON. Please check your JSON syntax.',
+        details: err.message
+      });
+    }
+    next(err);
   });
 
   // adding authenticated routes

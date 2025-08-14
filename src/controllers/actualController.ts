@@ -72,14 +72,14 @@ export class ActualController {
       // Import TargetService at the top if not already
       const { TargetService } = await import("../services/target/service/service.js");
       const targetService = new TargetService();
-      let targetResults;
+      let targetResults: any[] = [];
       switch (queryType) {
         case "weekly":
-          targetResults = await targetService.getWeeklyTarget(
+          const weeklyTarget = await targetService.getWeeklyTarget(
             String(userId),
             String(startDateStr),
-            String(endDateStr)
           );
+          targetResults = [weeklyTarget];
           break;
         case "monthly":
           targetResults = await targetService.getAggregatedMonthlyTarget(
