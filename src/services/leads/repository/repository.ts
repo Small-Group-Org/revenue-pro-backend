@@ -1,6 +1,6 @@
-import LeadModel from '@/services/leads/repository/models/leads.model.js';
+import LeadModel from './models/leads.model.js';
 import { ILead, ILeadDocument } from '../domain/leads.domain.js';
-import ConversionRateModel, { IConversionRate, IConversionRateDocument } from '@/services/leads/repository/models/conversionRate.model.js';
+import ConversionRateModel, { IConversionRate, IConversionRateDocument } from './models/conversionRate.model.js';
 
 // ----------------- Lead Repository -----------------
 export const leadRepository = {

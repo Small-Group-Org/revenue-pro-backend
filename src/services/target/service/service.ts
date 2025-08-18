@@ -597,7 +597,7 @@ export class TargetService {
     console.log(`userId: ${userId}, startDate: ${startDate}, weekStart: ${weekInfo.weekStart}, year: ${weekInfo.year}, weekNumber: ${weekInfo.weekNumber}`);
     
     // Search for the target for this week (there can only be one per week per user)
-    let target = await this.targetRepository.findTargetByStartDate(userId, weekInfo.weekStart);
+    const target = await this.targetRepository.findTargetByStartDate(userId, weekInfo.weekStart);
     
     if (!target) {
       console.log(`No target found for week ${weekInfo.weekStart}`);

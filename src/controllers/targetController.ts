@@ -1,7 +1,7 @@
 import { Request, Response } from "express";
 import { TargetService } from "../services/target/service/service.js";
 import utils from "../utils/utils.js";
-import { IWeeklyTargetDocument } from "@/services/target/repository/models/target.model.js";
+import { IWeeklyTargetDocument } from "../services/target/repository/models/target.model.js";
 
 export class TargetController {
   private service: TargetService;
