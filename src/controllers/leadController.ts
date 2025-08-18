@@ -2,8 +2,8 @@ import { Request, Response } from "express";
 import { LeadService } from "../services/leads/service/service.js";
 import utils from "../utils/utils.js";
 import conversionRateUpdateService from "../services/cron/conversionRateUpdateService.js";
-import conversionRateModel, { IConversionRate } from "@/services/leads/repository/models/conversionRate.model.js";
-import { conversionRateRepository } from"@/services/leads/repository/repository.js";
+import conversionRateModel, { IConversionRate } from "../services/leads/repository/models/conversionRate.model.js";
+import { conversionRateRepository } from "../services/leads/repository/repository.js";
 
 export class LeadController {
   private service: LeadService;
