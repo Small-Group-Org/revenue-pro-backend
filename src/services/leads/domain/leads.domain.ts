@@ -1,5 +1,7 @@
 import { Document } from "mongoose";
 
+export type LeadStatus = 'new' | 'in_progress' | 'estimate_set' | 'unqualified';
+
 export interface ILead {
   leadDate: string; // ISO date string: e.g. "2025-07-15"
   name: string;
@@ -9,7 +11,7 @@ export interface ILead {
   service: string;
   adSetName: string;
   adName: string;
-  estimateSet: boolean;
+  status: LeadStatus;
   clientId: string; // ObjectId reference as string
   unqualifiedLeadReason: string;
 }

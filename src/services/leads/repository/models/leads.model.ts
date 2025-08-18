@@ -1,20 +1,5 @@
-import { Schema, model, Document } from 'mongoose';
-
-export interface ILead {
-  leadDate: string; // Format: "YYYY-MM-DD"
-  name: string;
-  email: string;
-  phone: string;
-  zip: string;
-  service: string;
-  adSetName: string;
-  adName: string;
-  estimateSet: boolean;
-  clientId: string; // MongoDB ObjectId stored as string
-  unqualifiedLeadReason: string;
-}
-
-export interface ILeadDocument extends ILead, Document {}
+import { Schema, model } from 'mongoose';
+import { ILeadDocument } from '../../domain/leads.domain.js';
 
 const leadSchema = new Schema<ILeadDocument>(
   {
@@ -26,9 +11,14 @@ const leadSchema = new Schema<ILeadDocument>(
     service: { type: String, required: true },
     adSetName: { type: String, required: true },
     adName: { type: String, required: true },
-    estimateSet: { type: Boolean, required: true },
+    status: { 
+      type: String, 
+      required: true,
+      enum: ['new', 'in_progress', 'estimate_set', 'unqualified'],
+      default: 'new'
+    },
     clientId: { type: String, required: true },
-    unqualifiedLeadReason: { type: String, required: true },
+    unqualifiedLeadReason: { type: String, default: '' },
   },
   { timestamps: true }
 );

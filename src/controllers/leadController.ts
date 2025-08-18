@@ -49,7 +49,24 @@ export class LeadController {
       const leadsPayload = Array.isArray(req.body) ? req.body : [req.body];
       const createdLeads = [];
 
+      // Validate each lead payload
       for (const payload of leadsPayload) {
+        // Set default status if not provided
+        if (!payload.status) {
+          payload.status = 'new';
+        }
+
+        // Validate status
+        if (!['new', 'in_progress', 'estimate_set', 'unqualified'].includes(payload.status)) {
+          utils.sendErrorResponse(res, `Invalid status '${payload.status}'. Must be one of: new, in_progress, estimate_set, unqualified`);
+          return;
+        }
+
+        // Clear unqualifiedLeadReason if status is not "unqualified"
+        if (payload.status !== 'unqualified') {
+          payload.unqualifiedLeadReason = '';
+        }
+
         const lead = await this.service.createLead(payload);
         createdLeads.push(lead);
       }
@@ -66,15 +83,21 @@ export class LeadController {
 
   async updateLead(req: Request, res: Response): Promise<void> {
     try {
-      const { _id, estimateSet, unqualifiedLeadReason } = req.body;
+      const { _id, status, unqualifiedLeadReason } = req.body;
 
       if (!_id) {
         utils.sendErrorResponse(res, "_id is required for update");
         return;
       }
 
+      // Validate status if provided
+      if (status && !['new', 'in_progress', 'estimate_set', 'unqualified'].includes(status)) {
+        utils.sendErrorResponse(res, "Invalid status. Must be one of: new, in_progress, estimate_set, unqualified");
+        return;
+      }
+
       const updatedLead = await this.service.updateLead(_id, {
-        estimateSet,
+        status,
         unqualifiedLeadReason,
       });
 

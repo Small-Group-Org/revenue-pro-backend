@@ -1,6 +1,6 @@
 import fetch from "node-fetch";
 import * as XLSX from "xlsx";
-import { ILead, ILeadDocument } from "../domain/leads.domain.js";
+import { ILead, ILeadDocument, LeadStatus } from "../domain/leads.domain.js";
 import LeadModel from "../repository/models/leads.model.js";
 import { conversionRateRepository } from "../repository/repository.js";
 import { IConversionRate } from "../repository/models/conversionRate.model.js";
@@ -38,15 +38,22 @@ export class LeadService {
 
   public async updateLead(
     id: string,
-    data: Partial<Pick<ILead, "estimateSet" | "unqualifiedLeadReason">>
+    data: Partial<Pick<ILead, "status" | "unqualifiedLeadReason">>
   ): Promise<ILeadDocument> {
     const existing = await LeadModel.findById(id);
     if (!existing) throw new Error("Lead not found");
 
-    if (typeof data.estimateSet !== "undefined")
-      existing.estimateSet = data.estimateSet;
-    if (typeof data.unqualifiedLeadReason !== "undefined")
+    if (typeof data.status !== "undefined") {
+      existing.status = data.status;
+      // Clear unqualifiedLeadReason if status is not "unqualified"
+      if (data.status !== 'unqualified') {
+        existing.unqualifiedLeadReason = '';
+      }
+    }
+
+    if (typeof data.unqualifiedLeadReason !== "undefined") {
       existing.unqualifiedLeadReason = data.unqualifiedLeadReason;
+    }
 
     await existing.save();
     return existing;
@@ -121,16 +128,42 @@ public async fetchLeadsFromSheet(
     })
     .map((row) => {
       try {
+        // Convert the old estimateSet boolean logic to new status field
+        let status: LeadStatus = 'new';
+        let unqualifiedLeadReason = String(row["Unqualified Lead Reason"] || "");
+
+        // Check if there's an explicit status column first
+        if (row["Status"] && typeof row["Status"] === "string") {
+          const statusValue = row["Status"].toLowerCase().trim();
+          if (['new', 'in_progress', 'estimate_set', 'unqualified'].includes(statusValue)) {
+            status = statusValue as LeadStatus;
+          }
+        } else {
+          // Fallback: Convert from old estimateSet logic
+          const estimateSetValue = row["Estimate Set"];
+          const hasUnqualifiedReason = unqualifiedLeadReason.trim().length > 0;
+          
+          if (hasUnqualifiedReason) {
+            status = 'unqualified';
+          } else {
+            const isEstimateSet = typeof estimateSetValue === "boolean"
+              ? estimateSetValue
+              : typeof estimateSetValue === "number"
+              ? estimateSetValue !== 0
+              : String(estimateSetValue || "").trim().toUpperCase() === "TRUE";
+            
+            status = isEstimateSet ? 'estimate_set' : 'new';
+          }
+        }
+
+        // Clear unqualifiedLeadReason if status is not "unqualified"
+        if (status !== 'unqualified') {
+          unqualifiedLeadReason = '';
+        }
+
         return {
           _id: null,
-          estimateSet:
-            typeof row["Estimate Set"] === "boolean"
-              ? row["Estimate Set"]
-              : typeof row["Estimate Set"] === "number"
-              ? row["Estimate Set"] !== 0
-              : String(row["Estimate Set"] || "")
-                  .trim()
-                  .toUpperCase() === "TRUE",
+          status,
           leadDate: row["Lead Date"] || "",
           name: String(row["Name"] || ""),
           email: String(row["Email"] || ""),
@@ -139,7 +172,7 @@ public async fetchLeadsFromSheet(
           service: String(row["Service"] || ""),
           adSetName: String(row["Ad Set Name"] || ""),
           adName: String(row["Ad Name"] || ""),
-          unqualifiedLeadReason: String(row["Unqualified Lead Reason"] || ""),
+          unqualifiedLeadReason,
           clientId,
         } as ILead;
       } catch (error) {
@@ -231,14 +264,14 @@ public async fetchLeadsFromSheet(
       ).length;
       yesForKey = filteredLeads.filter(
         (lead) =>
-          lead.estimateSet && new Date(lead.leadDate).getMonth() === monthIndex
+          lead.status === 'estimate_set' && new Date(lead.leadDate).getMonth() === monthIndex
       ).length;
     } else {
       totalForKey = filteredLeads.filter(
         (lead) => lead[keyField] === keyName
       ).length;
       yesForKey = filteredLeads.filter(
-        (lead) => lead.estimateSet && lead[keyField] === keyName
+        (lead) => lead.status === 'estimate_set' && lead[keyField] === keyName
       ).length;
     }
 
