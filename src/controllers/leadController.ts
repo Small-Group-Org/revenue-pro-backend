@@ -2,7 +2,9 @@ import { Request, Response } from "express";
 import { LeadService } from "../services/leads/service/service.js";
 import utils from "../utils/utils.js";
 import conversionRateUpdateService from "../services/cron/conversionRateUpdateService.js";
-import conversionRateModel, { IConversionRate } from "../services/leads/repository/models/conversionRate.model.js";
+import conversionRateModel, {
+  IConversionRate,
+} from "../services/leads/repository/models/conversionRate.model.js";
 import { conversionRateRepository } from "../services/leads/repository/repository.js";
 
 export class LeadController {
@@ -14,10 +16,13 @@ export class LeadController {
     this.getLeads = this.getLeads.bind(this);
     this.createLead = this.createLead.bind(this);
     this.updateLead = this.updateLead.bind(this);
-    this.fetchSheetAndUpdateConversion = this.fetchSheetAndUpdateConversion.bind(this);
+    this.fetchSheetAndUpdateConversion =
+      this.fetchSheetAndUpdateConversion.bind(this);
     this.getConversionRates = this.getConversionRates.bind(this);
-    this.conditionalUpsertConversionRates = this.conditionalUpsertConversionRates.bind(this);
-    this.triggerWeeklyConversionRateUpdate = this.triggerWeeklyConversionRateUpdate.bind(this);
+    this.conditionalUpsertConversionRates =
+      this.conditionalUpsertConversionRates.bind(this);
+    this.triggerWeeklyConversionRateUpdate =
+      this.triggerWeeklyConversionRateUpdate.bind(this);
     this.getWeeklyUpdateStatus = this.getWeeklyUpdateStatus.bind(this);
   }
 
@@ -53,18 +58,25 @@ export class LeadController {
       for (const payload of leadsPayload) {
         // Set default status if not provided
         if (!payload.status) {
-          payload.status = 'new';
+          payload.status = "new";
         }
 
         // Validate status
-        if (!['new', 'in_progress', 'estimate_set', 'unqualified'].includes(payload.status)) {
-          utils.sendErrorResponse(res, `Invalid status '${payload.status}'. Must be one of: new, in_progress, estimate_set, unqualified`);
+        if (
+          !["new", "in_progress", "estimate_set", "unqualified"].includes(
+            payload.status
+          )
+        ) {
+          utils.sendErrorResponse(
+            res,
+            `Invalid status '${payload.status}'. Must be one of: new, in_progress, estimate_set, unqualified`
+          );
           return;
         }
 
         // Clear unqualifiedLeadReason if status is not "unqualified"
-        if (payload.status !== 'unqualified') {
-          payload.unqualifiedLeadReason = '';
+        if (payload.status !== "unqualified") {
+          payload.unqualifiedLeadReason = "";
         }
 
         const lead = await this.service.createLead(payload);
@@ -91,8 +103,14 @@ export class LeadController {
       }
 
       // Validate status if provided
-      if (status && !['new', 'in_progress', 'estimate_set', 'unqualified'].includes(status)) {
-        utils.sendErrorResponse(res, "Invalid status. Must be one of: new, in_progress, estimate_set, unqualified");
+      if (
+        status &&
+        !["new", "in_progress", "estimate_set", "unqualified"].includes(status)
+      ) {
+        utils.sendErrorResponse(
+          res,
+          "Invalid status. Must be one of: new, in_progress, estimate_set, unqualified"
+        );
         return;
       }
 
@@ -108,7 +126,10 @@ export class LeadController {
     }
   }
 
-  async fetchSheetAndUpdateConversion(req: Request, res: Response): Promise<void> {
+  async fetchSheetAndUpdateConversion(
+    req: Request,
+    res: Response
+  ): Promise<void> {
     try {
       const { sheetUrl, clientId } = req.body;
 
@@ -118,34 +139,35 @@ export class LeadController {
       }
 
       console.log("lead fetching started");
-      
+
       // 1️⃣ Fetch leads from the Google Sheet
       const leads = await this.service.fetchLeadsFromSheet(sheetUrl, clientId);
-
       console.log("leads fetched");
 
+      // 2️⃣ Bulk insert all leads at once
+      // Attach clientId if not present (should already be set by service, but ensure)
+      const leadsToInsert = leads.map((l) => ({ ...l, clientId }));
+      const storedLeads = await this.service.bulkCreateLeads(leadsToInsert);
 
-       // 2️⃣ Store all leads using the existing createLead logic
-    const storedLeads = [];
-    for (const payload of leads) {
-      // attach clientId if not present
-      payload.clientId = clientId;
+      // 3️⃣ Process leads to calculate conversion rates
+      const conversionData = await this.service.processLeads(
+        leadsToInsert,
+        clientId
+      );
 
-      // delegate to the same service method that your createLead API uses
-      const lead = await this.service.createLead(payload);
-      storedLeads.push(lead);
-    }
-
-      // 2 Process leads to calculate conversion rates
-      const conversionData = await this.service.processLeads(leads, clientId);
-
-      // 3 Upsert conversion rates in DB
+      // 4️⃣ Upsert conversion rates in DB
       for (const item of conversionData) {
-        await conversionRateModel.findOneAndUpdate(
-          { clientId: item.clientId, keyField: item.keyField, keyName: item.keyName },
-          item,
-          { new: true, upsert: true }
-        ).exec();
+        await conversionRateModel
+          .findOneAndUpdate(
+            {
+              clientId: item.clientId,
+              keyField: item.keyField,
+              keyName: item.keyName,
+            },
+            item,
+            { new: true, upsert: true }
+          )
+          .exec();
       }
 
       utils.sendSuccessResponse(res, 200, {
@@ -166,7 +188,9 @@ export class LeadController {
       // Optional filter by clientId
       const filter = clientId ? { clientId } : {};
 
-      const conversionRates = await conversionRateRepository.getConversionRates(filter);
+      const conversionRates = await conversionRateRepository.getConversionRates(
+        filter
+      );
 
       return res.status(200).json({
         success: true,
@@ -185,17 +209,19 @@ export class LeadController {
     try {
       const data: IConversionRate[] = req.body;
       console.log("conversion rate", data);
-      
 
       if (!Array.isArray(data) || data.length === 0) {
         return res.status(400).json({
           success: false,
-          message: "Request body must be a non-empty array of conversion rate objects",
+          message:
+            "Request body must be a non-empty array of conversion rate objects",
         });
       }
 
       // Use batch upsert for better performance instead of individual upserts
-      const results = await conversionRateRepository.batchUpsertConversionRates(data);
+      const results = await conversionRateRepository.batchUpsertConversionRates(
+        data
+      );
 
       return res.status(200).json({
         success: true,
@@ -214,19 +240,25 @@ export class LeadController {
   /**
    * Manual trigger for weekly conversion rate update (for testing)
    */
-  async triggerWeeklyConversionRateUpdate(req: Request, res: Response): Promise<void> {
+  async triggerWeeklyConversionRateUpdate(
+    req: Request,
+    res: Response
+  ): Promise<void> {
     try {
       if (conversionRateUpdateService.isUpdateRunning()) {
-        utils.sendErrorResponse(res, "Weekly conversion rate update is already running");
+        utils.sendErrorResponse(
+          res,
+          "Weekly conversion rate update is already running"
+        );
         return;
       }
 
       const result = await conversionRateUpdateService.triggerManualUpdate();
-      
+
       utils.sendSuccessResponse(res, 200, {
         success: true,
         message: "Weekly conversion rate update completed",
-        data: result
+        data: result,
       });
     } catch (error: any) {
       console.error("Error in manual weekly update trigger:", error);
@@ -240,13 +272,15 @@ export class LeadController {
   async getWeeklyUpdateStatus(req: Request, res: Response): Promise<void> {
     try {
       const isRunning = conversionRateUpdateService.isUpdateRunning();
-      
+
       utils.sendSuccessResponse(res, 200, {
         success: true,
         data: {
           isRunning,
-          message: isRunning ? "Weekly update is currently running" : "Weekly update is not running"
-        }
+          message: isRunning
+            ? "Weekly update is currently running"
+            : "Weekly update is not running",
+        },
       });
     } catch (error: any) {
       console.error("Error getting weekly update status:", error);
@@ -254,4 +288,3 @@ export class LeadController {
     }
   }
 }
-

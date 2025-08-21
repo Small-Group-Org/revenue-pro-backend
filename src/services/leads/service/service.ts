@@ -32,8 +32,14 @@ export class LeadService {
     return await LeadModel.find(query).exec();
   }
 
+
   public async createLead(payload: ILead): Promise<ILeadDocument> {
     return await LeadModel.create(payload);
+  }
+
+  // Bulk insert leads
+  public async bulkCreateLeads(payloads: ILead[]): Promise<ILeadDocument[]> {
+    return await LeadModel.insertMany(payloads);
   }
 
   public async updateLead(
