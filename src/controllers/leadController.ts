@@ -155,20 +155,8 @@ export class LeadController {
         clientId
       );
 
-      // 4️⃣ Upsert conversion rates in DB
-      for (const item of conversionData) {
-        await conversionRateModel
-          .findOneAndUpdate(
-            {
-              clientId: item.clientId,
-              keyField: item.keyField,
-              keyName: item.keyName,
-            },
-            item,
-            { new: true, upsert: true }
-          )
-          .exec();
-      }
+      // 4️⃣ Batch upsert conversion rates in DB for optimal performance
+      await conversionRateRepository.batchUpsertConversionRates(conversionData);
 
       utils.sendSuccessResponse(res, 200, {
         success: true,
