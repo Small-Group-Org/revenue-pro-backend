@@ -43,6 +43,8 @@ export interface SheetProcessingResult {
   duplicatesUpdated: number;
   newLeadsAdded: number;
   conversionRatesGenerated: number;
+  processedSubSheet: string;
+  availableSubSheets: string[];
   conversionRateInsights: {
     uniqueServices: string[];
     uniqueAdSets: string[];
@@ -172,24 +174,53 @@ public async fetchLeadsFromSheet(
     totalRowsInSheet: number;
     validLeadsProcessed: number;
     skippedRows: number;
+    processedSubSheet: string;
+    availableSubSheets: string[];
   };
 }> {
   const match = sheetUrl.match(/\/d\/([a-zA-Z0-9-_]+)/);
   if (!match) throw new Error("Invalid Google Sheet URL");
   const sheetId = match[1];
-  const url = `https://docs.google.com/spreadsheets/d/${sheetId}/export?format=xlsx`;
+  
+  // Extract GID (sub-sheet ID) from URL if present
+  const gidMatch = sheetUrl.match(/[?&#]gid=([0-9]+)/);
+  let targetGid: string | null = gidMatch ? gidMatch[1] : null;
+  
+  console.log(`📊 Sheet ID: ${sheetId}${targetGid ? `, Target GID: ${targetGid}` : ' (default sheet)'}`);
+  
+  // Build export URL - if specific gid is provided, include it
+  let url = `https://docs.google.com/spreadsheets/d/${sheetId}/export?format=xlsx`;
+  if (targetGid) {
+    url += `&gid=${targetGid}`;
+  }
 
   const res = await fetch(url);
   if (!res.ok) throw new Error(`Failed to fetch sheet: ${res.status}`);
   const buffer = await res.arrayBuffer();
 
   let data: any[] = [];
-  
   let allHeaders: string[] = [];
+  let targetSheetName: string = "Unknown";
+  let availableSubSheets: string[] = [];
   
   try {
     const workbook = XLSX.read(buffer, { type: "array", cellDates: true });
-    const sheet = workbook.Sheets[workbook.SheetNames[0]];
+    availableSubSheets = workbook.SheetNames;
+    
+    console.log(`📋 Available sub-sheets: ${availableSubSheets.join(', ')}`);
+    
+    // Determine which sheet to process
+    if (targetGid) {
+      // Find sheet by GID - when exporting with specific GID, it usually becomes the first (and only) sheet
+      targetSheetName = availableSubSheets[0];
+      console.log(`🎯 Processing sub-sheet with GID ${targetGid}: "${targetSheetName}"`);
+    } else {
+      // No specific GID - use first sheet
+      targetSheetName = availableSubSheets[0];
+      console.log(`🎯 Processing default sub-sheet: "${targetSheetName}"`);
+    }
+    
+    const sheet = workbook.Sheets[targetSheetName];
     
     // First, extract ALL headers from the first row, including empty columns
     const range = XLSX.utils.decode_range(sheet['!ref'] || 'A1:A1');
@@ -246,7 +277,9 @@ public async fetchLeadsFromSheet(
       stats: {
         totalRowsInSheet: 0,
         validLeadsProcessed: 0,
-        skippedRows: 0
+        skippedRows: 0,
+        processedSubSheet: targetSheetName || "Unknown",
+        availableSubSheets: availableSubSheets || []
       }
     };
   }
@@ -359,7 +392,9 @@ public async fetchLeadsFromSheet(
     stats: {
       totalRowsInSheet: data.length,
       validLeadsProcessed: validLeads.length,
-      skippedRows: skippedRows.length
+      skippedRows: skippedRows.length,
+      processedSubSheet: targetSheetName,
+      availableSubSheets: availableSubSheets
     }
   };
 }
@@ -395,6 +430,8 @@ public async fetchLeadsFromSheet(
       duplicatesUpdated: bulkResult.stats.duplicatesUpdated,
       newLeadsAdded: bulkResult.stats.newInserts,
       conversionRatesGenerated: conversionData.length,
+      processedSubSheet: sheetStats.processedSubSheet,
+      availableSubSheets: sheetStats.availableSubSheets,
       conversionRateInsights
     };
 

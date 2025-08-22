@@ -152,6 +152,7 @@ export class LeadController {
         success: true,
         message: "Sheet processed successfully",
         data: {
+          processedSubSheet: processingResult.processedSubSheet,
           processing: {
             totalRowsInSheet: processingResult.totalRowsInSheet,
             validLeadsProcessed: processingResult.validLeadsProcessed,
