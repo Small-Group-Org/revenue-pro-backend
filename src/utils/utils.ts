@@ -34,10 +34,16 @@ class utils {
 
   public sendErrorResponse(res: Response, error: any): Response {
     let code = 500;
-    let message = error;
+    let message = "Internal Server Error";
 
     if (error instanceof CustomError) {
       code = ErrorCodeStatusMap[error.code];
+      message = error.message;
+    } else if (error instanceof Error) {
+      message = error.message;
+    } else if (typeof error === 'string') {
+      message = error;
+    } else if (error && typeof error === 'object' && error.message) {
       message = error.message;
     }
 
