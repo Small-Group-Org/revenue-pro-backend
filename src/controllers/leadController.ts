@@ -157,6 +157,7 @@ export class LeadController {
             totalRowsInSheet: processingResult.totalRowsInSheet,
             validLeadsProcessed: processingResult.validLeadsProcessed,
             skippedRows: processingResult.skippedRows,
+            skipReasons: processingResult.skipReasons
           },
           database: {
             leadsStoredInDB: processingResult.leadsStoredInDB,

@@ -24,6 +24,7 @@ import { ILead, ILeadDocument, LeadStatus } from "../domain/leads.domain.js";
 import LeadModel from "../repository/models/leads.model.js";
 import { conversionRateRepository } from "../repository/repository.js";
 import { IConversionRate } from "../repository/models/conversionRate.model.js";
+import utils from "../../../utils/utils.js";
 
 type LeadKeyField = keyof Pick<
   ILead,
@@ -35,10 +36,21 @@ type UniqueKey = {
   field: LeadKeyField;
 };
 
+export interface SkipReasons {
+  missingName: number;
+  missingService: number;
+  missingAdSetName: number;
+  missingAdName: number;
+  invalidRowStructure: number;
+  processingErrors: number;
+  total: number;
+}
+
 export interface SheetProcessingResult {
   totalRowsInSheet: number;
   validLeadsProcessed: number;
   skippedRows: number;
+  skipReasons: string[];
   leadsStoredInDB: number;
   duplicatesUpdated: number;
   newLeadsAdded: number;
@@ -174,6 +186,7 @@ public async fetchLeadsFromSheet(
     totalRowsInSheet: number;
     validLeadsProcessed: number;
     skippedRows: number;
+    skipReasons: string[];
     processedSubSheet: string;
     availableSubSheets: string[];
   };
@@ -235,13 +248,20 @@ public async fetchLeadsFromSheet(
     console.log("All detected headers (including blanks):", allHeaders);
 
     
-    // Now parse the data with all headers included
+    // Now parse the data with all headers included, skipping the header row
+    const sheetRange = XLSX.utils.decode_range(sheet['!ref'] || 'A1:A1');
+    const dataRange = XLSX.utils.encode_range({
+      s: { r: 1, c: sheetRange.s.c }, // Start from row 2 (index 1) to skip header
+      e: { r: sheetRange.e.r, c: sheetRange.e.c }
+    });
+    
     data = XLSX.utils.sheet_to_json(sheet, {
       raw: false,
       dateNF: "yyyy-mm-dd",
       defval: "", // Default value for empty cells  
       blankrows: false, // Skip completely empty rows
-      header: allHeaders // Use first row as headers
+      header: allHeaders, // Use our extracted headers
+      range: dataRange // Skip the header row by starting from row 2
     });
 
     // Ensure all detected headers are present in each data row
@@ -278,6 +298,7 @@ public async fetchLeadsFromSheet(
         totalRowsInSheet: 0,
         validLeadsProcessed: 0,
         skippedRows: 0,
+        skipReasons: [],
         processedSubSheet: targetSheetName || "Unknown",
         availableSubSheets: availableSubSheets || []
       }
@@ -321,26 +342,70 @@ public async fetchLeadsFromSheet(
 
   // Pre-allocate arrays for better performance with large datasets
   const validLeads: ILead[] = [];
-  const skippedRows: number[] = [];
+  
+  // Track detailed skip reasons
+  const skipReasons: SkipReasons = {
+    missingName: 0,
+    missingService: 0,
+    missingAdSetName: 0,
+    missingAdName: 0,
+    invalidRowStructure: 0,
+    processingErrors: 0,
+    total: 0
+  };
   
   // Single pass through data for optimal performance
   for (let i = 0; i < data.length; i++) {
     const row = data[i];
+    const sheetRowNumber = i + 2; // Actual sheet row (i + 2 because i is 0-based and we skip header row)
     
     // Quick validation checks - exit early on invalid rows
     if (!row || typeof row !== 'object') {
-      skippedRows.push(i);
+      skipReasons.invalidRowStructure++;
+      skipReasons.total++;
+      console.warn(`⚠️  Sheet Row ${sheetRowNumber}: Invalid row structure - skipping`);
       continue;
     }
     
-    // Lead validation: Must have required business fields (name is always required for identification)
+    // Lead validation: Check each required business field individually
     const hasName = row["Name"] && String(row["Name"]).trim();
     const hasService = row["Service"] && String(row["Service"]).trim();
-    const hasAdInfo = row["Ad Set Name"] && row["Ad Name"] && 
-                      String(row["Ad Set Name"]).trim() && String(row["Ad Name"]).trim();
+    const hasAdSetName = row["Ad Set Name"] && String(row["Ad Set Name"]).trim();
+    const hasAdName = row["Ad Name"] && String(row["Ad Name"]).trim();
     
-    if (!hasName || !hasService || !hasAdInfo) {
-      skippedRows.push(i);
+    // Track specific missing fields
+    let shouldSkip = false;
+    const leadName = hasName ? String(row["Name"]).trim() : "Unknown";
+    
+    if (!hasName) {
+      skipReasons.missingName++;
+      skipReasons.total++;
+      shouldSkip = true;
+      console.warn(`⚠️  Sheet Row ${sheetRowNumber}: Missing Name - skipping`);
+    }
+    
+    if (!hasService) {
+      skipReasons.missingService++;
+      if (!shouldSkip) skipReasons.total++;
+      shouldSkip = true;
+      console.warn(`⚠️  Sheet Row ${sheetRowNumber}: Missing Service for lead "${leadName}" - skipping`);
+    }
+    
+    if (!hasAdSetName) {
+      skipReasons.missingAdSetName++;
+      if (!shouldSkip) skipReasons.total++;
+      shouldSkip = true;
+      console.warn(`⚠️  Sheet Row ${sheetRowNumber}: Missing Ad Set Name for lead "${leadName}" - skipping`);
+    }
+    
+    if (!hasAdName) {
+      skipReasons.missingAdName++;
+      if (!shouldSkip) skipReasons.total++;
+      shouldSkip = true;
+      console.warn(`⚠️  Sheet Row ${sheetRowNumber}: Missing Ad Name for lead "${leadName}" - skipping`);
+    }
+    
+    if (shouldSkip) {
       continue;
     }
     
@@ -355,15 +420,9 @@ public async fetchLeadsFromSheet(
       const status: LeadStatus = isEstimateSet ? 'estimate_set' : 'unqualified';
       const unqualifiedLeadReason = isEstimateSet ? '' : String(row["Unqualified Lead Reason"] || "");
 
-      // Optimized date parsing - avoid creating Date object if not needed
-      let leadDate = "";
-      if (row["Lead Date"]) {
-        const dateValue = row["Lead Date"];
-        leadDate = dateValue instanceof Date ? 
-          dateValue.toISOString().slice(0, 10) :
-          new Date(dateValue).toISOString().slice(0, 10);
-      }
-
+      // Parse date using utility helper function
+      const leadDate = utils.parseDate(row["Lead Date"], sheetRowNumber);
+      console.log(`Processing Sheet Row ${sheetRowNumber}, email:`, row["Email"]);
       validLeads.push({
         status,
         leadDate,
@@ -378,21 +437,43 @@ public async fetchLeadsFromSheet(
         clientId,
       } as ILead);
     } catch (error) {
-      console.error(`Error processing row ${i}:`, error);
-      skippedRows.push(i);
+      skipReasons.processingErrors++;
+      skipReasons.total++;
+      const leadName = row["Name"] ? String(row["Name"]).trim() : "Unknown";
+      console.error(`❌ Error processing Sheet Row ${sheetRowNumber} (Lead: "${leadName}"):`, error);
     }
   }
 
-  if (skippedRows.length > 0) {
-    console.log(`Processed ${validLeads.length} valid leads, skipped ${skippedRows.length} invalid rows`);
+  // Log detailed skip summary
+  if (skipReasons.total > 0) {
+    console.log(`✅ Processed ${validLeads.length} valid leads, ❌ skipped ${skipReasons.total} rows:`);
+    if (skipReasons.missingName > 0) console.log(`  - ${skipReasons.missingName} rows missing Name`);
+    if (skipReasons.missingService > 0) console.log(`  - ${skipReasons.missingService} rows missing Service`);
+    if (skipReasons.missingAdSetName > 0) console.log(`  - ${skipReasons.missingAdSetName} rows missing Ad Set Name`);
+    if (skipReasons.missingAdName > 0) console.log(`  - ${skipReasons.missingAdName} rows missing Ad Name`);
+    if (skipReasons.invalidRowStructure > 0) console.log(`  - ${skipReasons.invalidRowStructure} rows with invalid structure`);
+    if (skipReasons.processingErrors > 0) console.log(`  - ${skipReasons.processingErrors} rows with processing errors`);
+  } else {
+    console.log(`✅ Successfully processed all ${validLeads.length} leads from sheet`);
   }
+
+  // Convert skipReasons to breakdown array
+  const skipReasonsBreakdown: string[] = [
+    ...(skipReasons.missingName > 0 ? [`${skipReasons.missingName} rows missing Name`] : []),
+    ...(skipReasons.missingService > 0 ? [`${skipReasons.missingService} rows missing Service`] : []),
+    ...(skipReasons.missingAdSetName > 0 ? [`${skipReasons.missingAdSetName} rows missing Ad Set Name`] : []),
+    ...(skipReasons.missingAdName > 0 ? [`${skipReasons.missingAdName} rows missing Ad Name`] : []),
+    ...(skipReasons.invalidRowStructure > 0 ? [`${skipReasons.invalidRowStructure} rows with invalid structure`] : []),
+    ...(skipReasons.processingErrors > 0 ? [`${skipReasons.processingErrors} rows with processing errors`] : [])
+  ];
 
   return {
     leads: validLeads,
     stats: {
       totalRowsInSheet: data.length,
       validLeadsProcessed: validLeads.length,
-      skippedRows: skippedRows.length,
+      skippedRows: skipReasons.total,
+      skipReasons: skipReasonsBreakdown,
       processedSubSheet: targetSheetName,
       availableSubSheets: availableSubSheets
     }
@@ -426,6 +507,7 @@ public async fetchLeadsFromSheet(
       totalRowsInSheet: sheetStats.totalRowsInSheet,
       validLeadsProcessed: sheetStats.validLeadsProcessed,
       skippedRows: sheetStats.skippedRows,
+      skipReasons: sheetStats.skipReasons,
       leadsStoredInDB: bulkResult.stats.total,
       duplicatesUpdated: bulkResult.stats.duplicatesUpdated,
       newLeadsAdded: bulkResult.stats.newInserts,
