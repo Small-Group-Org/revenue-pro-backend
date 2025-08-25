@@ -8,6 +8,60 @@ import conversionRateModel, {
 import { conversionRateRepository } from "../services/leads/repository/repository.js";
 
 export class LeadController {
+  /**
+   * Endpoint to update conversion rates and lead scores for a client
+   * POST /leads/update-cr/:clientId
+   */
+  async updateConversionRatesAndLeadScores(req: Request, res: Response): Promise<void> {
+    try {
+      const clientId = req.params.clientId;
+      if (!clientId) {
+        utils.sendErrorResponse(res, "clientId is required in params");
+        return;
+      }
+      console.log(`[API] Triggering updateConversionRatesAndLeadScoresForClient for clientId: ${clientId}`);
+      const result = await this.service.updateConversionRatesAndLeadScoresForClient(clientId);
+
+      // Fetch latest conversion rates for insights
+      const conversionRates = await conversionRateRepository.getConversionRates({ clientId });
+      const conversionRateInsights = {
+        uniqueServices: [...new Set(conversionRates.filter(d => d.keyField === 'service').map(d => d.keyName))],
+        uniqueAdSets: [...new Set(conversionRates.filter(d => d.keyField === 'adSetName').map(d => d.keyName))],
+        uniqueAdNames: [...new Set(conversionRates.filter(d => d.keyField === 'adName').map(d => d.keyName))],
+        uniqueMonths: [...new Set(conversionRates.filter(d => d.keyField === 'leadDate').map(d => d.keyName))],
+        uniqueZips: [...new Set(conversionRates.filter(d => d.keyField === 'zip').map(d => d.keyName))]
+      };
+
+      // Fetch updated leads for summary
+      const updatedLeads = await this.service.getLeads(clientId);
+
+      utils.sendSuccessResponse(res, 200, {
+        success: true,
+        message: `Conversion rates and lead scores updated for clientId: ${clientId}`,
+        data: {
+          processing: {
+            totalLeads: updatedLeads.length,
+            updatedLeads: result.updatedLeads,
+            updatedConversionRates: result.updatedConversionRates,
+            errors: result.errors
+          },
+          conversionRates: {
+            conversionRatesGenerated: result.updatedConversionRates,
+            insights: conversionRateInsights,
+            conversionRates: conversionRates
+          },
+          summary: {
+            processingSuccessRate: updatedLeads.length > 0 ? `${((result.updatedLeads / updatedLeads.length) * 100).toFixed(1)}%` : '0%',
+            updatedLeads: result.updatedLeads,
+            updatedConversionRates: result.updatedConversionRates
+          }
+        }
+      });
+    } catch (error) {
+      console.error("Error in updateConversionRatesAndLeadScores endpoint:", error);
+      utils.sendErrorResponse(res, error);
+    }
+  }
   private service: LeadService;
 
   constructor() {
@@ -24,6 +78,7 @@ export class LeadController {
     this.triggerWeeklyConversionRateUpdate =
       this.triggerWeeklyConversionRateUpdate.bind(this);
     this.getWeeklyUpdateStatus = this.getWeeklyUpdateStatus.bind(this);
+    this.updateConversionRatesAndLeadScores = this.updateConversionRatesAndLeadScores.bind(this)
     
     // this.recalculateLeadScores = this.recalculateLeadScores.bind(this);
     // this.recalculateAllClientLeadScores = this.recalculateAllClientLeadScores.bind(this);

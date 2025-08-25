@@ -66,6 +66,118 @@ export interface SheetProcessingResult {
 };
 
 export class LeadService {
+  /**
+   * Update conversion rates and lead scores for all leads of a client.
+   * - Calculates conversion rates for all 5 fields (service, adSetName, adName, leadDate, zip)
+   * - Upserts conversion rates to DB
+   * - Recalculates lead scores for all leads
+   * - Stores conversion rates for each lead in a new field 'conversionRates'
+   *
+   * @param clientId - The client ID to process
+   * @returns Summary of update operation
+   */
+  public async updateConversionRatesAndLeadScoresForClient(clientId: string): Promise<{
+    updatedConversionRates: number;
+    updatedLeads: number;
+    errors: string[];
+  }> {
+    const errors: string[] = [];
+    try {
+      console.log(`[CR Update] Starting update for clientId: ${clientId}`);
+      // 1. Fetch all leads for client
+      const leads = await LeadModel.find({ clientId }).lean().exec();
+      if (leads.length === 0) {
+        console.log(`[CR Update] No leads found for clientId: ${clientId}`);
+        return { updatedConversionRates: 0, updatedLeads: 0, errors: [] };
+      }
+
+      // 2. Calculate conversion rates for all unique fields
+      const conversionData = this.processLeads(leads, clientId);
+      console.log(`[CR Update] Calculated ${conversionData.length} conversion rates for clientId: ${clientId}`);
+
+      // 3. Upsert conversion rates to DB (no change detection for rates, but could be added if needed)
+      await conversionRateRepository.batchUpsertConversionRates(conversionData);
+      console.log(`[CR Update] Upserted conversion rates to DB for clientId: ${clientId}`);
+
+      // 4. Build a lookup map for conversion rates for fast access
+      const crMap: Record<string, Record<string, number>> = {
+        service: {}, adSetName: {}, adName: {}, leadDate: {}, zip: {}
+      };
+      for (const cr of conversionData) {
+        if (crMap[cr.keyField]) {
+          crMap[cr.keyField][cr.keyName] = cr.conversionRate;
+        }
+      }
+
+      // 5. For each lead, recalculate leadScore and store conversionRates
+      const bulkOps = [];
+      let actuallyUpdatedLeads = 0;
+      for (const lead of leads) {
+        // Build conversionRates object for this lead
+        const conversionRatesForLead = {
+          service: crMap.service[lead.service] ?? 0,
+          adSetName: crMap.adSetName[lead.adSetName] ?? 0,
+          adName: crMap.adName[lead.adName] ?? 0,
+          leadDate: (() => {
+            const monthName = new Date(lead.leadDate).toLocaleString("en-US", { month: "long" });
+            return crMap.leadDate[monthName] ?? 0;
+          })(),
+          zip: crMap.zip[lead.zip ?? ""] ?? 0
+        };
+        // Calculate new leadScore
+        const weightedScore =
+          (conversionRatesForLead.service * LeadService.FIELD_WEIGHTS.service) +
+          (conversionRatesForLead.adSetName * LeadService.FIELD_WEIGHTS.adSetName) +
+          (conversionRatesForLead.adName * LeadService.FIELD_WEIGHTS.adName) +
+          (conversionRatesForLead.leadDate * LeadService.FIELD_WEIGHTS.leadDate) +
+          (conversionRatesForLead.zip * LeadService.FIELD_WEIGHTS.zip);
+        let finalScore = Math.round(Math.max(0, Math.min(100, weightedScore / 100)));
+
+        // Only update if leadScore or conversionRates have changed
+        const leadScoreChanged = lead.leadScore !== finalScore;
+        const conversionRatesChanged = JSON.stringify(lead.conversionRates ?? {}) !== JSON.stringify(conversionRatesForLead);
+        if (leadScoreChanged || conversionRatesChanged) {
+          bulkOps.push({
+            updateOne: {
+              filter: { _id: lead._id },
+              update: {
+                $set: {
+                  leadScore: finalScore,
+                  conversionRates: conversionRatesForLead
+                }
+              }
+            }
+          });
+          actuallyUpdatedLeads++;
+        }
+      }
+
+      // 6. Bulk update only changed leads
+      let modifiedCount = 0;
+      if (bulkOps.length > 0) {
+        const result = await LeadModel.bulkWrite(bulkOps);
+        modifiedCount = result.modifiedCount;
+        console.log(`[CR Update] Updated ${modifiedCount} leads with new scores and conversionRates for clientId: ${clientId}`);
+      } else {
+        console.log(`[CR Update] No leads needed updating for clientId: ${clientId}`);
+      }
+
+      return {
+        updatedConversionRates: conversionData.length,
+        updatedLeads: actuallyUpdatedLeads,
+        errors
+      };
+    } catch (error: any) {
+      const errorMsg = `[CR Update] Error updating conversion rates and lead scores for clientId ${clientId}: ${error.message}`;
+      console.error(errorMsg);
+      errors.push(errorMsg);
+      return {
+        updatedConversionRates: 0,
+        updatedLeads: 0,
+        errors
+      };
+    }
+  }
 
   private static readonly FIELD_WEIGHTS = {
     service: 20,

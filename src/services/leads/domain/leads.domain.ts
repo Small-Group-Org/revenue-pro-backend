@@ -14,7 +14,24 @@ export interface ILead {
   status: 'new' | 'in_progress' | 'estimate_set' | 'unqualified';
   clientId: string;
   unqualifiedLeadReason?: string;
-  leadScore?: number; // NEW FIELD - calculated lead score
+  leadScore?: number; // calculated lead score
+  conversionRates?: {
+    service?: number;
+    adSetName?: number;
+    adName?: number;
+    leadDate?: number;
+    zip?: number;
+    [key: string]: number | undefined;
+  };
 }
 
-export interface ILeadDocument extends ILead, Document {}
+export interface ILeadDocument extends ILead, Document {
+  conversionRates?: {
+    service?: number;
+    adSetName?: number;
+    adName?: number;
+    leadDate?: number;
+    zip?: number;
+    [key: string]: number | undefined;
+  };
+}
