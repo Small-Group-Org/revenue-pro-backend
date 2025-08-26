@@ -95,43 +95,43 @@ export class LeadService {
       const conversionData = this.processLeads(leads, clientId);
       console.log(`[CR Update] Calculated ${conversionData.length} conversion rates for clientId: ${clientId}`);
 
-      // 3. Upsert conversion rates to DB (no change detection for rates, but could be added if needed)
+      // 3. Upsert conversion rates to DB
       await conversionRateRepository.batchUpsertConversionRates(conversionData);
       console.log(`[CR Update] Upserted conversion rates to DB for clientId: ${clientId}`);
 
-      // 4. Build a lookup map for conversion rates for fast access
-      const crMap: Record<string, Record<string, number>> = {
-        service: {}, adSetName: {}, adName: {}, leadDate: {}, zip: {}
-      };
-      for (const cr of conversionData) {
-        if (crMap[cr.keyField]) {
-          crMap[cr.keyField][cr.keyName] = cr.conversionRate;
-        }
-      }
+      // 4. Fetch conversion rates from DB for this client
+      const dbConversionRates = await conversionRateRepository.getConversionRates({ clientId });
 
-      // 5. For each lead, recalculate leadScore and store conversionRates
+      // 5. For each lead, recalculate leadScore and store conversionRates (always use DB values)
       const bulkOps = [];
       let actuallyUpdatedLeads = 0;
       for (const lead of leads) {
-        // Build conversionRates object for this lead
+        // Get conversion rates for each field from DB
+        const serviceRate = this.getConversionRate(dbConversionRates, 'service', lead.service);
+        const adSetNameRate = this.getConversionRate(dbConversionRates, 'adSetName', lead.adSetName);
+        const adNameRate = this.getConversionRate(dbConversionRates, 'adName', lead.adName);
+        const monthName = new Date(lead.leadDate).toLocaleString("en-US", { month: "long" });
+        const leadDateRate = this.getConversionRate(dbConversionRates, 'leadDate', monthName);
+        const zipRate = this.getConversionRate(dbConversionRates, 'zip', lead.zip ?? "");
+
+        // Build conversionRates object for this lead (always include all fields)
         const conversionRatesForLead = {
-          service: crMap.service[lead.service] ?? 0,
-          adSetName: crMap.adSetName[lead.adSetName] ?? 0,
-          adName: crMap.adName[lead.adName] ?? 0,
-          leadDate: (() => {
-            const monthName = new Date(lead.leadDate).toLocaleString("en-US", { month: "long" });
-            return crMap.leadDate[monthName] ?? 0;
-          })(),
-          zip: crMap.zip[lead.zip ?? ""] ?? 0
+          service: serviceRate,
+          adSetName: adSetNameRate,
+          adName: adNameRate,
+          leadDate: leadDateRate,
+          zip: zipRate
         };
-        // Calculate new leadScore
+
+        // Calculate new leadScore using all fields, even if 0
         const weightedScore =
-          (conversionRatesForLead.service * LeadService.FIELD_WEIGHTS.service) +
-          (conversionRatesForLead.adSetName * LeadService.FIELD_WEIGHTS.adSetName) +
-          (conversionRatesForLead.adName * LeadService.FIELD_WEIGHTS.adName) +
-          (conversionRatesForLead.leadDate * LeadService.FIELD_WEIGHTS.leadDate) +
-          (conversionRatesForLead.zip * LeadService.FIELD_WEIGHTS.zip);
-        let finalScore = Math.round(Math.max(0, Math.min(100, weightedScore / 100)));
+          (serviceRate * LeadService.FIELD_WEIGHTS.service) +
+          (adSetNameRate * LeadService.FIELD_WEIGHTS.adSetName) +
+          (adNameRate * LeadService.FIELD_WEIGHTS.adName) +
+          (leadDateRate * LeadService.FIELD_WEIGHTS.leadDate) +
+          (zipRate * LeadService.FIELD_WEIGHTS.zip);
+        // Score is between 0 and 100, multiply by 100 before rounding
+        let finalScore = Math.round(Math.max(0, Math.min(100, weightedScore)));
 
         // Only update if leadScore or conversionRates have changed
         const leadScoreChanged = lead.leadScore !== finalScore;
