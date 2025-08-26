@@ -180,11 +180,11 @@ export class LeadService {
   }
 
   private static readonly FIELD_WEIGHTS = {
-    service: 20,
+    service: 30,
     adSetName: 20, 
-    adName: 20,
-    leadDate: 20,
-    zip: 20
+    adName: 10,
+    leadDate: 15,
+    zip: 25
   } as const;
 
   private calculateLeadScore(lead: ILead, conversionRates: IConversionRate[]): number {
@@ -383,52 +383,6 @@ export class LeadService {
       return {
         totalLeads: 0,
         updatedLeads: 0,
-        errors
-      };
-    }
-  }
-
-  /**
-   * Recalculate lead scores for ALL clients (batch operation)
-   */
-  public async recalculateAllLeadScoresForAllClients(): Promise<{
-    processedClients: number;
-    totalLeadsUpdated: number;
-    errors: string[];
-  }> {
-    const errors: string[] = [];
-    let totalLeadsUpdated = 0;
-    
-    try {
-      // Get all unique client IDs
-      const clientIds = await this.getAllClientIds();
-      console.log(`Starting lead score recalculation for ${clientIds.length} clients`);
-      
-      for (const clientId of clientIds) {
-        try {
-          const result = await this.recalculateAllLeadScores(clientId);
-          totalLeadsUpdated += result.updatedLeads;
-          errors.push(...result.errors);
-        } catch (error: any) {
-          const errorMsg = `Error processing client ${clientId}: ${error.message}`;
-          console.error(errorMsg);
-          errors.push(errorMsg);
-        }
-      }
-      
-      return {
-        processedClients: clientIds.length,
-        totalLeadsUpdated,
-        errors
-      };
-    } catch (error: any) {
-      const errorMsg = `Error in batch lead score recalculation: ${error.message}`;
-      console.error(errorMsg);
-      errors.push(errorMsg);
-      
-      return {
-        processedClients: 0,
-        totalLeadsUpdated: 0,
         errors
       };
     }

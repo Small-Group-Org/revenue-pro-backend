@@ -6,5 +6,8 @@ const router = Router();
 const controller = new LeadController();
 
 // Route to create single or bulk leads (protected by static API key)
-export default router.post("/", verifyApiKey, controller.createLead);
+router.post("/hooks/create-lead", verifyApiKey, controller.createLead);
+router.post('/trigger-lead-sheet-computation',verifyApiKey, controller.updateConversionRatesAndLeadScores);
+
+export default router
 

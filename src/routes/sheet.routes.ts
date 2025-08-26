@@ -7,7 +7,5 @@ const router = Router();
 const controller = new LeadController();
 
 router.post("/", verifyApiKey, controller.processSheetLeads);
-// In your routes file
-router.post('/update-cr/:clientId', controller.updateConversionRatesAndLeadScores);
 
 export default router;

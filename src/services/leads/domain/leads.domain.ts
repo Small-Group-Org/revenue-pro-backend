@@ -11,7 +11,7 @@ export interface ILead {
   service: string;
   adSetName: string;
   adName: string;
-  status: 'new' | 'in_progress' | 'estimate_set' | 'unqualified';
+  status: LeadStatus;
   clientId: string;
   unqualifiedLeadReason?: string;
   leadScore?: number; // calculated lead score
