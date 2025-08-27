@@ -217,14 +217,14 @@ export class LeadController {
       }
 
       // Fetch conversion rates for dropdowns
-      const filterOptions = await this.service.fetchLeadFiltersAndCounts(
+      const data = await this.service.fetchLeadFiltersAndCounts(
         clientId,
         startDate,
         endDate
       );
       utils.sendSuccessResponse(res, 200, {
         success: true,
-        filterOptions,
+        data,
       });
     } catch (error) {
       console.error("Error in getLeadFilters:", error);

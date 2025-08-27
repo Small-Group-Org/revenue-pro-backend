@@ -272,7 +272,7 @@ public async fetchLeadFiltersAndCounts(
   startDate?: string,
   endDate?: string
 ): Promise<{
-  data: {
+  filterOptions: {
     services: string[];
     adSetNames: string[];
     adNames: string[];
@@ -330,7 +330,7 @@ public async fetchLeadFiltersAndCounts(
   };
 
   return {
-  data: {
+  filterOptions: {
     services: services.filter(Boolean).sort(),
     adSetNames: adSetNames.filter(Boolean).sort(),
     adNames: adNames.filter(Boolean).sort(),
