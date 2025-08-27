@@ -1,0 +1,241 @@
+import { IConversionRate } from "../repository/models/conversionRate.model.js";
+
+/**
+ * Lead Service Utility Functions
+ * Extracted utility functions for better modularity and reusability
+ */
+
+// Field weights for lead scoring calculation
+export const FIELD_WEIGHTS = {
+  service: 30,
+  adSetName: 20, 
+  adName: 10,
+  leadDate: 15,
+  zip: 25
+} as const;
+
+// Static month map for better performance
+export const MONTH_MAP: Record<string, number> = {
+  january: 0,
+  february: 1,
+  march: 2,
+  april: 3,
+  may: 4,
+  june: 5,
+  july: 6,
+  august: 7,
+  september: 8,
+  october: 9,
+  november: 10,
+  december: 11,
+};
+
+// Cache for month name lookups to avoid repeated date parsing
+class MonthNameCache {
+  private cache = new Map<string, string | null>();
+  private readonly MAX_CACHE_SIZE = 1000;
+
+  get(dateStr: string): string | null {
+    // Check cache first for performance
+    if (this.cache.has(dateStr)) {
+      return this.cache.get(dateStr)!;
+    }
+    
+    const d = new Date(dateStr);
+    const result = isNaN(d.getTime()) ? null : d.toLocaleString("en-US", { month: "long" });
+    
+    // Cache the result to avoid repeated calculations
+    this.cache.set(dateStr, result);
+    
+    // Clear cache if it gets too large to prevent memory leaks
+    if (this.cache.size > this.MAX_CACHE_SIZE) {
+      this.cache.clear();
+      this.cache.set(dateStr, result);
+    }
+    
+    return result;
+  }
+
+  clear(): void {
+    this.cache.clear();
+  }
+}
+
+// Singleton instance of the cache
+const monthNameCache = new MonthNameCache();
+
+/**
+ * Get monthly name from date string with caching for performance
+ */
+export function getMonthlyName(dateStr: string): string | null {
+  return monthNameCache.get(dateStr);
+}
+
+/**
+ * Clear the month name cache (useful for testing or memory management)
+ */
+export function clearMonthNameCache(): void {
+  monthNameCache.clear();
+}
+
+/**
+ * Convert conversion rates array to Map for faster O(1) lookups
+ */
+export function createConversionRatesMap(conversionRates: IConversionRate[]): Map<string, number> {
+  const map = new Map<string, number>();
+  for (const rate of conversionRates) {
+    const key = `${rate.keyField}:${rate.keyName}`;
+    map.set(key, rate.conversionRate);
+  }
+  return map;
+}
+
+/**
+ * Get conversion rate for specific field and value using Map for O(1) lookup
+ */
+export function getConversionRateFromMap(conversionRatesMap: Map<string, number>, field: string, value: string): number {
+  if (!value || value.trim() === '') return 0;
+  
+  const key = `${field}:${value}`;
+  return conversionRatesMap.get(key) || 0;
+}
+
+/**
+ * Get date-based conversion rate (monthly) using Map
+ */
+export function getDateConversionRateFromMap(conversionRatesMap: Map<string, number>, leadDate: string): number {
+  const monthName = getMonthlyName(leadDate);
+  if (!monthName) return 0;
+  
+  return getConversionRateFromMap(conversionRatesMap, 'leadDate', monthName);
+}
+
+// Removed deprecated getConversionRate function - use getConversionRateFromMap for better performance
+
+/**
+ * Calculate lead score using conversion rates map and field weights
+ */
+export function calculateLeadScore(
+  lead: { service: string; adSetName: string; adName: string; leadDate: string; zip?: string },
+  conversionRatesMap: Map<string, number>
+): number {
+  if (!conversionRatesMap || conversionRatesMap.size === 0) {
+    return 0;
+  }
+
+  // Use map lookups for O(1) access instead of array.find() which is O(n)
+  const serviceRate = getConversionRateFromMap(conversionRatesMap, 'service', lead.service);
+  const adSetRate = getConversionRateFromMap(conversionRatesMap, 'adSetName', lead.adSetName);
+  const adNameRate = getConversionRateFromMap(conversionRatesMap, 'adName', lead.adName);
+  const dateRate = getDateConversionRateFromMap(conversionRatesMap, lead.leadDate);
+  const zipRate = getConversionRateFromMap(conversionRatesMap, 'zip', lead.zip || '');
+
+  const weightedScore = 
+    (serviceRate * FIELD_WEIGHTS.service) +
+    (adSetRate * FIELD_WEIGHTS.adSetName) +
+    (adNameRate * FIELD_WEIGHTS.adName) +
+    (dateRate * FIELD_WEIGHTS.leadDate) +
+    (zipRate * FIELD_WEIGHTS.zip);
+
+  // Simplified calculation - weightedScore is already 0-100 range
+  return Math.round(Math.max(0, Math.min(100, weightedScore)));
+}
+
+export function isValidMonthName(monthName: string): boolean {
+  return monthName.toLowerCase() in MONTH_MAP;
+}
+
+export function getMonthIndex(monthName: string): number | undefined {
+  return MONTH_MAP[monthName.toLowerCase()];
+}
+
+// ---------------- SHEET PROCESSING UTILITIES ----------------
+
+/**
+ * Validate Google Sheets URL format
+ */
+export function validateSheetUrl(sheetUrl: string): boolean {
+  const match = sheetUrl.match(/\/d\/([a-zA-Z0-9-_]+)/);
+  return !!match;
+}
+
+/**
+ * Extract sheet ID from Google Sheets URL
+ */
+export function extractSheetId(sheetUrl: string): string | null {
+  const match = sheetUrl.match(/\/d\/([a-zA-Z0-9-_]+)/);
+  return match ? match[1] : null;
+}
+
+/**
+ * Extract GID (sub-sheet ID) from Google Sheets URL
+ */
+export function extractGid(sheetUrl: string): string | null {
+  const gidMatch = sheetUrl.match(/[?&#]gid=([0-9]+)/);
+  return gidMatch ? gidMatch[1] : null;
+}
+
+/**
+ * Parse estimate set value from various formats
+ */
+export function parseEstimateSetValue(value: any): boolean {
+  return value === true || 
+    value === 1 ||
+    (typeof value === "string" && value.trim().toUpperCase() === "TRUE") ||
+    (typeof value === "string" && value.trim().toUpperCase() === "YES");
+}
+
+/**
+ * Validate required sheet headers
+ */
+export function validateSheetHeaders(availableHeaders: string[]): string[] {
+  const requiredHeaders = [
+    "Estimate Set (Yes/No)",
+    "Lead Date", 
+    "Name",
+    "Email",
+    "Phone", 
+    "Zip",
+    "Service",
+    "Ad Set Name",
+    "Ad Name", 
+    "Unqualified Lead Reason"
+  ];
+
+  const missingHeaders: string[] = [];
+  
+  for (const requiredHeader of requiredHeaders) {
+    if (!availableHeaders.includes(requiredHeader)) {
+      missingHeaders.push(requiredHeader);
+    }
+  }
+
+  return missingHeaders;
+}
+
+/**
+ * Get required headers for lead sheets
+ */
+export function getRequiredSheetHeaders(): string[] {
+  return [
+    "Estimate Set (Yes/No)",
+    "Lead Date", 
+    "Name",
+    "Email",
+    "Phone", 
+    "Zip",
+    "Service",
+    "Ad Set Name",
+    "Ad Name", 
+    "Unqualified Lead Reason"
+  ];
+}
+
+// ---------------- TYPE DEFINITIONS ----------------
+
+export type LeadKeyField = "service" | "adSetName" | "adName" | "leadDate" | "zip";
+
+export type UniqueKey = {
+  value: string;
+  field: LeadKeyField;
+};
