@@ -47,8 +47,35 @@ import { SheetsService, type SheetProcessingResult } from "./sheets.service.js";
 
 // Re-export SheetProcessingResult from sheets service for backward compatibility
 export type { SheetProcessingResult } from "./sheets.service.js";
+interface PaginationOptions {
+    page: number;
+    limit: number;
+    sortBy: 'date' | 'score';
+    sortOrder: 'asc' | 'desc';
+  }
+
+  interface FilterOptions {
+    service?: string;
+    adSetName?: string;
+    adName?: string;
+    status?: string;
+    unqualifiedLeadReason?: string;
+  }
+
+  interface PaginatedLeadsResult {
+    leads: ILeadDocument[];
+    pagination: {
+      currentPage: number;
+      totalPages: number;
+      totalCount: number;
+      pageSize: number;
+      hasNext: boolean;
+      hasPrev: boolean;
+    };
+  }
 
 export class LeadService {
+
   /**
    * Update conversion rates and lead scores for all leads of a client.
    * - Calculates conversion rates for all 5 fields (service, adSetName, adName, leadDate, zip)
@@ -172,6 +199,110 @@ export class LeadService {
       };
     }
   }
+
+    // Pagination and filtering interfaces
+  
+
+  // Paginated, sortable, filterable leads fetch
+  public async getLeadsPaginated(
+  clientId?: string,
+  startDate?: string,
+  endDate?: string,
+  pagination: PaginationOptions = { page: 1, limit: 50, sortBy: 'date', sortOrder: 'desc' },
+  filters: FilterOptions = {}
+): Promise<PaginatedLeadsResult> {
+  const query: any = {};
+
+  // client filter
+  if (clientId) query.clientId = clientId;
+
+  // date filter -> cast to Date to leverage indexes
+  if (startDate || endDate) {
+    query.leadDate = {};
+    if (startDate) query.leadDate.$gte = startDate; // ⚠️ if you change schema to Date, wrap with new Date(startDate)
+    if (endDate) query.leadDate.$lte = endDate;
+  }
+
+  // filters
+  if (filters.service) query.service = filters.service;
+  if (filters.adSetName) query.adSetName = { $regex: filters.adSetName, $options: 'i' };
+  if (filters.adName) query.adName = { $regex: filters.adName, $options: 'i' };
+  if (filters.status) query.status = filters.status;
+  if (filters.unqualifiedLeadReason) {
+    query.status = 'unqualified';
+    query.unqualifiedLeadReason = { $regex: filters.unqualifiedLeadReason, $options: 'i' };
+  }
+
+  // pagination setup
+  const skip = (pagination.page - 1) * pagination.limit;
+  const sortField = pagination.sortBy === 'score' ? 'leadScore' : 'leadDate';
+  const sortOrder = pagination.sortOrder === 'desc' ? -1 : 1;
+
+  // run count + leads query in parallel
+  const [totalCount, leads] = await Promise.all([
+    LeadModel.countDocuments(query),
+    LeadModel.find(query)
+      .sort({ [sortField]: sortOrder })
+      .skip(skip)
+      .limit(pagination.limit)
+      .lean()
+      .exec()
+  ]);
+
+  const totalPages = Math.max(1, Math.ceil(totalCount / pagination.limit));
+
+  return {
+    leads,
+    pagination: {
+      currentPage: pagination.page,
+      totalPages,
+      totalCount,
+      pageSize: pagination.limit,
+      hasNext: pagination.page < totalPages,
+      hasPrev: pagination.page > 1
+    }
+  };
+}
+
+
+  // Filter options for dropdowns
+  public async getLeadFilterOptions(
+  clientId?: string,
+  startDate?: string,
+  endDate?: string
+): Promise<{
+  services: string[];
+  adSetNames: string[];
+  adNames: string[];
+  statuses: string[];
+  unqualifiedLeadReasons: string[];
+}> {
+  const query: any = {};
+  if (clientId) query.clientId = clientId;
+
+  if (startDate || endDate) {
+    query.leadDate = {};
+    if (startDate) query.leadDate.$gte = startDate;
+    if (endDate) query.leadDate.$lte = endDate;
+  }
+
+  // run all distinct queries in parallel
+  const [services, adSetNames, adNames, statuses, unqualifiedLeadReasons] = await Promise.all([
+    LeadModel.distinct("service", query),
+    LeadModel.distinct("adSetName", query),
+    LeadModel.distinct("adName", query),
+    LeadModel.distinct("status", query),
+    LeadModel.distinct("unqualifiedLeadReason", { ...query, status: "unqualified" })
+  ]);
+
+  return {
+    services: services.filter(Boolean).sort(),
+    adSetNames: adSetNames.filter(Boolean).sort(),
+    adNames: adNames.filter(Boolean).sort(),
+    statuses: statuses.filter(Boolean).sort(),
+    unqualifiedLeadReasons: unqualifiedLeadReasons.filter(Boolean).sort()
+  };
+}
 
   /**
    * Calculate and store lead scores for leads that don't have them

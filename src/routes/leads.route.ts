@@ -14,6 +14,8 @@ const leadController = new LeadController();
 export { FIELD_WEIGHTS, getMonthlyName, isValidMonthName, type LeadKeyField };
 
 router.get("/", (req, res) => leadController.getLeads(req, res));
+router.get("/paginated", (req, res) => leadController.getLeadsPaginated(req, res));
+router.get("/filters", (req, res) => leadController.getLeadFilters(req, res));
 router.patch("/", (req, res) => leadController.updateLead(req, res));
 router.get("/conversion-rates", (req, res) =>
   leadController.getConversionRates(req, res)

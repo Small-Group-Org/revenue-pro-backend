@@ -1,5 +1,8 @@
 import { Request, Response } from "express";
-import { LeadService, SheetProcessingResult } from "../services/leads/service/service.js";
+import {
+  LeadService,
+  SheetProcessingResult,
+} from "../services/leads/service/service.js";
 import utils from "../utils/utils.js";
 import conversionRateModel, {
   IConversionRate,
@@ -11,10 +14,13 @@ export class LeadController {
    * Endpoint to update conversion rates and lead scores for all clients
    * POST /leads/update-cr-all
    */
-  async updateConversionRatesAndLeadScores(req: Request, res: Response): Promise<void> {
+  async updateConversionRatesAndLeadScores(
+    req: Request,
+    res: Response
+  ): Promise<void> {
     try {
       // Get all unique clientIds from leads collection
-      
+
       const clientIds = await this.service.getAllClientIds();
       if (!clientIds || clientIds.length === 0) {
         utils.sendErrorResponse(res, "No clientIds found in leads collection");
@@ -25,7 +31,10 @@ export class LeadController {
       for (const clientId of clientIds) {
         try {
           console.log(`[API] Processing clientId: ${clientId}`);
-          const result = await this.service.updateConversionRatesAndLeadScoresForClient(clientId);
+          const result =
+            await this.service.updateConversionRatesAndLeadScoresForClient(
+              clientId
+            );
           const updatedLeads = await this.service.getLeads(clientId);
 
           results.push({
@@ -34,18 +43,24 @@ export class LeadController {
               totalLeads: updatedLeads.length,
               updatedLeads: result.updatedLeads,
               updatedConversionRates: result.updatedConversionRates,
-              errors: result.errors
+              errors: result.errors,
             },
             summary: {
-              processingSuccessRate: updatedLeads.length > 0 ? `${((result.updatedLeads / updatedLeads.length) * 100).toFixed(1)}%` : '0%',
+              processingSuccessRate:
+                updatedLeads.length > 0
+                  ? `${(
+                      (result.updatedLeads / updatedLeads.length) *
+                      100
+                    ).toFixed(1)}%`
+                  : "0%",
               updatedLeads: result.updatedLeads,
-              updatedConversionRates: result.updatedConversionRates
-            }
+              updatedConversionRates: result.updatedConversionRates,
+            },
           });
         } catch (err: any) {
           results.push({
             clientId,
-            error: err.message || "Unknown error"
+            error: err.message || "Unknown error",
           });
         }
       }
@@ -53,10 +68,13 @@ export class LeadController {
       utils.sendSuccessResponse(res, 200, {
         success: true,
         processedClients: clientIds.length,
-        results
+        results,
       });
     } catch (error) {
-      console.error("Error in updateConversionRatesAndLeadScores endpoint:", error);
+      console.error(
+        "Error in updateConversionRatesAndLeadScores endpoint:",
+        error
+      );
       utils.sendErrorResponse(res, error);
     }
   }
@@ -70,10 +88,151 @@ export class LeadController {
     this.updateLead = this.updateLead.bind(this);
     this.processSheetLeads = this.processSheetLeads.bind(this);
     this.getConversionRates = this.getConversionRates.bind(this);
-    this.updateConversionRatesAndLeadScores = this.updateConversionRatesAndLeadScores.bind(this)
+    this.updateConversionRatesAndLeadScores =
+      this.updateConversionRatesAndLeadScores.bind(this);
+    this.getLeadsPaginated = this.getLeadsPaginated.bind(this);
+  }
+  /**
+   * Endpoint to fetch paginated, sortable, and filterable leads
+   * GET /leads/paginated
+   * Query params:
+   *   clientId, startDate, endDate, page, limit, sortBy, sortOrder, service, adSetName, adName, status, unqualifiedLeadReason
+   */
+  async getLeadsPaginated(req: Request, res: Response): Promise<void> {
+    try {
+      const clientId =
+        typeof req.query.clientId === "string" ? req.query.clientId : undefined;
+      const startDate =
+        typeof req.query.startDate === "string"
+          ? req.query.startDate
+          : undefined;
+      const endDate =
+        typeof req.query.endDate === "string" ? req.query.endDate : undefined;
+
+      // Pagination and sorting
+      const page = req.query.page ? parseInt(req.query.page as string, 10) : 1;
+      const limit = req.query.limit
+        ? parseInt(req.query.limit as string, 10)
+        : 50;
+      const sortBy = req.query.sortBy === "score" ? "score" : "date";
+      const sortOrder = req.query.sortOrder === "asc" ? "asc" : "desc";
+
+      // Filters
+      const filters: any = {};
+      if (typeof req.query.service === "string")
+        filters.service = req.query.service;
+      if (typeof req.query.adSetName === "string")
+        filters.adSetName = req.query.adSetName;
+      if (typeof req.query.adName === "string")
+        filters.adName = req.query.adName;
+      if (typeof req.query.status === "string")
+        filters.status = req.query.status;
+      if (typeof req.query.unqualifiedLeadReason === "string")
+        filters.unqualifiedLeadReason = req.query.unqualifiedLeadReason;
+
+      // Fetch paginated leads
+      const result = await this.service.getLeadsPaginated(
+        clientId,
+        startDate,
+        endDate,
+        { page, limit, sortBy, sortOrder },
+        filters
+      );
+
+      // Fetch grouped conversion rates for frontend
+      const conversionRates = await conversionRateRepository.getConversionRates(
+        clientId ? { clientId } : {}
+      );
+      const crGrouped = {
+        service: conversionRates
+          .filter((cr) => cr.keyField === "service")
+          .map((cr) => ({
+            name: cr.keyName,
+            conversionRate: cr.conversionRate,
+          })),
+        adSet: conversionRates
+          .filter((cr) => cr.keyField === "adSetName")
+          .map((cr) => ({
+            name: cr.keyName,
+            conversionRate: cr.conversionRate,
+          })),
+        adName: conversionRates
+          .filter((cr) => cr.keyField === "adName")
+          .map((cr) => ({
+            name: cr.keyName,
+            conversionRate: cr.conversionRate,
+          })),
+        dates: conversionRates
+          .filter((cr) => cr.keyField === "leadDate")
+          .map((cr) => ({
+            date: cr.keyName,
+            conversionRate: cr.conversionRate,
+          })),
+        zip: conversionRates
+          .filter((cr) => cr.keyField === "zip")
+          .map((cr) => ({
+            zip: cr.keyName,
+            conversionRate: cr.conversionRate,
+          })),
+      };
+
+      utils.sendSuccessResponse(res, 200, {
+        success: true,
+        data: result.leads,
+        pagination: result.pagination,
+        conversionRates: crGrouped,
+      });
+    } catch (error) {
+      console.error("Error in getLeadsPaginated:", error);
+      utils.sendErrorResponse(res, error);
+    }
   }
 
-   async getLeads(req: Request, res: Response): Promise<void> {
+  async getLeadFilters(req: Request, res: Response): Promise<void> {
+    try {
+      // Check if clientId is missing or empty
+      if (!req.query.clientId) {
+        utils.sendErrorResponse(res, {
+          message: "clientId is required",
+          statusCode: 400,
+        });
+        return;
+      }
+      const clientId =
+        typeof req.query.clientId === "string" ? req.query.clientId : undefined;
+      const startDate =
+        typeof req.query.startDate === "string"
+          ? req.query.startDate
+          : undefined;
+      const endDate =
+        typeof req.query.endDate === "string" ? req.query.endDate : undefined;
+
+        // Additional validation to ensure clientId is a valid string after type checking
+      if (!clientId) {
+        utils.sendErrorResponse(res, {
+          message: "clientId must be a valid string",
+          statusCode: 400
+        });
+        return;
+      }
+
+      // Fetch conversion rates for dropdowns
+      const filterOptions = await this.service.getLeadFilterOptions(
+        clientId,
+        startDate,
+        endDate
+      );
+      utils.sendSuccessResponse(res, 200, {
+        success: true,
+        filterOptions,
+      });
+    } catch (error) {
+      console.error("Error in getLeadFilters:", error);
+      utils.sendErrorResponse(res, error);
+    }
+  }
+
+  async getLeads(req: Request, res: Response): Promise<void> {
     try {
       const clientId =
         typeof req.query.clientId === "string" ? req.query.clientId : undefined;
@@ -90,31 +249,48 @@ export class LeadController {
       const leads = await this.service.getLeads(clientId, startDate, endDate);
 
       // Fetch conversion rates for this client
-      const conversionRates = await conversionRateRepository.getConversionRates(clientId ? { clientId } : {});
+      const conversionRates = await conversionRateRepository.getConversionRates(
+        clientId ? { clientId } : {}
+      );
 
       // Group conversion rates by field for response
       const crGrouped = {
         service: conversionRates
-          .filter(cr => cr.keyField === 'service')
-          .map(cr => ({ name: cr.keyName, conversionRate: cr.conversionRate })),
+          .filter((cr) => cr.keyField === "service")
+          .map((cr) => ({
+            name: cr.keyName,
+            conversionRate: cr.conversionRate,
+          })),
         adSet: conversionRates
-          .filter(cr => cr.keyField === 'adSetName')
-          .map(cr => ({ name: cr.keyName, conversionRate: cr.conversionRate })),
+          .filter((cr) => cr.keyField === "adSetName")
+          .map((cr) => ({
+            name: cr.keyName,
+            conversionRate: cr.conversionRate,
+          })),
         adName: conversionRates
-          .filter(cr => cr.keyField === 'adName')
-          .map(cr => ({ name: cr.keyName, conversionRate: cr.conversionRate })),
+          .filter((cr) => cr.keyField === "adName")
+          .map((cr) => ({
+            name: cr.keyName,
+            conversionRate: cr.conversionRate,
+          })),
         dates: conversionRates
-          .filter(cr => cr.keyField === 'leadDate')
-          .map(cr => ({ date: cr.keyName, conversionRate: cr.conversionRate })),
+          .filter((cr) => cr.keyField === "leadDate")
+          .map((cr) => ({
+            date: cr.keyName,
+            conversionRate: cr.conversionRate,
+          })),
         zip: conversionRates
-          .filter(cr => cr.keyField === 'zip')
-          .map(cr => ({ zip: cr.keyName, conversionRate: cr.conversionRate })),
+          .filter((cr) => cr.keyField === "zip")
+          .map((cr) => ({
+            zip: cr.keyName,
+            conversionRate: cr.conversionRate,
+          })),
       };
 
       utils.sendSuccessResponse(res, 200, {
         success: true,
         data: leads,
-        conversionRates: crGrouped
+        conversionRates: crGrouped,
       });
     } catch (error) {
       console.error("Error in getLeads:", error);
@@ -170,7 +346,6 @@ export class LeadController {
     }
   }
 
-
   async updateLead(req: Request, res: Response): Promise<void> {
     try {
       const { _id, status, unqualifiedLeadReason } = req.body;
@@ -204,7 +379,6 @@ export class LeadController {
     }
   }
 
-
   async processSheetLeads(req: Request, res: Response): Promise<void> {
     try {
       const { sheetUrl, clientId } = req.body;
@@ -217,19 +391,31 @@ export class LeadController {
       console.log("Sheet processing started for client:", clientId);
 
       // Process the entire sheet with comprehensive statistics
-      const { result: processingResult, conversionData } = await this.service.processCompleteSheet(sheetUrl, clientId);
+      const { result: processingResult, conversionData } =
+        await this.service.processCompleteSheet(sheetUrl, clientId);
 
       // Save conversion rates to database
       if (processingResult.conversionRatesGenerated > 0) {
-        await conversionRateRepository.batchUpsertConversionRates(conversionData);
-        
+        await conversionRateRepository.batchUpsertConversionRates(
+          conversionData
+        );
+
         // After processing new leads and updating conversion rates, recalculate lead scores
-        console.log(`Recalculating lead scores for client ${clientId} after sheet processing`);
+        console.log(
+          `Recalculating lead scores for client ${clientId} after sheet processing`
+        );
         try {
-          const scoreResult = await this.service.recalculateAllLeadScores(clientId);
-          console.log(`Updated ${scoreResult.updatedLeads} lead scores for client ${clientId}`);
+          const scoreResult = await this.service.recalculateAllLeadScores(
+            clientId
+          );
+          console.log(
+            `Updated ${scoreResult.updatedLeads} lead scores for client ${clientId}`
+          );
         } catch (scoreError: any) {
-          console.error(`Error updating lead scores after sheet processing:`, scoreError);
+          console.error(
+            `Error updating lead scores after sheet processing:`,
+            scoreError
+          );
         }
       }
 
@@ -242,7 +428,7 @@ export class LeadController {
             totalRowsInSheet: processingResult.totalRowsInSheet,
             validLeadsProcessed: processingResult.validLeadsProcessed,
             skippedRows: processingResult.skippedRows,
-            skipReasons: processingResult.skipReasons
+            skipReasons: processingResult.skipReasons,
           },
           database: {
             leadsStoredInDB: processingResult.leadsStoredInDB,
@@ -254,10 +440,14 @@ export class LeadController {
             insights: processingResult.conversionRateInsights,
           },
           summary: {
-            processingSuccessRate: `${((processingResult.validLeadsProcessed / processingResult.totalRowsInSheet) * 100).toFixed(1)}%`,
-            newVsDuplicates: `${processingResult.newLeadsAdded} new, ${processingResult.duplicatesUpdated} updated`
-          }
-        }
+            processingSuccessRate: `${(
+              (processingResult.validLeadsProcessed /
+                processingResult.totalRowsInSheet) *
+              100
+            ).toFixed(1)}%`,
+            newVsDuplicates: `${processingResult.newLeadsAdded} new, ${processingResult.duplicatesUpdated} updated`,
+          },
+        },
       });
     } catch (error) {
       console.error("Error in processSheetLeads:", error);
@@ -288,6 +478,4 @@ export class LeadController {
       });
     }
   }
-
-
 }
