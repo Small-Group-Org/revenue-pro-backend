@@ -57,9 +57,22 @@ export const conversionRateRepository = {
 
   /**
    * Batch upsert multiple conversion rates - much more efficient than individual upserts
+   * Now returns detailed statistics about new vs updated records
    */
-  async batchUpsertConversionRates(conversionRates: IConversionRate[]): Promise<IConversionRateDocument[]> {
-    if (conversionRates.length === 0) return [];
+  async batchUpsertConversionRates(conversionRates: IConversionRate[]): Promise<{
+    documents: IConversionRateDocument[];
+    stats: {
+      total: number;
+      newInserts: number;
+      updated: number;
+    };
+  }> {
+    if (conversionRates.length === 0) {
+      return { 
+        documents: [], 
+        stats: { total: 0, newInserts: 0, updated: 0 } 
+      };
+    }
 
     // Use MongoDB bulkWrite for efficient batch operations
     const bulkOps = conversionRates.map((rate) => ({
@@ -74,7 +87,12 @@ export const conversionRateRepository = {
       }
     }));
 
-    await ConversionRateModel.bulkWrite(bulkOps);
+    const result = await ConversionRateModel.bulkWrite(bulkOps);
+    
+    // Extract statistics from bulkWrite result
+    const newInserts = result.upsertedCount || 0;
+    const updated = result.modifiedCount || 0;
+    const total = newInserts + updated;
     
     // Return the updated documents - fetch them after bulk operation
     const filters = conversionRates.map(rate => ({
@@ -83,6 +101,15 @@ export const conversionRateRepository = {
       keyName: rate.keyName
     }));
     
-    return await ConversionRateModel.find({ $or: filters }).exec();
+    const documents = await ConversionRateModel.find({ $or: filters }).exec();
+    
+    return {
+      documents,
+      stats: {
+        total,
+        newInserts,
+        updated
+      }
+    };
   }
 };

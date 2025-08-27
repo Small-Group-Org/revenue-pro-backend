@@ -63,6 +63,10 @@ export class LeadService {
     updatedConversionRates: number;
     updatedLeads: number;
     errors: string[];
+    conversionRateStats?: {
+      newInserts: number;
+      updated: number;
+    };
   }> {
     const errors: string[] = [];
     try {
@@ -79,8 +83,8 @@ export class LeadService {
       console.log(`[CR Update] Calculated ${conversionData.length} conversion rates for clientId: ${clientId}`);
 
       // 3. Upsert conversion rates to DB
-      await conversionRateRepository.batchUpsertConversionRates(conversionData);
-      console.log(`[CR Update] Upserted conversion rates to DB for clientId: ${clientId}`);
+      const crUpsertResult = await conversionRateRepository.batchUpsertConversionRates(conversionData);
+      console.log(`[CR Update] Upserted conversion rates to DB for clientId: ${clientId} - New: ${crUpsertResult.stats.newInserts}, Updated: ${crUpsertResult.stats.updated}`);
 
       // 4. Fetch conversion rates from DB for this client
       const dbConversionRates = await conversionRateRepository.getConversionRates({ clientId });
@@ -151,7 +155,11 @@ export class LeadService {
       return {
         updatedConversionRates: conversionData.length,
         updatedLeads: actuallyUpdatedLeads,
-        errors
+        errors,
+        conversionRateStats: {
+          newInserts: crUpsertResult.stats.newInserts,
+          updated: crUpsertResult.stats.updated
+        }
       };
     } catch (error: any) {
       const errorMsg = `[CR Update] Error updating conversion rates and lead scores for clientId ${clientId}: ${error.message}`;
@@ -213,7 +221,7 @@ export class LeadService {
 
       // Create conversion rates map for efficient lookups
       const conversionRatesMap = createConversionRatesMap(conversionRates);
-      
+
       // Calculate scores for leads without them
       const bulkOps = leadsWithoutScores.map(lead => {
         const leadScore = calculateLeadScore(lead, conversionRatesMap);
@@ -291,7 +299,7 @@ export class LeadService {
 
       // Create conversion rates map for efficient lookups
       const conversionRatesMap = createConversionRatesMap(conversionRates);
-      
+
       // Calculate new scores for all leads
       const bulkOps = allLeads.map(lead => {
         const leadScore = calculateLeadScore(lead, conversionRatesMap);
@@ -368,7 +376,7 @@ export class LeadService {
       if (lead.service) serviceSet.add(lead.service);
       if (lead.adSetName) adSetNameSet.add(lead.adSetName);
       if (lead.adName) adNameSet.add(lead.adName);
-      if (lead.zip && lead.zip.trim()) zipSet.add(lead.zip.trim()); // NEW: Add ZIP codes
+      if (lead.zip && typeof lead.zip === 'string' && lead.zip.trim()) zipSet.add(lead.zip.trim()); // NEW: Add ZIP codes
       
       // Optimized month extraction
       if (lead.leadDate) {
@@ -416,7 +424,7 @@ export class LeadService {
     } else if (keyField === "zip") {
       // Single pass through leads for ZIP filtering
       for (const lead of clientLeads) {
-        if (lead.zip && lead.zip.trim() === keyName) {
+        if (lead.zip && typeof lead.zip === 'string' && lead.zip.trim() === keyName) {
           totalForKey++;
           if (lead.status === 'estimate_set') {
             yesForKey++;
@@ -435,9 +443,9 @@ export class LeadService {
       }
     }
 
-    // Conversion rate as decimal, rounded to 2 decimals
-    const conversionRate = totalForKey === 0 ? 0 :
-      Math.round((yesForKey / totalForKey) * 100) / 100;
+      // Conversion rate as decimal, rounded to 2 decimals
+      const conversionRate = totalForKey === 0 ? 0 :
+        Math.round((yesForKey / totalForKey) * 100) / 100;
       
     return {
       conversionRate,
@@ -542,7 +550,7 @@ export class LeadService {
 
     // Batch upsert all conversion rates at once
     const upsertedRates = await conversionRateRepository.batchUpsertConversionRates(ratesToUpsert);
-    console.log(`Batch upserted ${upsertedRates.length} conversion rates for client ${clientId}`);
+    console.log(`Batch upserted ${upsertedRates.documents.length} conversion rates for client ${clientId} - New: ${upsertedRates.stats.newInserts}, Updated: ${upsertedRates.stats.updated}`);
     
     // After updating conversion rates, recalculate lead scores for this client
     try {
@@ -553,7 +561,7 @@ export class LeadService {
       console.error(`Error updating lead scores after conversion rate update for client ${clientId}:`, error);
     }
     
-    return upsertedRates;
+    return upsertedRates.documents;
   }
   // ---------------- DATABASE OPERATIONS ----------------
   

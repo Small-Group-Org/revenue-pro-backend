@@ -1,6 +1,7 @@
 import cron from "node-cron";
 import { LeadService } from "../leads/service/service.js";
 import logger from "../../utils/logger.js";
+import CronLogger from "../../utils/cronLogger.js";
 
 export class ConversionRateUpdateService {
   private leadService: LeadService;
@@ -20,11 +21,11 @@ export class ConversionRateUpdateService {
     // For testing, you can use "*/5 * * * *" to run every 5 minutes
     const schedule = "0 2 * * 0";
     
-    logger.info(`Starting weekly comprehensive update cron job with schedule: ${schedule}`);
+    CronLogger.logCronJobStart(schedule);
     
     cron.schedule(schedule, async () => {
       if (this.isRunning) {
-        logger.warn("Weekly comprehensive update is already running, skipping this execution");
+        CronLogger.logCronJobAlreadyRunning();
         return;
       }
       
@@ -33,7 +34,7 @@ export class ConversionRateUpdateService {
       timezone: "UTC" // Adjust timezone as needed
     });
 
-    logger.info("Weekly comprehensive update cron job started successfully");
+    CronLogger.logCronJobStartSuccess();
   }
 
   /**
@@ -43,27 +44,23 @@ export class ConversionRateUpdateService {
     this.isRunning = true;
     const startTime = new Date();
     
-    logger.info("Starting weekly conversion rate and lead score update process");
+    CronLogger.logWeeklyUpdateStart();
     
     try {
       const result = await this.runComprehensiveWeeklyUpdate();
       
       const duration = Date.now() - startTime.getTime();
       
-      logger.info("Weekly conversion rate and lead score update completed", {
+      CronLogger.logWeeklyUpdateCompletion({
         processedClients: result.processedClients,
         totalUpdatedConversionRates: result.totalUpdatedConversionRates,
         totalUpdatedLeads: result.totalUpdatedLeads,
-        errors: result.errors.length,
+        errors: result.errors,
         durationMs: duration
       });
       
-      if (result.errors.length > 0) {
-        logger.error("Errors occurred during weekly update:", result.errors);
-      }
-      
     } catch (error: any) {
-      logger.error("Fatal error in weekly conversion rate and lead score update:", error);
+      CronLogger.logFatalError(error);
     } finally {
       this.isRunning = false;
     }
@@ -75,18 +72,32 @@ export class ConversionRateUpdateService {
     totalUpdatedLeads: number;
     errors: string[];
   }> {
+    const startTime = new Date();
     const errors: string[] = [];
+    const clientResults: Array<{
+      clientId: string;
+      success: boolean;
+      updatedConversionRates: number;
+      updatedLeads: number;
+      errors: string[];
+      duration?: number;
+      conversionRateStats?: {
+        newInserts: number;
+        updated: number;
+      };
+    }> = [];
     let totalUpdatedConversionRates = 0;
     let totalUpdatedLeads = 0;
 
     try {
       // Get all client IDs
       const clientIds = await this.leadService.getAllClientIds();
-      logger.info(`Processing comprehensive weekly updates for ${clientIds.length} clients`);
+      CronLogger.logComprehensiveUpdateStart(clientIds.length);
 
       for (const clientId of clientIds) {
+        const clientStartTime = Date.now();
         try {
-          logger.info(`Processing comprehensive update for client ${clientId}`);
+          CronLogger.logClientUpdateStart(clientId);
           
           // Use the comprehensive update method that handles both conversion rates AND lead updates
           const result = await this.leadService.updateConversionRatesAndLeadScoresForClient(clientId);
@@ -97,19 +108,50 @@ export class ConversionRateUpdateService {
           if (result.errors.length > 0) {
             errors.push(...result.errors);
           }
+
+          const duration = Date.now() - clientStartTime;
           
-          logger.info(`Completed update for client ${clientId}:`, {
+          // Record client result
+          clientResults.push(CronLogger.createSuccessfulClientResult(clientId, result, duration));
+          
+          CronLogger.logClientUpdateCompletion(clientId, {
             updatedConversionRates: result.updatedConversionRates,
             updatedLeads: result.updatedLeads,
-            errors: result.errors.length
+            errors: result.errors.length,
+            duration
           });
           
         } catch (error: any) {
-          const errorMsg = `Error processing comprehensive update for client ${clientId}: ${error.message}`;
-          logger.error(errorMsg);
+          const duration = Date.now() - clientStartTime;
+          const errorMsg = CronLogger.logClientUpdateError(clientId, error);
           errors.push(errorMsg);
+
+          // Record failed client result
+          clientResults.push(CronLogger.createFailedClientResult(clientId, errorMsg, duration));
         }
       }
+
+      // Calculate summary metrics and log execution result
+      const endTime = new Date();
+      
+      // Aggregate CR statistics from client results
+      const { totalCRNewInserts, totalCRUpdated } = CronLogger.aggregateCRStats(clientResults);
+
+      // Create execution result
+      const executionResult = CronLogger.createExecutionResult({
+        startTime,
+        endTime,
+        clientIds,
+        clientResults,
+        totalUpdatedConversionRates,
+        totalUpdatedLeads,
+        totalCRNewInserts,
+        totalCRUpdated,
+        errors
+      });
+
+      // Log execution result to file and console
+      await CronLogger.logExecutionResult(executionResult);
 
       return {
         processedClients: clientIds.length,
@@ -118,8 +160,7 @@ export class ConversionRateUpdateService {
         errors
       };
     } catch (error: any) {
-      const errorMsg = `Error in comprehensive weekly update process: ${error.message}`;
-      logger.error(errorMsg);
+      const errorMsg = CronLogger.logComprehensiveUpdateError(error);
       errors.push(errorMsg);
       
       return {
@@ -140,7 +181,7 @@ export class ConversionRateUpdateService {
     totalUpdatedLeads: number;
     errors: string[];
   }> {
-    logger.info("Manual trigger for comprehensive weekly update");
+    CronLogger.logManualTrigger();
     await this.runWeeklyUpdate();
     return await this.runComprehensiveWeeklyUpdate();
   }
@@ -157,10 +198,10 @@ export class ConversionRateUpdateService {
    * Performs comprehensive updates including conversion rates and lead scores
    */
   public startTestCronJob(): void {
-    logger.info("Starting test comprehensive update cron job (runs every minute)");
+    CronLogger.logTestCronJobStart();
     
     cron.schedule("*/1 * * * *", async () => {
-      logger.info("Test comprehensive update cron job executed");
+      CronLogger.logTestCronJobExecution();
       if (!this.isRunning) {
         await this.runWeeklyUpdate();
       }
