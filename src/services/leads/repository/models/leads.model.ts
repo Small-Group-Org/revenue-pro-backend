@@ -5,9 +5,9 @@ const leadSchema = new Schema<ILeadDocument>(
   {
     leadDate: { type: String, required: true },
     name: { type: String, required: true },
-    email: { type: String, required: false, default: '' }, // Made optional - not all leads have email
-    phone: { type: String, required: false, default: '' }, // Made optional - not all leads have phone
-    zip: { type: String, required: false, default: '' }, // Made optional for consistency
+    email: { type: String, required: false, default: '' },
+    phone: { type: String, required: false, default: '' },
+    zip: { type: String, required: false, default: '' },
     service: { type: String, required: true },
     adSetName: { type: String, required: true },
     adName: { type: String, required: true },
@@ -19,6 +19,12 @@ const leadSchema = new Schema<ILeadDocument>(
     },
     clientId: { type: String, required: true },
     unqualifiedLeadReason: { type: String, default: '' },
+    leadScore: { type: Number, default: 0 }, // stores calculated lead score
+    conversionRates: {
+      type: Object,
+      default: {},
+      required: false // stores per-lead conversion rates for service, adSetName, adName, leadDate, zip
+    },
   },
   { timestamps: true }
 );
