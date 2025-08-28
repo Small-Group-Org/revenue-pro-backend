@@ -8,10 +8,10 @@ import { IConversionRate } from "../repository/models/conversionRate.model.js";
 // Field weights for lead scoring calculation
 export const FIELD_WEIGHTS = {
   service: 30,
-  adSetName: 20, 
+  adSetName: 10, 
   adName: 10,
-  leadDate: 15,
-  zip: 25
+  leadDate: 0,
+  zip: 50
 } as const;
 
 // Static month map for better performance
