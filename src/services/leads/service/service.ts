@@ -42,6 +42,13 @@ import {
   type UniqueKey
 } from "../utils/leads.util.js";
 import { SheetsService, type SheetProcessingResult } from "./sheets.service.js";
+import { PipelineStage } from "mongoose";
+import { 
+  startOfMonth, endOfMonth, 
+  startOfQuarter, endOfQuarter, 
+  startOfYear, endOfYear, 
+  subMonths, subQuarters, subYears, format
+}  from 'date-fns';
 
 // Types moved to leads.util.ts and sheets.service.ts for better organization
 
@@ -73,6 +80,49 @@ interface PaginationOptions {
       hasPrev: boolean;
     };
   }
+  interface TimeFilterOptions {
+  timeFilter: 'all' | 'this_month' | 'last_month' | 'this_quarter' | 'last_quarter' | 'this_year' | 'last_year';
+  }
+
+  interface AnalyticsResult {
+  overview: {
+    totalLeads: number;
+    estimateSetCount: number;
+    unqualifiedCount: number;
+    conversionRate: string;
+  };
+  zipData: Array<{ zip: string; count: number; percentage: string }>;
+  serviceData: Array<{ service: string; count: number; percentage: string }>;
+  adSetData: Array<{ adSetName: string; total: number; estimateSet: number; percentage: string }>;
+  adNameData: Array<{ adName: string; adSetName: string; total: number; estimateSet: number; percentage: string }>;
+  leadDateData: Array<{ date: string; count: number; percentage: string }>;
+  dayOfWeekData: Array<{ day: string; total: number; estimateSet: number; percentage: string }>;
+  ulrData: Array<{ reason: string; count: number; percentage: string }>;
+  }
+  interface PaginatedPerformanceResult {
+  adSetData: {
+    data: Array<{ adSetName: string; total: number; estimateSet: number; percentage: string }>;
+    pagination: {
+      currentPage: number;
+      totalPages: number;
+      totalCount: number;
+      pageSize: number;
+      hasNext: boolean;
+      hasPrev: boolean;
+    };
+  };
+  adNameData: {
+    data: Array<{ adName: string; adSetName: string; total: number; estimateSet: number; percentage: string }>;
+    pagination: {
+      currentPage: number;
+      totalPages: number;
+      totalCount: number;
+      pageSize: number;
+      hasNext: boolean;
+      hasPrev: boolean;
+    };
+  };
+}
 
 export class LeadService {
 
@@ -200,9 +250,588 @@ export class LeadService {
     }
   }
 
-    // Pagination and filtering interfaces
+   public async getLeadAnalytics(
+  clientId: string,
+  timeFilter: TimeFilterOptions['timeFilter'] = 'all'
+): Promise<AnalyticsResult> {
+  // Build time filter query
+  const query: any = { clientId };
+  const now = new Date();
+  const fmt = (d: Date) => format(d, 'yyyy-MM-dd')
+
+  switch (timeFilter) {
+    case 'this_month':
+      query.leadDate = {
+        $gte: fmt(startOfMonth(now)),
+        $lte: fmt(endOfMonth(now))
+      };
+      break;
+
+    case 'last_month': {
+      const lastMonth = subMonths(now, 1);
+      query.leadDate = {
+        $gte: fmt(startOfMonth(lastMonth)),
+        $lte: fmt(endOfMonth(lastMonth))
+      };
+      break;
+    }
+
+    case 'this_quarter':
+      query.leadDate = {
+        $gte: fmt(startOfQuarter(now)),
+        $lte: fmt(endOfQuarter(now))
+      };
+      break;
+
+    case 'last_quarter': {
+      const lastQuarter = subQuarters(now, 1);
+      query.leadDate = {
+        $gte: fmt(startOfQuarter(lastQuarter)),
+        $lte: fmt(endOfQuarter(lastQuarter))
+      };
+      break;
+    }
+
+    case 'this_year':
+      query.leadDate = {
+        $gte: fmt(startOfYear(now)),
+        $lte: fmt(endOfYear(now))
+      };
+      break;
+
+    case 'last_year': {
+      const lastYear = subYears(now, 1);
+      query.leadDate = {
+        $gte: fmt(startOfYear(lastYear)),
+        $lte: fmt(endOfYear(lastYear))
+      };
+      break;
+    }
+  }
+
+  console.log("query", query);
+
+  // Fetch filtered leads
+  const leads = await LeadModel.find(query).lean().exec();
+
+  console.log("leads", leads);
   
 
+  if (leads.length === 0) {
+    return this.getEmptyAnalyticsResult();
+  }
+
+  // Process analytics using aggregation pipelines for better performance
+  const analytics = await this.processLeadAnalytics(leads);
+  return analytics;
+}
+
+public async getPerformanceTables(
+  clientId: string,
+  commonTimeFilter: 'all' | '7' | '14' | '30' | '60' = 'all',
+  adSetPage: number = 1,
+  adNamePage: number = 1,
+  adSetItemsPerPage: number = 15,
+  adNameItemsPerPage: number = 10,
+  sortOptions?: {
+    adSetSortField?: 'adSetName' | 'total' | 'estimateSet' | 'percentage';
+    adSetSortOrder?: 'asc' | 'desc';
+    adNameSortField?: 'adName' | 'total' | 'estimateSet' | 'percentage';
+    adNameSortOrder?: 'asc' | 'desc';
+    showTopRanked?: boolean;
+  }
+): Promise<PaginatedPerformanceResult> {
+  // Build time filter query
+  const query: any = { clientId };
+  
+  if (commonTimeFilter !== 'all') {
+    const daysAgo = new Date();
+    daysAgo.setDate(daysAgo.getDate() - parseInt(commonTimeFilter));
+    query.leadDate = { $gte: daysAgo.toISOString().split('T')[0] };
+  }
+
+  // Use aggregation pipelines for better performance
+  const [adSetResults, adNameResults] = await Promise.all([
+    this.getAdSetPerformanceWithPagination(query, adSetPage, adSetItemsPerPage, sortOptions),
+    this.getAdNamePerformanceWithPagination(query, adNamePage, adNameItemsPerPage, sortOptions)
+  ]);
+
+  return {
+    adSetData: adSetResults,
+    adNameData: adNameResults
+  };
+}
+
+/**
+ * Private methods updated to return pagination structure
+ */
+private async getAdSetPerformanceWithPagination(
+  query: any, 
+  page: number, 
+  limit: number, 
+  sortOptions?: any
+): Promise<{
+  data: Array<{ adSetName: string; total: number; estimateSet: number; percentage: string }>;
+  pagination: {
+    currentPage: number;
+    totalPages: number;
+    totalCount: number;
+    pageSize: number;
+    hasNext: boolean;
+    hasPrev: boolean;
+  };
+}> {
+  const pipeline: PipelineStage[] = [
+    { $match: query },
+    {
+      $group: {
+        _id: '$adSetName',
+        total: { $sum: 1 },
+        estimateSet: {
+          $sum: { $cond: [{ $eq: ['$status', 'estimate_set'] }, 1, 0] }
+        }
+      }
+    },
+    {
+      $project: {
+        adSetName: '$_id',
+        total: 1,
+        estimateSet: 1,
+        percentage: {
+          $multiply: [
+            { $divide: ['$estimateSet', '$total'] },
+            100
+          ]
+        },
+        _id: 0
+      }
+    }
+  ];
+
+  // Add sorting
+  if (sortOptions?.showTopRanked) {
+    pipeline.push({ $sort: { percentage: -1, estimateSet: -1 } });
+  } else if (sortOptions?.adSetSortField) {
+    const sortField = sortOptions.adSetSortField === 'percentage'
+      ? 'percentage'
+      : sortOptions.adSetSortField;
+
+    const sortOrder: 1 | -1 = sortOptions.adSetSortOrder === 'asc' ? 1 : -1;
+    pipeline.push({ $sort: { [sortField]: sortOrder } as Record<string, 1 | -1> });
+  }
+
+  // Get total count for pagination
+  const totalResults = await LeadModel.aggregate([...pipeline, { $count: 'total' }]);
+  const totalCount = totalResults[0]?.total || 0;
+  const totalPages = Math.ceil(totalCount / limit);
+
+  // Add pagination
+  pipeline.push({ $skip: (page - 1) * limit }, { $limit: limit });
+
+  const data = await LeadModel.aggregate(pipeline);
+
+  return {
+    data: data.map(item => ({
+      ...item,
+      percentage: item.percentage.toFixed(1)
+    })),
+    pagination: {
+      currentPage: page,
+      totalPages: Math.max(1, totalPages),
+      totalCount,
+      pageSize: limit,
+      hasNext: page < totalPages,
+      hasPrev: page > 1
+    }
+  };
+}
+
+private async getAdNamePerformanceWithPagination(
+  query: any, 
+  page: number, 
+  limit: number, 
+  sortOptions?: any
+): Promise<{
+  data: Array<{ adName: string; adSetName: string; total: number; estimateSet: number; percentage: string }>;
+  pagination: {
+    currentPage: number;
+    totalPages: number;
+    totalCount: number;
+    pageSize: number;
+    hasNext: boolean;
+    hasPrev: boolean;
+  };
+}> {
+  const pipeline: PipelineStage[] = [
+    { $match: query },
+    {
+      $group: {
+        _id: { adName: '$adName', adSetName: '$adSetName' },
+        total: { $sum: 1 },
+        estimateSet: {
+          $sum: { $cond: [{ $eq: ['$status', 'estimate_set'] }, 1, 0] }
+        }
+      }
+    },
+    {
+      $project: {
+        adName: '$_id.adName',
+        adSetName: '$_id.adSetName',
+        total: 1,
+        estimateSet: 1,
+        percentage: {
+          $multiply: [
+            { $divide: ['$estimateSet', '$total'] },
+            100
+          ]
+        },
+        _id: 0
+      }
+    }
+  ];
+
+  // Add sorting (similar to adSet)
+  if (sortOptions?.showTopRanked) {
+    pipeline.push({ $sort: { percentage: -1, estimateSet: -1 } });
+  } else if (sortOptions?.adNameSortField) {
+    const sortField = sortOptions.adNameSortField === 'percentage' ? 'percentage' : sortOptions.adNameSortField;
+    const sortOrder = sortOptions.adNameSortOrder === 'asc' ? 1 : -1;
+    pipeline.push({ $sort: { [sortField]: sortOrder } });
+  }
+
+  // Get total count for pagination
+  const totalResults = await LeadModel.aggregate([...pipeline, { $count: 'total' }]);
+  const totalCount = totalResults[0]?.total || 0;
+  const totalPages = Math.ceil(totalCount / limit);
+
+  // Add pagination
+  pipeline.push({ $skip: (page - 1) * limit }, { $limit: limit });
+
+  const data = await LeadModel.aggregate(pipeline);
+
+  return {
+    data: data.map(item => ({
+      ...item,
+      percentage: item.percentage.toFixed(1)
+    })),
+    pagination: {
+      currentPage: page,
+      totalPages: Math.max(1, totalPages),
+      totalCount,
+      pageSize: limit,
+      hasNext: page < totalPages,
+      hasPrev: page > 1
+    }
+  };
+}
+
+/**
+ * Private method to process lead analytics using aggregation
+ */
+private async processLeadAnalytics(leads: any[]): Promise<AnalyticsResult> {
+  const totalLeads = leads.length;
+  const estimateSetLeads = leads.filter(lead => lead.status === 'estimate_set');
+  const estimateSetCount = estimateSetLeads.length;
+  const unqualifiedCount = totalLeads - estimateSetCount;
+  const conversionRate = ((estimateSetCount / totalLeads) * 100).toFixed(1);
+
+  // Process each analytics section
+  const [zipData, serviceData, adSetData, adNameData, leadDateData, dayOfWeekData, ulrData] = await Promise.all([
+    this.processZipAnalysis(estimateSetLeads, estimateSetCount),
+    this.processServiceAnalysis(estimateSetLeads, estimateSetCount),
+    this.processAdSetAnalysis(leads),
+    this.processAdNameAnalysis(leads),
+    this.processLeadDateAnalysis(estimateSetLeads, estimateSetCount),
+    this.processDayOfWeekAnalysis(leads),
+    this.processUnqualifiedReasonsAnalysis(leads, unqualifiedCount)
+  ]);
+
+  return {
+    overview: { totalLeads, estimateSetCount, unqualifiedCount, conversionRate },
+    zipData,
+    serviceData,
+    adSetData,
+    adNameData,
+    leadDateData,
+    dayOfWeekData,
+    ulrData
+  };
+}
+/**
+ * Private helper methods for each analytics section
+ */
+private async processZipAnalysis(estimateSetLeads: any[], estimateSetCount: number) {
+  const zipAnalysis = estimateSetLeads.reduce((acc, lead) => {
+    if (lead.zip) acc[lead.zip] = (acc[lead.zip] || 0) + 1;
+    return acc;
+  }, {});
+
+  return Object.entries(zipAnalysis)
+    .map(([zip, count]: [string, any]) => ({
+      zip,
+      count,
+      percentage: ((count / estimateSetCount) * 100).toFixed(1)
+    }))
+    .sort((a, b) => b.count - a.count);
+}
+
+private async processServiceAnalysis(estimateSetLeads: any[], estimateSetCount: number) {
+  const serviceAnalysis = estimateSetLeads.reduce((acc, lead) => {
+    acc[lead.service] = (acc[lead.service] || 0) + 1;
+    return acc;
+  }, {});
+
+  return Object.entries(serviceAnalysis)
+    .map(([service, count]: [string, any]) => ({
+      service,
+      count,
+      percentage: ((count / estimateSetCount) * 100).toFixed(1)
+    }))
+    .sort((a, b) => b.count - a.count);
+}
+private async processAdSetAnalysis(leads: any[]) {
+  const adSetAnalysis = leads.reduce((acc, lead) => {
+    if (!acc[lead.adSetName]) {
+      acc[lead.adSetName] = { total: 0, estimateSet: 0 };
+    }
+    acc[lead.adSetName].total += 1;
+    if (lead.status === 'estimate_set') {
+      acc[lead.adSetName].estimateSet += 1;
+    }
+    return acc;
+  }, {});
+
+  return Object.entries(adSetAnalysis)
+    .map(([adSetName, data]: [string, any]) => ({
+      adSetName,
+      total: data.total,
+      estimateSet: data.estimateSet,
+      percentage: data.total > 0 ? ((data.estimateSet / data.total) * 100).toFixed(1) : '0.0'
+    }))
+    .sort((a, b) => b.estimateSet - a.estimateSet);
+}
+
+private async processAdNameAnalysis(leads: any[]) {
+  const adNameAnalysis = leads.reduce((acc, lead) => {
+    const key = `${lead.adName}|${lead.adSetName}`;
+    if (!acc[key]) {
+      acc[key] = { adName: lead.adName, adSetName: lead.adSetName, total: 0, estimateSet: 0 };
+    }
+    acc[key].total += 1;
+    if (lead.status === 'estimate_set') {
+      acc[key].estimateSet += 1;
+    }
+    return acc;
+  }, {});
+
+  return Object.entries(adNameAnalysis)
+    .map(([key, data]: [string, any]) => ({
+      adName: data.adName,
+      adSetName: data.adSetName,
+      total: data.total,
+      estimateSet: data.estimateSet,
+      percentage: data.total > 0 ? ((data.estimateSet / data.total) * 100).toFixed(1) : '0.0'
+    }))
+    .sort((a, b) => b.estimateSet - a.estimateSet);
+}
+
+private async processDayOfWeekAnalysis(leads: any[]) {
+  const dayOfWeekAnalysis = leads.reduce((acc, lead) => {
+    const dayOfWeek = new Date(lead.leadDate).toLocaleDateString('en-US', { weekday: 'long' });
+    if (!acc[dayOfWeek]) {
+      acc[dayOfWeek] = { total: 0, estimateSet: 0 };
+    }
+    acc[dayOfWeek].total += 1;
+    if (lead.status === 'estimate_set') {
+      acc[dayOfWeek].estimateSet += 1;
+    }
+    return acc;
+  }, {});
+
+  return Object.entries(dayOfWeekAnalysis)
+    .map(([day, data]: [string, any]) => ({
+      day,
+      total: data.total,
+      estimateSet: data.estimateSet,
+      percentage: data.total > 0 ? ((data.estimateSet / data.total) * 100).toFixed(1) : '0.0'
+    }))
+    .sort((a, b) => {
+      const dayOrder = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+      return dayOrder.indexOf(a.day) - dayOrder.indexOf(b.day);
+    });
+}
+
+private async processLeadDateAnalysis(estimateSetLeads: any[], estimateSetCount: number) {
+  const leadDateAnalysis = estimateSetLeads.reduce((acc, lead) => {
+    const date = new Date(lead.leadDate).toLocaleDateString('en-US', { 
+      month: 'short', 
+      day: 'numeric' 
+    });
+    acc[date] = (acc[date] || 0) + 1;
+    return acc;
+  }, {});
+
+  return Object.entries(leadDateAnalysis)
+    .map(([date, count]: [string, any]) => ({
+      date,
+      count,
+      percentage: ((count / estimateSetCount) * 100).toFixed(1)
+    }))
+    .sort((a, b) => new Date(a.date + ', 2024').getTime() - new Date(b.date + ', 2024').getTime());
+}
+
+private async processUnqualifiedReasonsAnalysis(leads: any[], unqualifiedCount: number) {
+  const ulrAnalysis = leads
+    .filter(lead => lead.status === 'unqualified' && lead.unqualifiedLeadReason)
+    .reduce((acc, lead) => {
+      const reason = lead.unqualifiedLeadReason;
+      acc[reason] = (acc[reason] || 0) + 1;
+      return acc;
+    }, {});
+
+  return Object.entries(ulrAnalysis)
+    .map(([reason, count]: [string, any]) => ({
+      reason,
+      count,
+      percentage: unqualifiedCount > 0 ? ((count / unqualifiedCount) * 100).toFixed(1) : '0.0'
+    }))
+    .sort((a, b) => b.count - a.count);
+}
+
+/**
+ * Private methods for performance tables using aggregation
+ */
+private async getAdSetPerformance(query: any, page: number, limit: number, sortOptions?: any) {
+  const pipeline : PipelineStage[]= [
+    { $match: query },
+    {
+      $group: {
+        _id: '$adSetName',
+        total: { $sum: 1 },
+        estimateSet: {
+          $sum: { $cond: [{ $eq: ['$status', 'estimate_set'] }, 1, 0] }
+        }
+      }
+    },
+    {
+      $project: {
+        adSetName: '$_id',
+        total: 1,
+        estimateSet: 1,
+        percentage: {
+          $multiply: [
+            { $divide: ['$estimateSet', '$total'] },
+            100
+          ]
+        },
+        _id: 0
+      }
+    }
+  ];
+
+  // Add sorting
+  if (sortOptions?.showTopRanked) {
+  pipeline.push({ $sort: { percentage: -1, estimateSet: -1 } });
+} else if (sortOptions?.adSetSortField) {
+  const sortField = sortOptions.adSetSortField === 'percentage'
+    ? 'percentage'
+    : sortOptions.adSetSortField;
+
+  const sortOrder: 1 | -1 = sortOptions.adSetSortOrder === 'asc' ? 1 : -1;
+
+  pipeline.push({ $sort: { [sortField]: sortOrder } as Record<string, 1 | -1> });
+}
+
+  // Get total count for pagination
+  const totalResults = await LeadModel.aggregate([...pipeline, { $count: 'total' }]);
+  const totalItems = totalResults[0]?.total || 0;
+  const totalPages = Math.ceil(totalItems / limit);
+
+  // Add pagination
+  pipeline.push({ $skip: (page - 1) * limit }, { $limit: limit });
+
+  const data = await LeadModel.aggregate(pipeline);
+
+  return {
+    data: data.map(item => ({
+      ...item,
+      percentage: item.percentage.toFixed(1)
+    })),
+    totalPages,
+    totalItems
+  };
+}
+
+private async getAdNamePerformance(query: any, page: number, limit: number, sortOptions?: any) {
+  const pipeline: PipelineStage[] = [
+    { $match: query },
+    {
+      $group: {
+        _id: { adName: '$adName', adSetName: '$adSetName' },
+        total: { $sum: 1 },
+        estimateSet: {
+          $sum: { $cond: [{ $eq: ['$status', 'estimate_set'] }, 1, 0] }
+        }
+      }
+    },
+    {
+      $project: {
+        adName: '$_id.adName',
+        adSetName: '$_id.adSetName',
+        total: 1,
+        estimateSet: 1,
+        percentage: {
+          $multiply: [
+            { $divide: ['$estimateSet', '$total'] },
+            100
+          ]
+        },
+        _id: 0
+      }
+    }
+  ];
+
+  // Add sorting (similar to adSet)
+  if (sortOptions?.showTopRanked) {
+    pipeline.push({ $sort: { percentage: -1, estimateSet: -1 } });
+  } else if (sortOptions?.adNameSortField) {
+    const sortField = sortOptions.adNameSortField === 'percentage' ? 'percentage' : sortOptions.adNameSortField;
+    const sortOrder = sortOptions.adNameSortOrder === 'asc' ? 1 : -1;
+    pipeline.push({ $sort: { [sortField]: sortOrder } });
+  }
+
+  // Get total count for pagination
+  const totalResults = await LeadModel.aggregate([...pipeline, { $count: 'total' }]);
+  const totalItems = totalResults[0]?.total || 0;
+  const totalPages = Math.ceil(totalItems / limit);
+
+  // Add pagination
+  pipeline.push({ $skip: (page - 1) * limit }, { $limit: limit });
+
+  const data = await LeadModel.aggregate(pipeline);
+
+  return {
+    data: data.map(item => ({
+      ...item,
+      percentage: item.percentage.toFixed(1)
+    })),
+    totalPages,
+    totalItems
+  };
+}
+
+private getEmptyAnalyticsResult(): AnalyticsResult {
+  return {
+    overview: { totalLeads: 0, estimateSetCount: 0, unqualifiedCount: 0, conversionRate: '0.0' },
+    zipData: [],
+    serviceData: [],
+    adSetData: [],
+    adNameData: [],
+    leadDateData: [],
+    dayOfWeekData: [],
+    ulrData: []
+  };
+} 
   // Paginated, sortable, filterable leads fetch
   public async getLeadsPaginated(
   clientId?: string,

@@ -231,7 +231,68 @@ export class LeadController {
     }
   }
 
+  async getAnalytics(req: Request, res: Response): Promise<void> {
+    try {
+      const clientId =
+        typeof req.query.clientId === "string" ? req.query.clientId : undefined;
+      const { timeFilter = 'all' } = req.query;
 
+      const analytics = await this.service.getLeadAnalytics(
+      clientId as string, 
+      timeFilter as any
+    );
+    res.json({
+      success: true,
+      data: analytics
+    });
+    } catch (error) {
+      console.error("Error in getAnalytics", error);
+      utils.sendErrorResponse(res, error);
+    }
+  }
+
+  async getAnalyticsTable(req: Request, res: Response): Promise<void> {
+  try {
+    const clientId =
+      typeof req.query.clientId === "string" ? req.query.clientId : undefined;
+    const {
+      commonTimeFilter = 'all',
+      adSetPage = '1',
+      adNamePage = '1',
+      adSetItemsPerPage = '15',
+      adNameItemsPerPage = '10',
+      adSetSortField = 'estimateSet',
+      adSetSortOrder = 'desc',
+      adNameSortField = 'estimateSet',
+      adNameSortOrder = 'desc',
+      showTopRanked = 'false'
+    } = req.query;
+
+    const performanceData = await this.service.getPerformanceTables(
+      clientId as string,
+      commonTimeFilter as any,
+      parseInt(adSetPage as string),
+      parseInt(adNamePage as string),
+      parseInt(adSetItemsPerPage as string),
+      parseInt(adNameItemsPerPage as string),
+      {
+        adSetSortField: adSetSortField as any,
+        adSetSortOrder: adSetSortOrder as any,
+        adNameSortField: adNameSortField as any,
+        adNameSortOrder: adNameSortOrder as any,
+        showTopRanked: showTopRanked === 'true'
+      }
+    );
+
+    res.json({
+      success: true,
+      data: performanceData
+    });
+  } catch (error) {
+    console.error("Error in getAnalyticsTable", error);
+    utils.sendErrorResponse(res, error);
+  }
+}
 
   async createLead(req: Request, res: Response): Promise<void> {
     try {
