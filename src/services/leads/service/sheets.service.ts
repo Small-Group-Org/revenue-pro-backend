@@ -5,7 +5,8 @@ import {
   getMonthlyName, 
   parseEstimateSetValue,
   validateSheetHeaders,
-  getRequiredSheetHeaders 
+  getRequiredSheetHeaders,
+  sanitizeLeadData
 } from "../utils/leads.util.js";
 import utils from "../../../utils/utils.js";
 
@@ -272,19 +273,25 @@ export class SheetsService {
         // Parse date using utility helper function
         const leadDate = utils.parseDate(row["Lead Date"], sheetRowNumber);
         console.log(`Processing Sheet Row ${sheetRowNumber}, email:`, row["Email"]);
-        validLeads.push({
+        
+        // Create raw lead data and sanitize it at entry point
+        const rawLeadData = {
           status,
           leadDate,
-          name: String(row["Name"] || ""),
-          email: String(row["Email"] || ""),
-          phone: String(row["Phone"] || ""),
-          zip: String(row["Zip"] || ""),
-          service: String(row["Service"] || ""),
-          adSetName: String(row["Ad Set Name"] || ""),
-          adName: String(row["Ad Name"] || ""),
+          name: row["Name"] || "",
+          email: row["Email"] || "",
+          phone: row["Phone"] || "",
+          zip: row["Zip"] || "",
+          service: row["Service"] || "",
+          adSetName: row["Ad Set Name"] || "",
+          adName: row["Ad Name"] || "",
           unqualifiedLeadReason,
           clientId,
-        } as ILead);
+        };
+        
+        // Apply sanitization at entry point - this handles all string trimming
+        const sanitizedLead = sanitizeLeadData(rawLeadData);
+        validLeads.push(sanitizedLead as ILead);
       } catch (error) {
         skipReasons.processingErrors++;
         skipReasons.total++;

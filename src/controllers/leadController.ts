@@ -8,6 +8,7 @@ import conversionRateModel, {
   IConversionRate,
 } from "../services/leads/repository/models/conversionRate.model.js";
 import { conversionRateRepository } from "../services/leads/repository/repository.js";
+import { sanitizeLeadData } from "../services/leads/utils/leads.util.js";
 
 export class LeadController {
   /**
@@ -304,8 +305,11 @@ export class LeadController {
       const leadsPayload = Array.isArray(req.body) ? req.body : [req.body];
       const createdLeads = [];
 
-      // Validate each lead payload
-      for (const payload of leadsPayload) {
+      // Validate and sanitize each lead payload
+      for (const rawPayload of leadsPayload) {
+        // Sanitize data at entry point
+        const payload = sanitizeLeadData(rawPayload);
+        
         // Set default status if not provided
         if (!payload.status) {
           payload.status = "new";

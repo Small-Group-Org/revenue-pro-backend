@@ -92,9 +92,10 @@ export function createConversionRatesMap(conversionRates: IConversionRate[]): Ma
 
 /**
  * Get conversion rate for specific field and value using Map for O(1) lookup
+ * Assumes data is already sanitized at entry points
  */
 export function getConversionRateFromMap(conversionRatesMap: Map<string, number>, field: string, value: string): number {
-  if (!value || value.trim() === '') return 0;
+  if (!value || value === '') return 0;
   
   const key = `${field}:${value}`;
   return conversionRatesMap.get(key) || 0;
@@ -229,6 +230,50 @@ export function getRequiredSheetHeaders(): string[] {
     "Ad Name", 
     "Unqualified Lead Reason"
   ];
+}
+
+// ---------------- DATA SANITIZATION UTILITIES ----------------
+
+/**
+ * Safely convert any value to a trimmed string
+ * Handles null, undefined, numbers, objects, etc.
+ */
+export function safeStringTrim(value: any): string {
+  if (value === null || value === undefined) return '';
+  
+  const stringValue = typeof value === 'string' ? value : String(value);
+  return stringValue.trim();
+}
+
+/**
+ * Sanitize lead data at entry point to ensure consistent string formatting
+ * This should be called when data first enters the system (sheet processing, API creation)
+ */
+export function sanitizeLeadData(leadData: any): any {
+  return {
+    ...leadData,
+    name: safeStringTrim(leadData.name),
+    email: safeStringTrim(leadData.email),
+    phone: safeStringTrim(leadData.phone),
+    zip: safeStringTrim(leadData.zip),
+    service: safeStringTrim(leadData.service),
+    adSetName: safeStringTrim(leadData.adSetName),
+    adName: safeStringTrim(leadData.adName),
+    unqualifiedLeadReason: safeStringTrim(leadData.unqualifiedLeadReason),
+    // Keep other fields as-is (leadDate, status, clientId, etc.)
+    leadDate: leadData.leadDate,
+    status: leadData.status,
+    clientId: leadData.clientId,
+    leadScore: leadData.leadScore,
+    conversionRates: leadData.conversionRates
+  };
+}
+
+/**
+ * Check if a sanitized string value is empty or whitespace-only
+ */
+export function isEmptyValue(value: string): boolean {
+  return !value || value.length === 0;
 }
 
 // ---------------- TYPE DEFINITIONS ----------------

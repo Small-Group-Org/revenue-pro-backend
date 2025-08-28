@@ -38,6 +38,7 @@ import {
   getConversionRateFromMap,
   calculateLeadScore,
   getMonthIndex,
+  isEmptyValue,
   type LeadKeyField,
   type UniqueKey
 } from "../utils/leads.util.js";
@@ -124,12 +125,13 @@ export class LeadService {
       let actuallyUpdatedLeads = 0;
       for (const lead of leads) {
         // Get conversion rates for each field from DB using efficient Map lookups
-        const serviceRate = getConversionRateFromMap(conversionRatesMap, 'service', lead.service);
-        const adSetNameRate = getConversionRateFromMap(conversionRatesMap, 'adSetName', lead.adSetName);
-        const adNameRate = getConversionRateFromMap(conversionRatesMap, 'adName', lead.adName);
+        // Data is already sanitized at entry points, so all fields are clean strings
+        const serviceRate = getConversionRateFromMap(conversionRatesMap, 'service', lead.service || '');
+        const adSetNameRate = getConversionRateFromMap(conversionRatesMap, 'adSetName', lead.adSetName || '');
+        const adNameRate = getConversionRateFromMap(conversionRatesMap, 'adName', lead.adName || '');
         const monthName = new Date(lead.leadDate).toLocaleString("en-US", { month: "long" });
         const leadDateRate = getConversionRateFromMap(conversionRatesMap, 'leadDate', monthName);
-        const zipRate = getConversionRateFromMap(conversionRatesMap, 'zip', lead.zip ?? "");
+        const zipRate = getConversionRateFromMap(conversionRatesMap, 'zip', lead.zip || '');
 
         // Build conversionRates object for this lead (always include all fields)
         const conversionRatesForLead = {
@@ -540,11 +542,23 @@ public async fetchLeadFiltersAndCounts(
     const zipSet = new Set<string>(); // NEW: ZIP code set
 
     // Single pass through leads array for optimal performance
+    // Data is already sanitized at entry points, so no need for extensive type checking
     for (const lead of leads) {
-      if (lead.service) serviceSet.add(lead.service);
-      if (lead.adSetName) adSetNameSet.add(lead.adSetName);
-      if (lead.adName) adNameSet.add(lead.adName);
-      if (lead.zip && typeof lead.zip === 'string' && lead.zip.trim()) zipSet.add(lead.zip.trim()); // NEW: Add ZIP codes
+      if (!isEmptyValue(lead.service)) {
+        serviceSet.add(lead.service);
+      }
+      
+      if (!isEmptyValue(lead.adSetName)) {
+        adSetNameSet.add(lead.adSetName);
+      }
+      
+      if (!isEmptyValue(lead.adName)) {
+        adNameSet.add(lead.adName);
+      }
+      
+      if (!isEmptyValue(lead.zip || '')) {
+        zipSet.add(lead.zip || '');
+      }
       
       // Optimized month extraction
       if (lead.leadDate) {
@@ -591,8 +605,9 @@ public async fetchLeadFiltersAndCounts(
       }
     } else if (keyField === "zip") {
       // Single pass through leads for ZIP filtering
+      // Data is already sanitized, so direct comparison is safe
       for (const lead of clientLeads) {
-        if (lead.zip && typeof lead.zip === 'string' && lead.zip.trim() === keyName) {
+        if (lead.zip === keyName) {
           totalForKey++;
           if (lead.status === 'estimate_set') {
             yesForKey++;
@@ -601,6 +616,7 @@ public async fetchLeadFiltersAndCounts(
       }
     } else {
       // Single pass through leads for field filtering
+      // Data is already sanitized, so direct comparison is safe
       for (const lead of clientLeads) {
         if (lead[keyField] === keyName) {
           totalForKey++;
