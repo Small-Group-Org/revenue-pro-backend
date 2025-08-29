@@ -93,8 +93,6 @@ interface PaginationOptions {
   };
   zipData: Array<{ zip: string; count: number; percentage: string }>;
   serviceData: Array<{ service: string; count: number; percentage: string }>;
-  adSetData: Array<{ adSetName: string; total: number; estimateSet: number; percentage: string }>;
-  adNameData: Array<{ adName: string; adSetName: string; total: number; estimateSet: number; percentage: string }>;
   leadDateData: Array<{ date: string; count: number; percentage: string }>;
   dayOfWeekData: Array<{ day: string; total: number; estimateSet: number; percentage: string }>;
   ulrData: Array<{ reason: string; count: number; percentage: string }>;
@@ -536,11 +534,9 @@ private async processLeadAnalytics(leads: any[]): Promise<AnalyticsResult> {
   const conversionRate = ((estimateSetCount / totalLeads) * 100).toFixed(1);
 
   // Process each analytics section
-  const [zipData, serviceData, adSetData, adNameData, leadDateData, dayOfWeekData, ulrData] = await Promise.all([
+  const [zipData, serviceData,  leadDateData, dayOfWeekData, ulrData] = await Promise.all([
     this.processZipAnalysis(estimateSetLeads, estimateSetCount),
     this.processServiceAnalysis(estimateSetLeads, estimateSetCount),
-    this.processAdSetAnalysis(leads),
-    this.processAdNameAnalysis(leads),
     this.processLeadDateAnalysis(estimateSetLeads, estimateSetCount),
     this.processDayOfWeekAnalysis(leads),
     this.processUnqualifiedReasonsAnalysis(leads, unqualifiedCount)
@@ -550,8 +546,6 @@ private async processLeadAnalytics(leads: any[]): Promise<AnalyticsResult> {
     overview: { totalLeads, estimateSetCount, unqualifiedCount, conversionRate },
     zipData,
     serviceData,
-    adSetData,
-    adNameData,
     leadDateData,
     dayOfWeekData,
     ulrData
@@ -825,8 +819,6 @@ private getEmptyAnalyticsResult(): AnalyticsResult {
     overview: { totalLeads: 0, estimateSetCount: 0, unqualifiedCount: 0, conversionRate: '0.0' },
     zipData: [],
     serviceData: [],
-    adSetData: [],
-    adNameData: [],
     leadDateData: [],
     dayOfWeekData: [],
     ulrData: []

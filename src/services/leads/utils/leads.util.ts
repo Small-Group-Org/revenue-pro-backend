@@ -178,12 +178,19 @@ export function extractGid(sheetUrl: string): string | null {
 /**
  * Parse estimate set value from various formats
  */
-export function parseEstimateSetValue(value: any): boolean {
-  return value === true || 
-    value === 1 ||
-    (typeof value === "string" && value.trim().toUpperCase() === "TRUE") ||
-    (typeof value === "string" && value.trim().toUpperCase() === "YES");
+
+export function parseEstimateSetValue(value: unknown): boolean {
+  if (value === true) return true;
+  if (value === 1) return true;
+
+  if (typeof value === "string") {
+    const normalized = value.trim().toUpperCase();
+    return normalized === "TRUE" || normalized === "YES";
+  }
+
+  return false;
 }
+
 
 /**
  * Validate required sheet headers
