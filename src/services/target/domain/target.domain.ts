@@ -30,6 +30,7 @@ export interface IWeeklyTarget {
   revenue: number;
   showRate: number;
   queryType: string;
+  managementCost: number;
 }
 
 export interface ITargetQuery {

@@ -16,6 +16,7 @@ const weeklyTargetSchema = new Schema<IWeeklyTargetDocument>({
   revenue: { type: Number, required: true },
   showRate: { type: Number, required: true },
   queryType: { type: String, required: true },
+  managementCost: { type: Number, required: true },
 }, { timestamps: true });
 
 // Index on startDate for efficient queries

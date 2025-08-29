@@ -8,8 +8,6 @@ export class TargetService {
 
   constructor() {
     this.targetRepository = new TargetRepository();
-    // Test the getMonthWeeks function
-    DateUtils.testGetMonthWeeks();
   }
 
   private _aggregateTargets(
@@ -30,6 +28,7 @@ export class TargetService {
         com: 0,
         revenue: 0,
         showRate: 0,
+        managementCost: 0,
         queryType: queryType,
         year: new Date().getFullYear(),
         weekNumber: 0,
@@ -48,6 +47,7 @@ export class TargetService {
       com: 0,
       revenue: 0,
       showRate: 0,
+      managementCost: 0,
       queryType: targets[0].queryType || queryType,
     };
 
@@ -59,6 +59,7 @@ export class TargetService {
     aggregated.showRate = targets[0].showRate || 0;
     aggregated.closeRate = targets[0].closeRate || 0;
     aggregated.com = targets[0].com || 0;
+    aggregated.managementCost = targets[0].managementCost || 0;
 
     return aggregated as IWeeklyTargetDocument;
   }
@@ -171,6 +172,7 @@ export class TargetService {
           com: data.com ?? 0,
           revenue: data?.revenue ?? 0,
           showRate: data?.showRate ?? 0,
+          managementCost: data?.managementCost ?? 0,
           queryType: queryType,
         };
         const target = await this.targetRepository.createTarget(newTargetData);
@@ -221,6 +223,7 @@ export class TargetService {
         showRate: data.showRate ? data.showRate : 0,
         closeRate: data.closeRate ? data.closeRate : 0,
         com: data.com ? data.com : 0,
+        managementCost: data.managementCost ? data.managementCost / weeksInMonth.length : 0,
       };
       
       const monthlyUpsertPromises = weeksInMonth.map((week, index) => {
@@ -358,6 +361,7 @@ export class TargetService {
                   showRate: data.showRate || 0,
                   closeRate: data.closeRate || 0,
                   com: data.com || 0,
+                  managementCost: data.managementCost || 0,
                 },
                 queryType
               );
@@ -476,6 +480,7 @@ export class TargetService {
                     showRate: data.showRate || 0,
                     closeRate: data.closeRate || 0,
                     com: data.com || 0,
+                    managementCost: data.managementCost || 0,
                   },
                   queryType
                 );
@@ -498,6 +503,7 @@ export class TargetService {
               showRate: data.showRate || 0,
               closeRate: data.closeRate || 0,
               com: data.com || 0,
+              managementCost: data.managementCost || 0,
             };
             
             // Create weekly targets for this month
@@ -612,6 +618,7 @@ export class TargetService {
         com: 0,
         revenue: 0,
         showRate: 0,
+        managementCost: 0,
         queryType: "",
         year: weekInfo.year,
         weekNumber: weekInfo.weekNumber,
@@ -729,6 +736,7 @@ export class TargetService {
       com: 0,
       revenue: 0,
       showRate: 0,
+      managementCost: 0,
       queryType: "monthly",
       year,
       weekNumber: 0,

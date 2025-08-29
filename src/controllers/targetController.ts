@@ -44,6 +44,7 @@ export class TargetController {
         "userId",
         "year",
         "weekNumber",
+        "managementCost",
       ];
       const results: any[] = [];
       const errors: any[] = [];
@@ -90,7 +91,6 @@ export class TargetController {
         // Process individual targets (weekly/monthly/single yearly)
         for (let i = 0; i < targets.length; i++) {
           const target = targets[i];
-          console.log(`Processing target ${i + 1}/${targets.length}:`, target);
           
           const { startDate, endDate, queryType, ...targetData } = target;
           if (!startDate || !queryType) {
