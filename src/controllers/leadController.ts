@@ -231,6 +231,73 @@ export class LeadController {
     }
   }
 
+
+  async getLeads(req: Request, res: Response): Promise<void> {
+    try {
+      const clientId =
+        typeof req.query.clientId === "string" ? req.query.clientId : undefined;
+  
+      const startDate =
+        typeof req.query.startDate === "string"
+          ? req.query.startDate
+          : undefined;
+  
+      const endDate =
+        typeof req.query.endDate === "string" ? req.query.endDate : undefined;
+  
+      // Fetch leads
+      const leads = await this.service.getLeads(clientId, startDate, endDate);
+  
+      // Fetch conversion rates for this client
+      const conversionRates = await conversionRateRepository.getConversionRates(
+        clientId ? { clientId } : {}
+      );
+  
+      // Group conversion rates by field for response
+      const crGrouped = {
+        service: conversionRates
+          .filter((cr) => cr.keyField === "service")
+          .map((cr) => ({
+            name: cr.keyName,
+            conversionRate: cr.conversionRate,
+          })),
+        adSet: conversionRates
+          .filter((cr) => cr.keyField === "adSetName")
+          .map((cr) => ({
+            name: cr.keyName,
+            conversionRate: cr.conversionRate,
+          })),
+        adName: conversionRates
+          .filter((cr) => cr.keyField === "adName")
+          .map((cr) => ({
+            name: cr.keyName,
+            conversionRate: cr.conversionRate,
+          })),
+        dates: conversionRates
+          .filter((cr) => cr.keyField === "leadDate")
+          .map((cr) => ({
+            date: cr.keyName,
+            conversionRate: cr.conversionRate,
+          })),
+        zip: conversionRates
+          .filter((cr) => cr.keyField === "zip")
+          .map((cr) => ({
+            zip: cr.keyName,
+            conversionRate: cr.conversionRate,
+          })),
+      };
+  
+      utils.sendSuccessResponse(res, 200, {
+        success: true,
+        data: leads,
+        conversionRates: crGrouped,
+      });
+    } catch (error) {
+      console.error("Error in getLeads:", error);
+      utils.sendErrorResponse(res, error);
+    }
+  }
+  
   async getAnalytics(req: Request, res: Response): Promise<void> {
     try {
       const clientId =
