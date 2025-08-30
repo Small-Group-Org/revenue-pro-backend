@@ -170,7 +170,7 @@ In addition to JSON files, each execution prints a formatted summary to the cons
 
 Logs are created automatically:
 - ✅ **Every Sunday at 2:00 AM UTC** (scheduled cron)
-- ✅ **Manual API triggers** (`/api/v1/trigger-lead-sheet-computation`)
+- ✅ **Manual API triggers** (`/api/v1/trigger-leads-computation`)
 - ✅ **Test cron executions** (if enabled)
 
 ## 🛠️ **For Developers**

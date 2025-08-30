@@ -23,7 +23,9 @@
  * 4. RECOMMENDED DATABASE INDEXES:
  *    - LeadModel: { clientId: 1, leadDate: 1 } (for date range queries)
  *    - LeadModel: { clientId: 1, service: 1, adSetName: 1, adName: 1 } (for conversion calculations)
- *    - LeadModel: { clientId: 1, name: 1, email: 1, phone: 1, leadDate: 1 } (for duplicate detection)
+ *    - LeadModel: { clientId: 1, email: 1 } (for email-based uniqueness)
+ *    - LeadModel: { clientId: 1, phone: 1 } (for phone-based uniqueness)
+ *    - LeadModel: { clientId: 1, email: 1, phone: 1 } (for combination uniqueness)
  *    - ConversionRateModel: { clientId: 1, keyField: 1, keyName: 1 } (for rate lookups)
  */
 
@@ -962,7 +964,7 @@ public async fetchLeadFiltersAndCounts(
   },
   statusCounts
 };
-}
+  }
 
   /**
    * Calculate and store lead scores for leads that don't have them
@@ -1376,8 +1378,11 @@ public async fetchLeadFiltersAndCounts(
     return await LeadModel.create(payload);
   }
 
-  // Bulk upsert leads with duplicate prevention - OPTIMIZED
-  public async bulkCreateLeads(payloads: ILead[]): Promise<{
+  // Bulk upsert leads with optional duplicate prevention based on email/phone uniqueness
+  public async bulkCreateLeads(
+    payloads: ILead[], 
+    uniquenessByPhoneEmail: boolean = false
+  ): Promise<{
     documents: ILeadDocument[];
     stats: {
       total: number;
@@ -1390,23 +1395,44 @@ public async fetchLeadFiltersAndCounts(
       stats: { total: 0, newInserts: 0, duplicatesUpdated: 0 }
     };
 
-    // Use bulkWrite for upsert operations to prevent duplicates
-    const bulkOps = payloads.map(lead => ({
+    // Build operations based on uniqueness flag
+    const bulkOps = payloads.map(lead => {
+      const filter: any = { clientId: lead.clientId };
+      
+      // Apply email/phone uniqueness logic if enabled
+      if (uniquenessByPhoneEmail) {
+        const hasEmail = lead.email && lead.email.trim() !== '';
+        const hasPhone = lead.phone && lead.phone.trim() !== '';
+        
+        if (hasEmail && hasPhone) {
+          // Both exist: match by either email OR phone
+          filter.$or = [
+            { email: lead.email }, // Match by email
+            { phone: lead.phone }  // Or match by phone
+          ];
+        } else if (hasEmail) {
+          // Only email exists: match by email
+          filter.email = lead.email;
+        } else if (hasPhone) {
+          // Only phone exists: match by phone
+          filter.phone = lead.phone;
+        } else {
+          // Neither email nor phone exist: force new document
+          filter._id = new Date().getTime() + Math.random();
+        }
+      } else {
+        // No uniqueness - always create new documents by using unique temporary ID
+        filter._id = new Date().getTime() + Math.random() + Math.random();
+      }
+
+      return {
       updateOne: {
-        filter: {
-          clientId: lead.clientId,
-          name: lead.name,
-          email: lead.email,
-          phone: lead.phone,
-          service: lead.service,
-          adSetName: lead.adSetName,
-          adName: lead.adName,
-          leadDate: lead.leadDate
-        },
+          filter,
         update: { $set: lead },
         upsert: true // Insert if not exists, update if exists
       }
-    }));
+      };
+    });
 
     const result = await LeadModel.bulkWrite(bulkOps, { ordered: false });
     
@@ -1454,7 +1480,11 @@ public async fetchLeadFiltersAndCounts(
   }
 
   // ---- COMPREHENSIVE SHEET PROCESSING - OPTIMIZED -----
-  public async processCompleteSheet(sheetUrl: string, clientId: string): Promise<{
+  public async processCompleteSheet(
+  sheetUrl: string,
+    clientId: string,
+    uniquenessByPhoneEmail: boolean = false
+): Promise<{
     result: SheetProcessingResult;
     conversionData: any[];
   }> {
@@ -1465,8 +1495,8 @@ public async fetchLeadFiltersAndCounts(
     const sheetData = await sheetsService.processSheetData(sheetUrl, clientId);
     const { leads, stats: sheetStats, conversionRateInsights } = sheetData;
     
-    // 2. Bulk upsert leads to database
-    const bulkResult = await this.bulkCreateLeads(leads);
+    // 2. Bulk upsert leads to database with optional uniqueness
+    const bulkResult = await this.bulkCreateLeads(leads, uniquenessByPhoneEmail);
     
     // 3. Process leads for conversion rates
     const conversionData = this.processLeads(leads, clientId);

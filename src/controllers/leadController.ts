@@ -21,7 +21,6 @@ export class LeadController {
   ): Promise<void> {
     try {
       // Get all unique clientIds from leads collection
-
       const clientIds = await this.service.getAllClientIds();
       if (!clientIds || clientIds.length === 0) {
         utils.sendErrorResponse(res, "No clientIds found in leads collection");
@@ -448,7 +447,7 @@ export class LeadController {
 
   async processSheetLeads(req: Request, res: Response): Promise<void> {
     try {
-      const { sheetUrl, clientId } = req.body;
+      const { sheetUrl, clientId, uniquenessByPhoneEmail } = req.body;
 
       if (!sheetUrl || !clientId) {
         utils.sendErrorResponse(res, "sheetUrl and clientId are required");
@@ -456,10 +455,11 @@ export class LeadController {
       }
 
       console.log("Sheet processing started for client:", clientId);
+      console.log("Uniqueness by phone/email enabled:", !!uniquenessByPhoneEmail);
 
       // Process the entire sheet with comprehensive statistics
       const { result: processingResult, conversionData } =
-        await this.service.processCompleteSheet(sheetUrl, clientId);
+        await this.service.processCompleteSheet(sheetUrl, clientId, !!uniquenessByPhoneEmail);
 
       // Save conversion rates to database
       if (processingResult.conversionRatesGenerated > 0) {
