@@ -2,6 +2,7 @@ import { IWeeklyTarget } from "../domain/target.domain.js";
 import { IWeeklyTargetDocument } from "../repository/models/target.model.js";
 import { TargetRepository } from "../repository/repository.js";
 import { DateUtils } from "../../../utils/date.utils.js";
+import { FormData } from "retell-sdk/_shims/registry.mjs";
 
 export class TargetService {
   private targetRepository: TargetRepository;
@@ -122,9 +123,9 @@ export class TargetService {
       
       // For direct weekly updates, prevent editing past/current weeks.
       // Monthly/Yearly updates have their own checks in upsertTargetByPeriod.
-      if (queryType === 'weekly' && this.isDateInPastOrCurrent(startDate, 'weekly')) {
-        throw new Error(`Cannot modify targets for past or current weekly periods.`);
-      }
+      // if (queryType === 'weekly' && this.isDateInPastOrCurrent(startDate, 'weekly')) {
+      //   throw new Error(`Cannot modify targets for past or current weekly periods.`);
+      // }
 
       const weekInfo = DateUtils.getWeekDetails(startDate);
 
@@ -145,9 +146,14 @@ export class TargetService {
           }
         }
 
+        // Filter out 0 values from data to avoid overwriting existing values with 0
+        const filteredData = Object.fromEntries(
+          Object.entries(data).filter(([key, value]) => value !== 0 && value !== null && value !== undefined)
+        );
+
         const updatedData = {
           ...existingTarget.toObject(),
-          ...data,
+          ...filteredData,
           queryType: finalQueryType,
         };
 
@@ -199,15 +205,15 @@ export class TargetService {
       console.log(`=== Processing monthly target ===`);
       
       // Check if the target date is in the past or current period
-      if (this.isDateInPastOrCurrent(startDate, "monthly")) {
-        const existingTargets = await this.getWeeklyTargetsInRange(userId, startDate, endDate, queryType);
+      // if (this.isDateInPastOrCurrent(startDate, "monthly")) {
+      //   const existingTargets = await this.getWeeklyTargetsInRange(userId, startDate, endDate, queryType);
         
-        if (existingTargets.length > 0) {
-          return existingTargets;
-        } else {
-          return [];
-        }
-      }
+      //   if (existingTargets.length > 0) {
+      //     return existingTargets;
+      //   } else {
+      //     return [];
+      //   }
+      // }
       
       const weeksInMonth = DateUtils.getMonthWeeks(startDate, endDate);
       if (weeksInMonth.length === 0) {
