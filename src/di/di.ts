@@ -45,7 +45,7 @@ class di {
 
   public AuthService(): AuthService {
     if (!this.authService) {
-      return (this.authService = new AuthService(this.UserService(), this.IPTrackingService()));
+      return (this.authService = new AuthService(this.UserService()));
     }
     return this.authService;
   }
