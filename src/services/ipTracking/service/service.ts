@@ -5,12 +5,15 @@ import { IIPTracking } from "../domain/ipTracking.domain.js";
 import { CustomError, ErrorCode } from "../../../pkg/error/custom_error.js";
 import utils from "../../../utils/utils.js";
 import { Context } from "../../common/domain/context.js";
+import UserService from "../../user/service/service.js";
 
 class IPTrackingService {
   private ipTrackingRepository: IPTrackingRepository;
+  private userService: UserService;
 
-  constructor(ipTrackingRepository: IPTrackingRepository) {
+  constructor(ipTrackingRepository: IPTrackingRepository, userService: UserService) {
     this.ipTrackingRepository = ipTrackingRepository;
+    this.userService = userService;
   }
 
   async trackUserActivity(context: Context, req: Request, userId: string): Promise<IIPTracking> {
@@ -27,15 +30,7 @@ class IPTrackingService {
       const forwardedFor = req.get('X-Forwarded-For') || undefined;
       const realIp = req.get('X-Real-IP') || undefined;
       const clientIp = req.get('X-Client-IP') || undefined;
-      const cfConnectingIp = req.get('CF-Connecting-IP') || undefined; // Cloudflare
-
-      console.log("ipAddress", {
-        ipAddress, 
-        userId, 
-        userAgent, 
-        timestamp,
-        hasProxy: !!(forwardedFor || realIp || clientIp),
-      });
+      const cfConnectingIp = req.get('CF-Connecting-IP') || undefined;
 
       const ipTrackingData = {
         ipAddress,
@@ -57,8 +52,10 @@ class IPTrackingService {
       };
 
       ipTrackingData.integrityHash = this.createIntegrityHash(ipTrackingData);
+      const ipTracking = await this.ipTrackingRepository.createIPTracking(ipTrackingData);
+      await this.userService.updateUserLoginStatus(userId, true);
 
-      return await this.ipTrackingRepository.createIPTracking(ipTrackingData);
+      return ipTracking;
       
     } catch (error) {
       console.error('Error in trackUserActivity:', error);

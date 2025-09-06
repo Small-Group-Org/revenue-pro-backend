@@ -59,7 +59,7 @@ class di {
 
   public IPTrackingService(): IPTrackingService {
     if (!this.ipTrackingService) {
-      return (this.ipTrackingService = new IPTrackingService(this.IPTrackingRepository()));
+      return (this.ipTrackingService = new IPTrackingService(this.IPTrackingRepository(), this.UserService()));
     }
     return this.ipTrackingService;
   }

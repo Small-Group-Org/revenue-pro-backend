@@ -2,7 +2,6 @@ import { Request, Response } from "express";
 import jwt from "jsonwebtoken";
 import utils from "../../../utils/utils.js";
 import { createToken, verifyToken } from "../utils/token.js";
-import { encryptPassword } from "../../../middlewares/auth.middleware.js";
 import nodemailer from "nodemailer";
 import { CustomError, ErrorCode } from "../../../pkg/error/custom_error.js";
 import { config } from "../../../config.js";
@@ -36,9 +35,7 @@ class AuthService {
       const isPasswordValid = await user.comparePassword(password);
       if (!isPasswordValid) {
         throw new CustomError(ErrorCode.BAD_REQUEST, "Invalid credentials");
-      }
-      // Update hasLoggedIn status to true
-      await this.userService.updateUserLoginStatus(user._id as string, true);
+      }      
 
       const token = createToken({ id: user._id as string, email: user.email });
       return {
@@ -63,8 +60,7 @@ class AuthService {
         throw new CustomError(ErrorCode.BAD_REQUEST, "Email already registered");
       }
 
-      const hashedPassword = await encryptPassword(password);
-      const user = await this.userService.addUser(name, email, email, hashedPassword, "", false);
+      const user = await this.userService.addUser(name, email, email, password, "", false);
 
       const token = createToken({ id: user._id as string, email: user.email });
       return {
@@ -158,8 +154,7 @@ class AuthService {
         throw new CustomError(ErrorCode.NOT_FOUND, "User not found");
       }
 
-      const hashedPassword = await encryptPassword(password);
-      await this.userService.updateUserPassword(user._id as string, hashedPassword);
+      await this.userService.updateUserPassword(user._id as string, password);
 
       return {
         message: "Password reset successful",

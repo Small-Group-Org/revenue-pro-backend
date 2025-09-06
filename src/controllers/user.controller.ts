@@ -69,6 +69,26 @@ class UserController {
       utils.sendErrorResponse(res, error);
     }
   };
+
+  public updatePassword = async (req: Request, res: Response): Promise<void> => {
+    try {
+      const { userId, newPassword } = req.body;
+
+      if (!userId || !newPassword) {
+        utils.sendErrorResponse(res, "userId and newPassword are required");
+        return;
+      }
+
+      await this.userService.updateUserPassword(userId, newPassword);
+
+      utils.sendSuccessResponse(res, 200, {
+        success: true,
+        message: "Password updated successfully",
+      });
+    } catch (error) {
+      utils.sendErrorResponse(res, error);
+    }
+  };
 }
 
 export default new UserController();

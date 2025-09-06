@@ -61,7 +61,14 @@ export class UserRepositoryService {
           "ID and password are required",
         );
       }
-      await User.findByIdAndUpdate(id, { password });
+
+      const user = await User.findById(id);
+      if (!user) {
+        throw new CustomError(ErrorCode.NOT_FOUND, "User not found");
+      }
+
+      user.password = password;
+      await user.save();
     } catch (error) {
       throw utils.ThrowableError(error);
     }
