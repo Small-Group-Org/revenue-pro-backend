@@ -364,6 +364,15 @@ public async getPerformanceTables(
   };
 }
 
+public async upsertLead(query: any, payload: any) {
+  return await LeadModel.findOneAndUpdate(
+    query,
+    { $set: payload },
+    { new: true, upsert: true } // new = return updated doc, upsert = insert if not found
+  );
+}
+
+
 /**
  * Private methods updated to return pagination structure
  */

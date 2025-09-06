@@ -362,55 +362,71 @@ export class LeadController {
 }
 
   async createLead(req: Request, res: Response): Promise<void> {
-    try {
-      // Support bulk creation if req.body is array, else single object
-      const leadsPayload = Array.isArray(req.body) ? req.body : [req.body];
-      const createdLeads = [];
+  try {
+    const leadsPayload = Array.isArray(req.body) ? req.body : [req.body];
+    const processedLeads = [];
 
-      // Validate and sanitize each lead payload
-      for (const rawPayload of leadsPayload) {
-        // Sanitize data at entry point
-        const payload = sanitizeLeadData(rawPayload);
-        
-        // Set default status if not provided
-        if (!payload.status) {
-          payload.status = "new";
-        }
+    for (const rawPayload of leadsPayload) {
+      const payload = sanitizeLeadData(rawPayload);
 
-        // Validate status
-        if (
-          !["new", "in_progress", "estimate_set", "unqualified"].includes(
-            payload.status
-          )
-        ) {
-          utils.sendErrorResponse(
-            res,
-            `Invalid status '${payload.status}'. Must be one of: new, in_progress, estimate_set, unqualified`
-          );
-          return;
-        }
-
-        // Clear unqualifiedLeadReason if status is not "unqualified"
-        if (payload.status !== "unqualified") {
-          payload.unqualifiedLeadReason = "";
-        }
-
-        // Initialize leadScore as 0 for new leads (will be calculated on first getLeads call)
-        payload.leadScore = 0;
-
-        const lead = await this.service.createLead(payload);
-        createdLeads.push(lead);
+      // Default status
+      if (!payload.status) {
+        payload.status = "new";
       }
 
-      utils.sendSuccessResponse(res, 201, {
-        success: true,
-        data: createdLeads.length === 1 ? createdLeads[0] : createdLeads,
-      });
-    } catch (error) {
-      console.error("Error in createLead:", error);
-      utils.sendErrorResponse(res, error);
+      // Validate status
+      if (!["new", "in_progress", "estimate_set", "unqualified"].includes(payload.status)) {
+        utils.sendErrorResponse(
+          res,
+          `Invalid status '${payload.status}'. Must be one of: new, in_progress, estimate_set, unqualified`
+        );
+        return;
+      }
+
+      // Clear unqualifiedLeadReason if not unqualified
+      if (payload.status !== "unqualified") {
+        payload.unqualifiedLeadReason = "";
+      }
+
+      // Initialize leadScore if missing
+      if (!payload.leadScore) {
+        payload.leadScore = 0;
+      }
+
+      // 🔑 Identity-based uniqueness filter
+      const query: any = { clientId: payload.clientId };
+
+      const hasEmail = payload.email && payload.email.trim() !== "";
+      const hasPhone = payload.phone && payload.phone.trim() !== "";
+
+      if (hasEmail && hasPhone) {
+        // Either email OR phone matches
+        query.$or = [{ email: payload.email }, { phone: payload.phone }];
+      } else if (hasEmail) {
+        query.email = payload.email;
+      } else if (hasPhone) {
+        query.phone = payload.phone;
+      } else {
+        // Neither phone nor email → force new doc
+        query._id = new Date().getTime() + Math.random();
+      }
+
+
+      const lead = await this.service.upsertLead(query, payload);
+      processedLeads.push(lead);
     }
+
+    utils.sendSuccessResponse(res, 201, {
+      success: true,
+      data: processedLeads.length === 1 ? processedLeads[0] : processedLeads,
+    });
+  } catch (error) {
+    console.error("Error in createLead:", error);
+    utils.sendErrorResponse(res, error);
   }
+}
+
+
 
   async updateLead(req: Request, res: Response): Promise<void> {
     try {
