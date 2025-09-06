@@ -534,7 +534,8 @@ private async processLeadAnalytics(leads: any[]): Promise<AnalyticsResult> {
   const totalLeads = leads.length;
   const estimateSetLeads = leads.filter(lead => lead.status === 'estimate_set');
   const estimateSetCount = estimateSetLeads.length;
-  const unqualifiedCount = totalLeads - estimateSetCount;
+  const unqualifiedLeads = leads.filter(lead => lead.status === 'unqualified');
+  const unqualifiedCount = unqualifiedLeads.length;
   const conversionRate = ((estimateSetCount / totalLeads) * 100).toFixed(1);
 
   // Process each analytics section
@@ -543,7 +544,7 @@ private async processLeadAnalytics(leads: any[]): Promise<AnalyticsResult> {
     this.processServiceAnalysis(estimateSetLeads, estimateSetCount),
     this.processLeadDateAnalysis(estimateSetLeads, estimateSetCount),
     this.processDayOfWeekAnalysis(leads),
-    this.processUnqualifiedReasonsAnalysis(leads, unqualifiedCount)
+    this.processUnqualifiedReasonsAnalysis(unqualifiedLeads, unqualifiedCount)
   ]);
 
   return {
@@ -678,9 +679,9 @@ private async processLeadDateAnalysis(estimateSetLeads: any[], estimateSetCount:
     .sort((a, b) => new Date(a.date + ', 2024').getTime() - new Date(b.date + ', 2024').getTime());
 }
 
-private async processUnqualifiedReasonsAnalysis(leads: any[], unqualifiedCount: number) {
-  const ulrAnalysis = leads
-    .filter(lead => lead.status === 'unqualified' && lead.unqualifiedLeadReason)
+private async processUnqualifiedReasonsAnalysis(unqualifiedLeads: any[], unqualifiedCount: number) {
+  const ulrAnalysis = unqualifiedLeads
+    .filter(lead => lead.unqualifiedLeadReason)
     .reduce((acc, lead) => {
       const reason = lead.unqualifiedLeadReason;
       acc[reason] = (acc[reason] || 0) + 1;
