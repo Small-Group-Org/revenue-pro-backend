@@ -22,17 +22,22 @@ export class LeadController {
     try {
       let clientIds: string[] = [];
 
-    if (req.query.clientId) {
-      // Single client from query param
-      clientIds = [String(req.query.clientId)];
-    } else {
-      // Fallback: all clientIds from DB
-      clientIds = await this.service.getAllClientIds();
-      if (!clientIds || clientIds.length === 0) {
-        utils.sendErrorResponse(res, "No clientIds found in leads collection");
+      if (req.query.clientId) {
+        if (req.query.clientId === "all") {
+          // All clients
+          clientIds = await this.service.getAllClientIds();
+          if (!clientIds || clientIds.length === 0) {
+            utils.sendErrorResponse(res, "No clientIds found in leads collection");
+            return;
+          }
+        } else {
+          // Specific client
+          clientIds = [String(req.query.clientId)];
+        }
+      } else {
+        utils.sendErrorResponse(res, "clientId is required (use ?clientId=all or a specific id)");
         return;
       }
-    }
 
       if (!clientIds || clientIds.length === 0) {
         utils.sendErrorResponse(res, "No clientIds found in leads collection");
