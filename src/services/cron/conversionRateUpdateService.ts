@@ -2,10 +2,13 @@ import cron from "node-cron";
 import { LeadService } from "../leads/service/service.js";
 import logger from "../../utils/logger.js";
 import CronLogger from "../../utils/cronLogger.js";
+import { MongoCronLogger } from "../../utils/mongoCronLogger.js";
+import { ObjectId } from "mongoose";
 
 export class ConversionRateUpdateService {
   private leadService: LeadService;
   private isRunning: boolean = false;
+  private currentLogId: ObjectId | null = null;
 
   constructor() {
     this.leadService = new LeadService();
@@ -44,12 +47,49 @@ export class ConversionRateUpdateService {
     this.isRunning = true;
     const startTime = new Date();
     
+    // Log job start to MongoDB
+    try {
+      this.currentLogId = await MongoCronLogger.logCronJobStart({
+        jobName: "weeklyLeadProcessor",
+        details: "Starting weekly lead processing and conversion rate updates...",
+        executionId: startTime.toISOString().replace(/[:.]/g, '-')
+      });
+    } catch (error: any) {
+      logger.error("Failed to log cron job start:", error);
+    }
+    
     CronLogger.logWeeklyUpdateStart();
     
     try {
       const result = await this.runComprehensiveWeeklyUpdate();
       
       const duration = Date.now() - startTime.getTime();
+      
+      // Log success to MongoDB
+      if (this.currentLogId) {
+        try {
+          await MongoCronLogger.logCronJobSuccess({
+            logId: this.currentLogId,
+            details: {
+              message: "Weekly lead processing completed successfully",
+              processedClients: result.processedClients,
+              totalUpdatedConversionRates: result.totalUpdatedConversionRates,
+              totalUpdatedLeads: result.totalUpdatedLeads,
+              errors: result.errors,
+              durationMs: duration,
+              breakdown: {
+                newLeads: 0, // This would need to be tracked in the actual processing
+                duplicatesRemoved: 0, // This would need to be tracked in the actual processing
+                conversionRatesUpdated: result.totalUpdatedConversionRates,
+                leadsUpdated: result.totalUpdatedLeads
+              }
+            },
+            processedCount: result.totalUpdatedLeads
+          });
+        } catch (error: any) {
+          logger.error("Failed to log cron job success:", error);
+        }
+      }
       
       CronLogger.logWeeklyUpdateCompletion({
         processedClients: result.processedClients,
@@ -60,9 +100,30 @@ export class ConversionRateUpdateService {
       });
       
     } catch (error: any) {
+      // Log failure to MongoDB
+      if (this.currentLogId) {
+        try {
+          await MongoCronLogger.logCronJobFailure({
+            logId: this.currentLogId,
+            error: error.message || error.toString(),
+            details: {
+              message: "Weekly lead processing failed",
+              error: error.message || error.toString(),
+              stack: error.stack,
+              processedClients: 0,
+              totalUpdatedConversionRates: 0,
+              totalUpdatedLeads: 0
+            }
+          });
+        } catch (logError: any) {
+          logger.error("Failed to log cron job failure:", logError);
+        }
+      }
+      
       CronLogger.logFatalError(error);
     } finally {
       this.isRunning = false;
+      this.currentLogId = null;
     }
   }
 
@@ -112,7 +173,15 @@ export class ConversionRateUpdateService {
           const duration = Date.now() - clientStartTime;
           
           // Record client result
-          clientResults.push(CronLogger.createSuccessfulClientResult(clientId, result, duration));
+          clientResults.push({
+            clientId,
+            success: result.errors.length === 0,
+            updatedConversionRates: result.updatedConversionRates,
+            updatedLeads: result.updatedLeads,
+            errors: result.errors,
+            duration,
+            conversionRateStats: result.conversionRateStats
+          });
           
           CronLogger.logClientUpdateCompletion(clientId, {
             updatedConversionRates: result.updatedConversionRates,
@@ -127,31 +196,33 @@ export class ConversionRateUpdateService {
           errors.push(errorMsg);
 
           // Record failed client result
-          clientResults.push(CronLogger.createFailedClientResult(clientId, errorMsg, duration));
+          clientResults.push({
+            clientId,
+            success: false,
+            updatedConversionRates: 0,
+            updatedLeads: 0,
+            errors: [errorMsg],
+            duration,
+            conversionRateStats: {
+              newInserts: 0,
+              updated: 0
+            }
+          });
         }
       }
 
-      // Calculate summary metrics and log execution result
+      // Calculate summary metrics
       const endTime = new Date();
+      const duration = endTime.getTime() - startTime.getTime();
       
-      // Aggregate CR statistics from client results
-      const { totalCRNewInserts, totalCRUpdated } = CronLogger.aggregateCRStats(clientResults);
-
-      // Create execution result
-      const executionResult = CronLogger.createExecutionResult({
-        startTime,
-        endTime,
-        clientIds,
-        clientResults,
+      // Log execution result to console
+      logger.info("Weekly cron execution completed", {
+        processedClients: clientIds.length,
         totalUpdatedConversionRates,
         totalUpdatedLeads,
-        totalCRNewInserts,
-        totalCRUpdated,
-        errors
+        errors: errors.length,
+        duration
       });
-
-      // Log execution result to file and console
-      await CronLogger.logExecutionResult(executionResult);
 
       return {
         processedClients: clientIds.length,
@@ -206,6 +277,34 @@ export class ConversionRateUpdateService {
         await this.runWeeklyUpdate();
       }
     });
+  }
+
+  /**
+   * Get cron job statistics from MongoDB
+   */
+  public async getCronJobStats(days: number = 30): Promise<{
+    totalRuns: number;
+    successfulRuns: number;
+    failedRuns: number;
+    successRate: number;
+    averageDuration: number;
+    lastRun?: Date;
+  }> {
+    return await MongoCronLogger.getCronJobStats("weeklyLeadProcessor", days);
+  }
+
+  /**
+   * Get recent cron job logs
+   */
+  public async getRecentLogs(limit: number = 10): Promise<any[]> {
+    return await MongoCronLogger.getRecentLogs("weeklyLeadProcessor", limit);
+  }
+
+  /**
+   * Cleanup old cron job logs
+   */
+  public async cleanupOldLogs(keepCount: number = 100): Promise<number> {
+    return await MongoCronLogger.cleanupOldLogs("weeklyLeadProcessor", keepCount);
   }
 }
 

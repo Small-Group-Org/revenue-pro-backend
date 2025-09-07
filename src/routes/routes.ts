@@ -9,6 +9,7 @@ import leadRouter from "./leads.route.js";
 import createLeadRouter from "./createLead.route.js"
 import sheetRouter from "./sheet.routes.js"
 import { ipTrackingRoutes } from "./ipTracking.routes.js"
+import cronLogsRouter from "./cronLogs.routes.js"
 
 
 import {
@@ -75,7 +76,12 @@ const routes: Route[] = [
     path: "/api/leads/process-sheet",
     router: sheetRouter,
     middlewares: [],
-  }
+  },
+  {
+    path: "/api/v1/cron-logs",
+    router: cronLogsRouter,
+    middlewares: [],
+  },
 ];
 
 const configureRoutes = (app: Express): void => {
