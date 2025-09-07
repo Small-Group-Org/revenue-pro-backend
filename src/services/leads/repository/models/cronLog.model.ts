@@ -17,24 +17,20 @@ const cronLogSchema = new Schema<ICronLogDocument>(
   {
     jobName: {
       type: String,
-      required: true,
-      index: true
+      required: true
     },
     status: {
       type: String,
       required: true,
-      enum: ['started', 'success', 'failure'],
-      index: true
+      enum: ['started', 'success', 'failure']
     },
     startedAt: {
       type: Date,
-      required: true,
-      index: true
+      required: true
     },
     finishedAt: {
       type: Date,
-      required: false,
-      index: true
+      required: false
     },
     details: {
       type: Schema.Types.Mixed, // Allows both string and object
@@ -50,8 +46,7 @@ const cronLogSchema = new Schema<ICronLogDocument>(
     },
     executionId: {
       type: String,
-      required: false,
-      index: true
+      required: false
     }
   },
   { 
@@ -64,5 +59,10 @@ const cronLogSchema = new Schema<ICronLogDocument>(
 cronLogSchema.index({ jobName: 1, startedAt: -1 });
 cronLogSchema.index({ status: 1, startedAt: -1 });
 cronLogSchema.index({ executionId: 1 });
+
+// Create individual indexes for common query patterns
+cronLogSchema.index({ jobName: 1 });
+cronLogSchema.index({ startedAt: -1 });
+cronLogSchema.index({ finishedAt: -1 });
 
 export default model<ICronLogDocument>('CronLog', cronLogSchema);

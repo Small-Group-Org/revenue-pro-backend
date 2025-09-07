@@ -141,6 +141,7 @@ export class LeadService {
   public async updateConversionRatesAndLeadScoresForClient(clientId: string): Promise<{
     updatedConversionRates: number;
     updatedLeads: number;
+    totalProcessedLeads: number;
     errors: string[];
     conversionRateStats?: {
       newInserts: number;
@@ -154,7 +155,7 @@ export class LeadService {
       const leads = await LeadModel.find({ clientId }).lean().exec();
       if (leads.length === 0) {
         console.log(`[CR Update] No leads found for clientId: ${clientId}`);
-        return { updatedConversionRates: 0, updatedLeads: 0, errors: [] };
+        return { updatedConversionRates: 0, updatedLeads: 0, totalProcessedLeads: 0, errors: [] };
       }
 
       // 2. Calculate conversion rates for all unique fields
@@ -235,6 +236,7 @@ export class LeadService {
       return {
         updatedConversionRates: conversionData.length,
         updatedLeads: actuallyUpdatedLeads,
+        totalProcessedLeads: leads.length,
         errors,
         conversionRateStats: {
           newInserts: crUpsertResult.stats.newInserts,
@@ -248,6 +250,7 @@ export class LeadService {
       return {
         updatedConversionRates: 0,
         updatedLeads: 0,
+        totalProcessedLeads: 0,
         errors
       };
     }

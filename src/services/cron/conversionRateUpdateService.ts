@@ -75,16 +75,18 @@ export class ConversionRateUpdateService {
               processedClients: result.processedClients,
               totalUpdatedConversionRates: result.totalUpdatedConversionRates,
               totalUpdatedLeads: result.totalUpdatedLeads,
+              totalProcessedLeads: result.totalProcessedLeads,
               errors: result.errors,
               durationMs: duration,
               breakdown: {
                 newLeads: 0, // This would need to be tracked in the actual processing
                 duplicatesRemoved: 0, // This would need to be tracked in the actual processing
                 conversionRatesUpdated: result.totalUpdatedConversionRates,
-                leadsUpdated: result.totalUpdatedLeads
+                updatedLeads: result.totalUpdatedLeads,
+                totalProcessedLeads: result.totalProcessedLeads
               }
             },
-            processedCount: result.totalUpdatedLeads
+            processedCount: result.totalProcessedLeads
           });
         } catch (error: any) {
           logger.error("Failed to log cron job success:", error);
@@ -131,6 +133,7 @@ export class ConversionRateUpdateService {
     processedClients: number;
     totalUpdatedConversionRates: number;
     totalUpdatedLeads: number;
+    totalProcessedLeads: number;
     errors: string[];
   }> {
     const startTime = new Date();
@@ -140,6 +143,7 @@ export class ConversionRateUpdateService {
       success: boolean;
       updatedConversionRates: number;
       updatedLeads: number;
+      totalProcessedLeads: number;
       errors: string[];
       duration?: number;
       conversionRateStats?: {
@@ -149,6 +153,7 @@ export class ConversionRateUpdateService {
     }> = [];
     let totalUpdatedConversionRates = 0;
     let totalUpdatedLeads = 0;
+    let totalProcessedLeads = 0;
 
     try {
       // Get all client IDs
@@ -165,6 +170,7 @@ export class ConversionRateUpdateService {
           
           totalUpdatedConversionRates += result.updatedConversionRates;
           totalUpdatedLeads += result.updatedLeads;
+          totalProcessedLeads += result.totalProcessedLeads;
           
           if (result.errors.length > 0) {
             errors.push(...result.errors);
@@ -178,6 +184,7 @@ export class ConversionRateUpdateService {
             success: result.errors.length === 0,
             updatedConversionRates: result.updatedConversionRates,
             updatedLeads: result.updatedLeads,
+            totalProcessedLeads: result.totalProcessedLeads,
             errors: result.errors,
             duration,
             conversionRateStats: result.conversionRateStats
@@ -201,6 +208,7 @@ export class ConversionRateUpdateService {
             success: false,
             updatedConversionRates: 0,
             updatedLeads: 0,
+            totalProcessedLeads: 0,
             errors: [errorMsg],
             duration,
             conversionRateStats: {
@@ -220,6 +228,7 @@ export class ConversionRateUpdateService {
         processedClients: clientIds.length,
         totalUpdatedConversionRates,
         totalUpdatedLeads,
+        totalProcessedLeads,
         errors: errors.length,
         duration
       });
@@ -228,6 +237,7 @@ export class ConversionRateUpdateService {
         processedClients: clientIds.length,
         totalUpdatedConversionRates,
         totalUpdatedLeads,
+        totalProcessedLeads,
         errors
       };
     } catch (error: any) {
@@ -238,6 +248,7 @@ export class ConversionRateUpdateService {
         processedClients: 0,
         totalUpdatedConversionRates: 0,
         totalUpdatedLeads: 0,
+        totalProcessedLeads: 0,
         errors
       };
     }
@@ -250,6 +261,7 @@ export class ConversionRateUpdateService {
     processedClients: number;
     totalUpdatedConversionRates: number;
     totalUpdatedLeads: number;
+    totalProcessedLeads: number;
     errors: string[];
   }> {
     CronLogger.logManualTrigger();

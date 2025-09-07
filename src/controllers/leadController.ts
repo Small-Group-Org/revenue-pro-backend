@@ -83,25 +83,25 @@ if (req.query.clientId) {
           await this.service.updateConversionRatesAndLeadScoresForClient(
             clientId
           );
-        const updatedLeads = await this.service.getLeads(clientId);
 
         results.push({
           clientId,
           processing: {
-            totalLeads: updatedLeads.length,
+            totalLeads: result.totalProcessedLeads,
             updatedLeads: result.updatedLeads,
             updatedConversionRates: result.updatedConversionRates,
             errors: result.errors,
           },
           summary: {
             processingSuccessRate:
-              updatedLeads.length > 0
+              result.totalProcessedLeads > 0
                 ? `${(
-                    (result.updatedLeads / updatedLeads.length) *
+                    (result.updatedLeads / result.totalProcessedLeads) *
                     100
                   ).toFixed(1)}%`
                 : "0%",
             updatedLeads: result.updatedLeads,
+            totalProcessedLeads: result.totalProcessedLeads,
             updatedConversionRates: result.updatedConversionRates,
           },
         });
