@@ -9,6 +9,7 @@ import conversionRateModel, {
 } from "../services/leads/repository/models/conversionRate.model.js";
 import { conversionRateRepository } from "../services/leads/repository/repository.js";
 import { sanitizeLeadData } from "../services/leads/utils/leads.util.js";
+import mongoose from "mongoose";
 
 export class LeadController {
   /**
@@ -16,85 +17,117 @@ export class LeadController {
    * POST /leads/update-cr-all
    */
   async updateConversionRatesAndLeadScores(
-    req: Request,
-    res: Response
-  ): Promise<void> {
-    try {
-      let clientIds: string[] = [];
+  req: Request,
+  res: Response
+): Promise<void> {
+  try {
+    let clientIds: string[] = [];
 
-      if (req.query.clientId) {
-        if (req.query.clientId === "all") {
-          // All clients
-          clientIds = await this.service.getAllClientIds();
-          if (!clientIds || clientIds.length === 0) {
-            utils.sendErrorResponse(res, "No clientIds found in leads collection");
-            return;
-          }
-        } else {
-          // Specific client
-          clientIds = [String(req.query.clientId)];
-        }
-      } else {
-        utils.sendErrorResponse(res, "clientId is required (use ?clientId=all or a specific id)");
-        return;
-      }
-
-      if (!clientIds || clientIds.length === 0) {
-        utils.sendErrorResponse(res, "No clientIds found in leads collection");
-        return;
-      }
-
-      const results = [];
-      for (const clientId of clientIds) {
-        try {
-          console.log(`[API] Processing clientId: ${clientId}`);
-          const result =
-            await this.service.updateConversionRatesAndLeadScoresForClient(
-              clientId
-            );
-          const updatedLeads = await this.service.getLeads(clientId);
-
-          results.push({
-            clientId,
-            processing: {
-              totalLeads: updatedLeads.length,
-              updatedLeads: result.updatedLeads,
-              updatedConversionRates: result.updatedConversionRates,
-              errors: result.errors,
-            },
-            summary: {
-              processingSuccessRate:
-                updatedLeads.length > 0
-                  ? `${(
-                      (result.updatedLeads / updatedLeads.length) *
-                      100
-                    ).toFixed(1)}%`
-                  : "0%",
-              updatedLeads: result.updatedLeads,
-              updatedConversionRates: result.updatedConversionRates,
-            },
-          });
-        } catch (err: any) {
-          results.push({
-            clientId,
-            error: err.message || "Unknown error",
-          });
-        }
-      }
-
-      utils.sendSuccessResponse(res, 200, {
-        success: true,
-        processedClients: clientIds.length,
-        results,
-      });
-    } catch (error) {
-      console.error(
-        "Error in updateConversionRatesAndLeadScores endpoint:",
-        error
+if (req.query.clientId) {
+  if (req.query.clientId === "all") {
+    // ✅ All clients with lead data
+    clientIds = await this.service.getAllClientIds();
+    if (!clientIds || clientIds.length === 0) {
+      utils.sendErrorResponse(
+        res,
+        "No clients with associated lead data were found."
       );
-      utils.sendErrorResponse(res, error);
+      return;
     }
+  } else {
+    // ✅ Specific client
+    const clientId = String(req.query.clientId);
+
+    // Step 1: Validate client exists in UserModel
+    // Step 1: Validate client exists in UserModel
+    const clientExists = await this.service.doesUserExist(clientId);
+    if (!mongoose.Types.ObjectId.isValid(clientId)) {
+      utils.sendErrorResponse(res, "Invalid clientId format.");
+      return;
+    }
+    if (!clientExists) {
+      utils.sendErrorResponse(
+        res,
+        `No user found for clientId: ${clientId}.`
+      );
+      return;
+    }
+
+    // Step 2: Validate client has lead data
+    const hasLeadData = await this.service.hasLeadData(clientId);
+    if (!hasLeadData) {
+      utils.sendErrorResponse(
+        res,
+        `No leads found for clientId: ${clientId}.`
+      );
+      return;
+    }
+
+    clientIds = [clientId];
+
   }
+} else {
+  utils.sendErrorResponse(
+    res,
+    `Required clientId parameter is missing`
+  );
+  return;
+}
+
+
+    const results = [];
+    for (const clientId of clientIds) {
+      try {
+        console.log(`[API] Processing clientId: ${clientId}`);
+        const result =
+          await this.service.updateConversionRatesAndLeadScoresForClient(
+            clientId
+          );
+        const updatedLeads = await this.service.getLeads(clientId);
+
+        results.push({
+          clientId,
+          processing: {
+            totalLeads: updatedLeads.length,
+            updatedLeads: result.updatedLeads,
+            updatedConversionRates: result.updatedConversionRates,
+            errors: result.errors,
+          },
+          summary: {
+            processingSuccessRate:
+              updatedLeads.length > 0
+                ? `${(
+                    (result.updatedLeads / updatedLeads.length) *
+                    100
+                  ).toFixed(1)}%`
+                : "0%",
+            updatedLeads: result.updatedLeads,
+            updatedConversionRates: result.updatedConversionRates,
+          },
+        });
+      } catch (err: any) {
+        results.push({
+          clientId,
+          error: err.message || "Unknown error",
+        });
+      }
+    }
+
+    utils.sendSuccessResponse(res, 200, {
+      success: true,
+      processedClients: clientIds.length,
+      results,
+    });
+  } catch (error) {
+    console.error(
+      "Error in updateConversionRatesAndLeadScores endpoint:",
+      error
+    );
+    utils.sendErrorResponse(res, error);
+  }
+}
+
+
   private service: LeadService;
 
   constructor() {

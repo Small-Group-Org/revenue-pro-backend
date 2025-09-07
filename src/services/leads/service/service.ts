@@ -45,13 +45,14 @@ import {
   type UniqueKey
 } from "../utils/leads.util.js";
 import { SheetsService, type SheetProcessingResult } from "./sheets.service.js";
-import { PipelineStage } from "mongoose";
+import mongoose, { PipelineStage } from "mongoose";
 import { 
   startOfMonth, endOfMonth, 
   startOfQuarter, endOfQuarter, 
   startOfYear, endOfYear, 
   subMonths, subQuarters, subYears, format
 }  from 'date-fns';
+import User from "@/services/user/repository/models/user.model.js";
 
 // Types moved to leads.util.ts and sheets.service.ts for better organization
 
@@ -326,6 +327,22 @@ export class LeadService {
   // Process analytics using aggregation pipelines for better performance
   const analytics = await this.processLeadAnalytics(leads);
   return analytics;
+}
+
+// Step 1: Check if user exists
+public async doesUserExist(clientId: string): Promise<boolean> {
+  if (!mongoose.Types.ObjectId.isValid(clientId)) {
+    return false; // Prevents CastError for invalid ObjectId strings
+  }
+  return (await User.exists({ _id: clientId })) !== null;
+}
+
+// Step 2: Check if user has any leads in Lead collection
+public async hasLeadData(clientId: string): Promise<boolean> {
+  if (!mongoose.Types.ObjectId.isValid(clientId)) {
+    return false; // Invalid clientId can't have leads
+  }
+  return (await LeadModel.exists({ clientId })) !== null;
 }
 
 public async getPerformanceTables(
