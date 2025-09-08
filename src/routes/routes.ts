@@ -1,6 +1,5 @@
-import { Express, Request, Response, NextFunction } from "express";
+import { Express, Request, Response, NextFunction, RequestHandler, Router } from "express";
 import authRouter from "./auth.routes.js"
-import actualRouter from "./report.routes.js"
 import reportRouter from "./report.routes.js"
 import targetRouter from "./target.routes.js"
 import adminRouter from "./admin.routes.js"
@@ -19,69 +18,27 @@ import { verifyTokenMiddleware } from "../middlewares/auth.middleware.js";
 
 interface Route {
   path: string;
-  middlewares?: any[];
-  router: any;
+  middlewares?: RequestHandler[];
+  router: Router;
 }
 
+// Routes that require JWT authentication
 const authenticatedRoutes: Route[] = [
-  {
-    path: "/api/v1/actual",
-    router: actualRouter,
-    middlewares: [],
-  },
-  {
-    path: "/api/v1/report",
-    router: reportRouter,
-    middlewares: [],
-  },
-  {
-    path: "/api/v1/targets",
-    router: targetRouter,
-    middlewares: [],
-  },
-  {
-    path: "/api/v1/admin",
-    router: adminRouter,
-    middlewares: [],
-  },
-  {
-    path: "/api/v1/users",
-    router: userRoutes,
-    middlewares: [],
-  },
-  {
-  path: "/api/v1/leads",
-  router: leadRouter,
-  middlewares: [], // add auth middlewares if needed
-},
-  {
-    path: "/api/v1/ip-tracking",
-    router: ipTrackingRoutes,
-    middlewares: [],
-  },
+  { path: "/api/v1/actual", router: reportRouter },
+  { path: "/api/v1/report", router: reportRouter },
+  { path: "/api/v1/targets", router: targetRouter },
+  { path: "/api/v1/admin", router: adminRouter },
+  { path: "/api/v1/users", router: userRoutes },
+  { path: "/api/v1/leads", router: leadRouter },
+  { path: "/api/v1/ip-tracking", router: ipTrackingRoutes },
 ];
 
-const routes: Route[] = [
-  {
-    path: "/api/v1/auth",
-    router: authRouter,
-    middlewares: [],
-  },
-  {
-    path: "/api/v1",
-    router: createLeadRouter,
-    middlewares: [],
-  },
-  {
-    path: "/api/leads/process-sheet",
-    router: sheetRouter,
-    middlewares: [],
-  },
-  {
-    path: "/api/v1/cron-logs",
-    router: cronLogsRouter,
-    middlewares: [],
-  },
+// Public routes or Protected by api key
+const otherRoutes: Route[] = [
+  { path: "/api/v1/auth", router: authRouter },
+  { path: "/api/v1", router: createLeadRouter },
+  { path: "/api/v1/process-lead-sheet", router: sheetRouter },
+  { path: "/api/v1/cron-logs", router: cronLogsRouter },
 ];
 
 const configureRoutes = (app: Express): void => {
@@ -105,21 +62,27 @@ const configureRoutes = (app: Express): void => {
     next(err);
   });
 
-  // adding authenticated routes
-  authenticatedRoutes.forEach((route: Route) => {
-    app.use(
-      route.path,
-      addContext,
-      verifyTokenMiddleware,
-      ...(route.middlewares ?? []),
-      route.router
-    );
-  });
+  // Helper function to register routes with consistent middleware application
+  const registerRoutes = (routes: Route[], requiresAuth: boolean = false) => {
+    routes.forEach((route) => {
+      const middlewares = [addContext];
+      
+      if (requiresAuth) {
+        middlewares.push(verifyTokenMiddleware);
+      }
+      
+      // Add any additional route-specific middlewares
+      if (route.middlewares) {
+        middlewares.push(...route.middlewares);
+      }
+      
+      app.use(route.path, ...middlewares, route.router);
+    });
+  };
 
-  // adding other routes
-  routes.forEach((route: Route) => {
-    app.use(route.path, addContext, ...(route.middlewares ?? []), route.router);
-  });
+  registerRoutes(authenticatedRoutes, true);
+  
+  registerRoutes(otherRoutes, false);
 };
 
 export default configureRoutes;
