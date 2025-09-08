@@ -74,6 +74,20 @@ export const conversionRateRepository = {
       };
     }
 
+    // First, get existing conversion rates to compare values
+    const filters = conversionRates.map(rate => ({
+      clientId: rate.clientId,
+      keyField: rate.keyField,
+      keyName: rate.keyName
+    }));
+    
+    const existingRates = await ConversionRateModel.find({ $or: filters }).lean().exec();
+    const existingRatesMap = new Map();
+    existingRates.forEach(rate => {
+      const key = `${rate.clientId}-${rate.keyField}-${rate.keyName}`;
+      existingRatesMap.set(key, rate);
+    });
+
     // Use MongoDB bulkWrite for efficient batch operations
     const bulkOps = conversionRates.map((rate) => ({
       updateOne: {
@@ -89,18 +103,27 @@ export const conversionRateRepository = {
 
     const result = await ConversionRateModel.bulkWrite(bulkOps);
     
-    // Extract statistics from bulkWrite result
-    const newInserts = result.upsertedCount || 0;
-    const updated = result.modifiedCount || 0;
-    const total = newInserts + updated;
+    // Count actual changes by comparing values
+    let newInserts = result.upsertedCount || 0;
+    let actuallyUpdated = 0;
+    
+    conversionRates.forEach(rate => {
+      const key = `${rate.clientId}-${rate.keyField}-${rate.keyName}`;
+      const existing = existingRatesMap.get(key);
+      
+      if (existing) {
+        // Check if values actually changed
+        if (existing.conversionRate !== rate.conversionRate || 
+            existing.pastTotalCount !== rate.pastTotalCount || 
+            existing.pastTotalEst !== rate.pastTotalEst) {
+          actuallyUpdated++;
+        }
+      }
+    });
+    
+    const total = newInserts + actuallyUpdated;
     
     // Return the updated documents - fetch them after bulk operation
-    const filters = conversionRates.map(rate => ({
-      clientId: rate.clientId,
-      keyField: rate.keyField,
-      keyName: rate.keyName
-    }));
-    
     const documents = await ConversionRateModel.find({ $or: filters }).exec();
     
     return {
@@ -108,7 +131,7 @@ export const conversionRateRepository = {
       stats: {
         total,
         newInserts,
-        updated
+        updated: actuallyUpdated
       }
     };
   }

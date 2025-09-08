@@ -234,7 +234,7 @@ export class LeadService {
       }
 
       return {
-        updatedConversionRates: conversionData.length,
+        updatedConversionRates: crUpsertResult.stats.total,
         updatedLeads: actuallyUpdatedLeads,
         totalProcessedLeads: leads.length,
         errors,
@@ -385,15 +385,50 @@ public async getPerformanceTables(
 }
 
 public async upsertLead(query: Pick<ILeadDocument, "clientId" | "adSetName" | "email" | "phone" | "service" | "adName" | "zip">, payload: Partial<ILeadDocument>) {
-  return await LeadModel.findOneAndUpdate(
-    query,
-    { $set: payload },
-    {
-      new: true,
-      upsert: true,
-      setDefaultsOnInsert: true, // ensure schema defaults get applied
+  const existingLead = await LeadModel.findOne(query).lean().exec();
+  
+  if (existingLead) {
+    const updatePayload = { ...payload };
+    updatePayload.leadScore = existingLead.leadScore;
+    updatePayload.conversionRates = existingLead.conversionRates;
+    
+    return await LeadModel.findOneAndUpdate(
+      query,
+      { $set: updatePayload },
+      { new: true }
+    );
+  } else {
+    if (!payload.clientId || !payload.service || !payload.adSetName || !payload.adName || (!payload.phone && !payload.email)) {
+      throw new Error('Missing required fields: clientId, service, adSetName, adName, and at least phone or email');
     }
-  );
+    
+    const newLeadPayload = { ...payload };
+    const conversionRates = await conversionRateRepository.getConversionRates({ clientId: payload.clientId });
+    
+    if (conversionRates.length > 0) {
+      const conversionRatesMap = createConversionRatesMap(conversionRates);
+      newLeadPayload.leadScore = calculateLeadScore({
+        service: payload.service || '',
+        adSetName: payload.adSetName || '',
+        adName: payload.adName || '',
+        leadDate: payload.leadDate || '',
+        zip: payload.zip || ''
+      }, conversionRatesMap);
+    } else {
+      newLeadPayload.leadScore = 0;
+    }
+    
+    // New leads with lead scores but no conversion rates(updated later)
+    return await LeadModel.findOneAndUpdate(
+      query,
+      { $set: newLeadPayload },
+      {
+        new: true,
+        upsert: true,
+        setDefaultsOnInsert: true,
+      }
+    );
+  }
 }
 
 

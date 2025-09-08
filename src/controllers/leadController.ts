@@ -438,11 +438,6 @@ if (req.query.clientId) {
         payload.unqualifiedLeadReason = "";
       }
 
-      // Initialize leadScore if missing
-      if (!payload.leadScore) {
-        payload.leadScore = 0;
-      }
-
       // 🔑 Strict uniqueness filter
       const query = {
         clientId: payload.clientId,

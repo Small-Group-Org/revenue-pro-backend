@@ -19,7 +19,7 @@ const leadSchema = new Schema<ILeadDocument>(
     },
     clientId: { type: String, required: true },
     unqualifiedLeadReason: { type: String, default: '' },
-    leadScore: { type: Number, default: 0 }, // stores calculated lead score
+    leadScore: { type: Number, required: false },
     conversionRates: {
       type: Object,
       default: {},
