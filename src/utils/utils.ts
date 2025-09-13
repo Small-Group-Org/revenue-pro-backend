@@ -4,6 +4,7 @@ import {
   ErrorCodeStatusMap,
 } from "../pkg/error/custom_error.js";
 import { Response } from "express";
+import { TimezoneUtils } from "./timezoneUtils.js";
 
 interface ResponseData {
   success: boolean;
@@ -67,7 +68,6 @@ class utils {
 
     try {
       // Use the new timezone utility for consistent CST to UTC conversion
-      const { TimezoneUtils } = require('./timezoneUtils.js');
       const result = TimezoneUtils.convertLeadDateToUTCString(dateValue, rowIndex);
       
       if (result.success && result.utcIsoString) {

@@ -129,11 +129,20 @@ export class TimezoneUtils {
     if (/^\d{4}-\d{1,2}-\d{1,2}$/.test(trimmed)) {
       dateTime = DateTime.fromISO(trimmed, { zone: LEAD_TIMEZONE });
     }
-    // 2. Try parsing as ISO datetime (YYYY-MM-DDTHH:mm:ss)
-    else if (/^\d{4}-\d{1,2}-\d{1,2}T\d{1,2}:\d{1,2}:\d{1,2}/.test(trimmed)) {
+    // 2. Try parsing as ISO datetime with timezone info (YYYY-MM-DDTHH:mm:ss[Z|+/-HH:mm])
+    else if (/^\d{4}-\d{1,2}-\d{1,2}T\d{1,2}:\d{1,2}:\d{1,2}(\.\d{3})?([Z]|[+-]\d{2}:?\d{2})?$/.test(trimmed)) {
+      // Parse with timezone info, then convert to CST
+      dateTime = DateTime.fromISO(trimmed);
+      if (dateTime.isValid) {
+        // Convert to CST timezone
+        dateTime = dateTime.setZone(LEAD_TIMEZONE);
+      }
+    }
+    // 3. Try parsing as ISO datetime without timezone (YYYY-MM-DDTHH:mm:ss) - treat as CST
+    else if (/^\d{4}-\d{1,2}-\d{1,2}T\d{1,2}:\d{1,2}:\d{1,2}(\.\d{3})?$/.test(trimmed)) {
       dateTime = DateTime.fromISO(trimmed, { zone: LEAD_TIMEZONE });
     }
-    // 3. Try parsing as US/European format (MM/DD/YYYY or DD/MM/YYYY)
+    // 4. Try parsing as US/European format (MM/DD/YYYY or DD/MM/YYYY)
     else if (/^\d{1,2}[-\/]\d{1,2}[-\/]\d{4}$/.test(trimmed)) {
       const parts = trimmed.split(/[-\/]/);
       if (parts.length === 3) {
@@ -148,9 +157,17 @@ export class TimezoneUtils {
         }
       }
     }
-    // 5. Fallback: Let Luxon try to parse it
+    // 5. Fallback: Let Luxon try to parse it with timezone handling
     else {
-      dateTime = DateTime.fromISO(trimmed, { zone: LEAD_TIMEZONE });
+      // First try parsing as-is (might have timezone info)
+      dateTime = DateTime.fromISO(trimmed);
+      if (dateTime.isValid) {
+        // Convert to CST timezone
+        dateTime = dateTime.setZone(LEAD_TIMEZONE);
+      } else {
+        // If that fails, try parsing as CST
+        dateTime = DateTime.fromISO(trimmed, { zone: LEAD_TIMEZONE });
+      }
     }
 
     if (!dateTime || !dateTime.isValid) {
