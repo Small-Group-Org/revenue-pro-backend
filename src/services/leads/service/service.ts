@@ -34,6 +34,7 @@ import LeadModel from "../repository/models/leads.model.js";
 import { conversionRateRepository } from "../repository/repository.js";
 import { IConversionRate } from "../repository/models/conversionRate.model.js";
 import { TimezoneUtils } from "../../../utils/timezoneUtils.js";
+import { TimeFilter } from "../../../types/timeFilter.js";
 import {
   FIELD_WEIGHTS,
   getMonthlyName,
@@ -86,7 +87,7 @@ interface PaginationOptions {
     };
   }
   interface TimeFilterOptions {
-  timeFilter: 'all' | 'this_month' | 'last_month' | 'this_quarter' | 'last_quarter' | 'this_year' | 'last_year';
+  timeFilter: TimeFilter;
   }
 
   interface AnalyticsResult {
@@ -269,51 +270,54 @@ export class LeadService {
   const fmt = (d: Date) => format(d, 'yyyy-MM-dd')
 
   switch (timeFilter) {
-    case 'this_month':
-      query.leadDate = {
-        $gte: fmt(startOfMonth(now)),
-        $lte: fmt(endOfMonth(now))
-      };
+    case 'this_month': {
+      const startDate = fmt(startOfMonth(now));
+      const endDate = fmt(endOfMonth(now));
+      const dateRangeQuery = TimezoneUtils.createDateRangeQuery(startDate, endDate);
+      query.leadDate = dateRangeQuery.leadDate;
       break;
+    }
 
     case 'last_month': {
       const lastMonth = subMonths(now, 1);
-      query.leadDate = {
-        $gte: fmt(startOfMonth(lastMonth)),
-        $lte: fmt(endOfMonth(lastMonth))
-      };
+      const startDate = fmt(startOfMonth(lastMonth));
+      const endDate = fmt(endOfMonth(lastMonth));
+      const dateRangeQuery = TimezoneUtils.createDateRangeQuery(startDate, endDate);
+      query.leadDate = dateRangeQuery.leadDate;
       break;
     }
 
-    case 'this_quarter':
-      query.leadDate = {
-        $gte: fmt(startOfQuarter(now)),
-        $lte: fmt(endOfQuarter(now))
-      };
+    case 'this_quarter': {
+      const startDate = fmt(startOfQuarter(now));
+      const endDate = fmt(endOfQuarter(now));
+      const dateRangeQuery = TimezoneUtils.createDateRangeQuery(startDate, endDate);
+      query.leadDate = dateRangeQuery.leadDate;
       break;
+    }
 
     case 'last_quarter': {
       const lastQuarter = subQuarters(now, 1);
-      query.leadDate = {
-        $gte: fmt(startOfQuarter(lastQuarter)),
-        $lte: fmt(endOfQuarter(lastQuarter))
-      };
+      const startDate = fmt(startOfQuarter(lastQuarter));
+      const endDate = fmt(endOfQuarter(lastQuarter));
+      const dateRangeQuery = TimezoneUtils.createDateRangeQuery(startDate, endDate);
+      query.leadDate = dateRangeQuery.leadDate;
       break;
     }
 
-    case 'this_year':
-      query.leadDate = {
-        $gte: fmt(startOfYear(now)),
-        $lte: fmt(endOfYear(now))
-      };
+    case 'this_year': {
+      const startDate = fmt(startOfYear(now));
+      const endDate = fmt(endOfYear(now));
+      const dateRangeQuery = TimezoneUtils.createDateRangeQuery(startDate, endDate);
+      query.leadDate = dateRangeQuery.leadDate;
       break;
+    }
 
     case 'last_year': {
       const lastYear = subYears(now, 1);
-      query.leadDate = {
-        $gte: fmt(startOfYear(lastYear)),
-        $lte: fmt(endOfYear(lastYear))
-      };
+      const startDate = fmt(startOfYear(lastYear));
+      const endDate = fmt(endOfYear(lastYear));
+      const dateRangeQuery = TimezoneUtils.createDateRangeQuery(startDate, endDate);
+      query.leadDate = dateRangeQuery.leadDate;
       break;
     }
   }
