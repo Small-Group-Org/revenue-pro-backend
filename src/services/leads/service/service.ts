@@ -1,7 +1,6 @@
-import { ILead, ILeadDocument, LeadStatus } from "../domain/leads.domain.js";
+import { ILead, ILeadDocument } from "../domain/leads.domain.js";
 import LeadModel from "../repository/models/leads.model.js";
 import { conversionRateRepository } from "../repository/repository.js";
-import { IConversionRate } from "../repository/models/conversionRate.model.js";
 import { TimezoneUtils } from "../../../utils/timezoneUtils.js";
 import { TimeFilter } from "../../../types/timeFilter.js";
 import {
@@ -16,7 +15,6 @@ import {
   type UniqueKey,
   getDateConversionRateFromMap
 } from "../utils/leads.util.js";
-import { SheetsService, type SheetProcessingResult } from "./sheets.service.js";
 import mongoose, { PipelineStage } from "mongoose";
 import { 
   startOfMonth, endOfMonth, 
@@ -365,7 +363,6 @@ private buildLeadUpdateBulkOps(leads: any[], conversionRatesMap: any): {
 
   for (const lead of leads) {
     const { conversionRates, leadScore } = this.calculateLeadConversionRatesAndScore(lead, conversionRatesMap);
-
     // Only update if leadScore or conversionRates have changed
     const leadScoreChanged = lead.leadScore !== leadScore;
     const conversionRatesChanged = JSON.stringify(lead.conversionRates ?? {}) !== JSON.stringify(conversionRates);
@@ -1355,65 +1352,6 @@ public async recalculateAllLeadScores(clientId: string): Promise<{
     return existing;
   }
 
-  // ---- COMPREHENSIVE SHEET PROCESSING - OPTIMIZED -----
-  public async processCompleteSheet(
-  sheetUrl: string,
-    clientId: string,
-    uniquenessByPhoneEmail: boolean = false
-): Promise<{
-    result: SheetProcessingResult;
-    conversionData: any[];
-  }> {
-    // Initialize sheets service
-    const sheetsService = new SheetsService();
-    
-    // 1. Process sheet data (fetch, parse, extract insights)
-    const sheetData = await sheetsService.processSheetData(sheetUrl, clientId);
-    let { leads, stats: sheetStats, conversionRateInsights } = sheetData;
-
-    // ✅ Normalize status + unqualifiedLeadReason only for sheet processing
-    leads = leads.map((lead) => {
-      const isEstimateSet = lead.status === "estimate_set";
-      const hasUnqualifiedReason =
-        lead.unqualifiedLeadReason && lead.unqualifiedLeadReason.trim() !== "";
-
-      if (!isEstimateSet && !hasUnqualifiedReason) {
-        return {
-          ...lead,
-          status: "new",
-          unqualifiedLeadReason: "",
-        };
-      }
-
-      return lead;
-    });
-    
-    // 2. Bulk upsert leads to database with optional uniqueness
-    const bulkResult = await this.bulkCreateLeads(leads, uniquenessByPhoneEmail);
-    
-    // 3. Process leads for conversion rates
-    const conversionData = this.processLeads(leads, clientId);
-    
-    // 4. Build comprehensive result
-    const result: SheetProcessingResult = {
-      totalRowsInSheet: sheetStats.totalRowsInSheet,
-      validLeadsProcessed: sheetStats.validLeadsProcessed,
-      skippedRows: sheetStats.skippedRows,
-      skipReasons: sheetStats.skipReasons,
-      leadsStoredInDB: bulkResult.stats.total,
-      duplicatesUpdated: bulkResult.stats.duplicatesUpdated,
-      newLeadsAdded: bulkResult.stats.newInserts,
-      conversionRatesGenerated: conversionData.length,
-      processedSubSheet: sheetStats.processedSubSheet,
-      availableSubSheets: sheetStats.availableSubSheets,
-      conversionRateInsights
-    };
-
-    return {
-      result,
-      conversionData
-    };
-  }
 
   // ---------------- PROCESSING FUNCTIONS ----------------
   // Utility functions moved to leads.util.ts
@@ -1424,5 +1362,13 @@ public async recalculateAllLeadScores(clientId: string): Promise<{
   public async getAllClientIds(): Promise<string[]> {
     const clientIds = await LeadModel.distinct("clientId").exec();
     return clientIds.filter(id => id); // Remove any null/undefined values
+  }
+
+  /**
+   * Get all leads for a specific client from database
+   */
+  public async getAllLeadsForClient(clientId: string): Promise<ILead[]> {
+    const leads = await LeadModel.find({ clientId }).lean().exec();
+    return leads as ILead[];
   }
 }
