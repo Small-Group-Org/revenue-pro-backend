@@ -44,7 +44,8 @@ import {
   getMonthIndex,
   isEmptyValue,
   type LeadKeyField,
-  type UniqueKey
+  type UniqueKey,
+  getDateConversionRateFromMap
 } from "../utils/leads.util.js";
 import { SheetsService, type SheetProcessingResult } from "./sheets.service.js";
 import mongoose, { PipelineStage } from "mongoose";
@@ -411,21 +412,37 @@ public async upsertLead(query: Pick<ILeadDocument, "clientId" | "adSetName" | "e
     
     const newLeadPayload = { ...payload };
     const conversionRates = await conversionRateRepository.getConversionRates({ clientId: payload.clientId });
-    
     if (conversionRates.length > 0) {
-      const conversionRatesMap = createConversionRatesMap(conversionRates);
-      newLeadPayload.leadScore = calculateLeadScore({
-        service: payload.service || '',
-        adSetName: payload.adSetName || '',
-        adName: payload.adName || '',
-        leadDate: payload.leadDate || '',
-        zip: payload.zip || ''
-      }, conversionRatesMap);
-    } else {
-      newLeadPayload.leadScore = 0;
-    }
-    
-    // New leads with lead scores but no conversion rates(updated later)
+  const conversionRatesMap = createConversionRatesMap(conversionRates);
+
+  // Build conversionRates using the same helpers as calculateLeadScore
+  newLeadPayload.conversionRates = {
+    service: getConversionRateFromMap(conversionRatesMap, "service", payload.service),
+    adSetName: getConversionRateFromMap(conversionRatesMap, "adSetName", payload.adSetName),
+    adName: getConversionRateFromMap(conversionRatesMap, "adName", payload.adName),
+    leadDate: getDateConversionRateFromMap(conversionRatesMap, payload.leadDate || ""),
+    zip: getConversionRateFromMap(conversionRatesMap, "zip", payload.zip || ""),
+  };
+
+  // Lead score still comes from your existing function
+  newLeadPayload.leadScore = calculateLeadScore(
+    {
+      service: payload.service || "",
+      adSetName: payload.adSetName || "",
+      adName: payload.adName || "",
+      leadDate: payload.leadDate || "",
+      zip: payload.zip || "",
+    },
+    conversionRatesMap
+  );
+} else {
+  newLeadPayload.leadScore = 0;
+  newLeadPayload.conversionRates = {};
+}
+
+
+
+    // New leads now include both lead scores and conversion rates
     return await LeadModel.findOneAndUpdate(
       query,
       { $set: newLeadPayload },
@@ -437,8 +454,6 @@ public async upsertLead(query: Pick<ILeadDocument, "clientId" | "adSetName" | "e
     );
   }
 }
-
-
 
 /**
  * Private methods updated to return pagination structure
