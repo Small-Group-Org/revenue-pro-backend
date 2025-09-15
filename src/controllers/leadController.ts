@@ -1,12 +1,7 @@
 import { Request, Response } from "express";
-import {
-  LeadService,
-  SheetProcessingResult,
-} from "../services/leads/service/service.js";
+import { LeadService } from "../services/leads/service/service.js";
+import { SheetsService } from "../services/leads/service/sheets.service.js";
 import utils from "../utils/utils.js";
-import conversionRateModel, {
-  IConversionRate,
-} from "../services/leads/repository/models/conversionRate.model.js";
 import { conversionRateRepository } from "../services/leads/repository/repository.js";
 import { sanitizeLeadData } from "../services/leads/utils/leads.util.js";
 import mongoose from "mongoose";
@@ -526,8 +521,16 @@ if (req.query.clientId) {
       console.log("Uniqueness by phone/email enabled:", !!uniquenessByPhoneEmail);
 
       // Process the entire sheet with comprehensive statistics
+      const sheetsService = new SheetsService();
       const { result: processingResult, conversionData } =
-        await this.service.processCompleteSheet(sheetUrl, clientId, !!uniquenessByPhoneEmail);
+        await sheetsService.processCompleteSheet(
+          sheetUrl, 
+          clientId, 
+          !!uniquenessByPhoneEmail,
+          this.service.bulkCreateLeads.bind(this.service),
+          this.service.processLeads.bind(this.service),
+          this.service.getAllLeadsForClient.bind(this.service)
+        );
 
       // Save conversion rates to database
       if (processingResult.conversionRatesGenerated > 0) {

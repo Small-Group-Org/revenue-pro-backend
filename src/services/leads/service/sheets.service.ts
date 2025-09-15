@@ -9,6 +9,8 @@ import {
   sanitizeLeadData
 } from "../utils/leads.util.js";
 import utils from "../../../utils/utils.js";
+// Note: LeadService import removed to avoid circular dependency
+// We'll use dependency injection instead
 
 /**
  * Google Sheets Service
@@ -48,6 +50,9 @@ export interface SheetProcessingResult extends SheetProcessingStats {
 }
 
 export class SheetsService {
+  constructor() {
+    // No dependencies needed - methods will be passed as parameters
+  }
   
   /**
    * Fetch and parse leads from Google Sheets
@@ -402,6 +407,77 @@ export class SheetsService {
       leads,
       stats,
       conversionRateInsights
+    };
+  }
+
+  /**
+   * Process complete sheet workflow:
+   * 1. Fetch and parse leads from sheet
+   * 2. Normalize lead status
+   * 3. Bulk upsert leads to database
+   * 4. Fetch ALL leads for client from database
+   * 5. Recalculate conversion rates using ALL leads
+   * 6. Return comprehensive results
+   */
+  public async processCompleteSheet(
+    sheetUrl: string,
+    clientId: string,
+    uniquenessByPhoneEmail: boolean = false,
+    bulkCreateLeadsFn: (leads: ILead[], uniquenessByPhoneEmail: boolean) => Promise<any>,
+    processLeads: (leads: ILead[], clientId: string) => any[],
+    getAllLeadsForClientFn: (clientId: string) => Promise<ILead[]>
+  ): Promise<{
+    result: SheetProcessingResult;
+    conversionData: any[];
+  }> {
+    // 1. Process sheet data (fetch, parse, extract insights)
+    const sheetData = await this.processSheetData(sheetUrl, clientId);
+    let { leads, stats: sheetStats, conversionRateInsights } = sheetData;
+
+    // ✅ Normalize status + unqualifiedLeadReason only for sheet processing
+    leads = leads.map((lead) => {
+      const isEstimateSet = lead.status === "estimate_set";
+      const hasUnqualifiedReason =
+        lead.unqualifiedLeadReason && lead.unqualifiedLeadReason.trim() !== "";
+
+      if (!isEstimateSet && !hasUnqualifiedReason) {
+        return {
+          ...lead,
+          status: "new",
+          unqualifiedLeadReason: "",
+        };
+      }
+
+      return lead;
+    });
+    
+    // 2. Bulk upsert leads to database with optional uniqueness
+    const bulkResult = await bulkCreateLeadsFn(leads, uniquenessByPhoneEmail);
+    
+    // 3. Fetch ALL leads for this client from database (including updated ones)
+    const allClientLeads = await getAllLeadsForClientFn(clientId);
+    
+    // 4. Recalculate conversion rates using ALL leads (existing + updated)
+    const conversionData = processLeads(allClientLeads, clientId);
+    
+    // 5. Build comprehensive result
+    const result: SheetProcessingResult = {
+      totalRowsInSheet: sheetStats.totalRowsInSheet,
+      validLeadsProcessed: sheetStats.validLeadsProcessed,
+      skippedRows: sheetStats.skippedRows,
+      skipReasons: sheetStats.skipReasons,
+      leadsStoredInDB: bulkResult.stats.total,
+      duplicatesUpdated: bulkResult.stats.duplicatesUpdated,
+      newLeadsAdded: bulkResult.stats.newInserts,
+      conversionRatesGenerated: conversionData.length,
+      processedSubSheet: sheetStats.processedSubSheet,
+      availableSubSheets: sheetStats.availableSubSheets,
+      conversionRateInsights
+    };
+
+    return {
+      result,
+      conversionData
     };
   }
 }
