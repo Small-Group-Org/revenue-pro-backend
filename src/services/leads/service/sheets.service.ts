@@ -447,6 +447,11 @@ export class SheetsService {
           unqualifiedLeadReason: "",
         };
       }
+      //Checks ULR for in_progress and updates the status 
+      if(hasUnqualifiedReason &&  lead.unqualifiedLeadReason === "in_progress"){
+          lead.status = "in_progress";
+          lead.unqualifiedLeadReason="";
+      }
 
       return lead;
     });
