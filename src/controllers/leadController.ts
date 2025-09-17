@@ -508,6 +508,29 @@ if (req.query.clientId) {
     }
   }
 
+  async deleteLead(req: Request, res: Response): Promise<void>{
+    try {
+      const ids = Array.isArray(req.body.leadIds) ? req.body.leadIds : [req.body.leadIds];
+
+      if (!ids || ids.length === 0) {
+      utils.sendErrorResponse(res, "_id or array of _id is required for delete");
+      return;
+      }
+
+      const deletedResult = await this.service.deleteLeads(ids);
+
+      const message =
+      deletedResult.deletedCount > 0
+        ? `${deletedResult.deletedCount} lead(s) have been deleted successfully.`
+        : "No leads were deleted. Please check the provided IDs.";
+
+      utils.sendSuccessResponse(res, 200, {success: true, data: deletedResult, info: message});
+    } catch (error) {
+      console.error("Error in deleteLead:", error);
+      utils.sendErrorResponse(res, error);
+    }
+  }
+
   async processSheetLeads(req: Request, res: Response): Promise<void> {
     try {
       const { sheetUrl, clientId, uniquenessByPhoneEmail } = req.body;

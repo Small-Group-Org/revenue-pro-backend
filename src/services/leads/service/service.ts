@@ -886,7 +886,7 @@ public async fetchLeadFiltersAndCounts(
 
   const statusCounts = {
     new: statusCountsMap["new"] || 0,
-    inProgress: statusCountsMap["in progress"] || 0,
+    inProgress: statusCountsMap["in_progress"] || 0,
     estimateSet: statusCountsMap["estimate_set"] || 0,
     unqualified: statusCountsMap["unqualified"] || 0
   };
@@ -1350,6 +1350,11 @@ public async recalculateAllLeadScores(clientId: string): Promise<{
 
     await existing.save();
     return existing;
+  }
+
+  public async deleteLeads(ids: string[]): Promise<{ deletedCount: number }> {
+    const result = await LeadModel.deleteMany({ _id: { $in: ids } });
+    return { deletedCount: result.deletedCount || 0 };
   }
 
 
