@@ -8,6 +8,7 @@ router.get("/", (req, res) => leadController.getLeads(req, res));
 router.get("/paginated", (req, res) => leadController.getLeadsPaginated(req, res));
 router.get("/filters-and-counts", (req, res) => leadController.getLeadFiltersAndCounts(req, res));
 router.patch("/", (req, res) => leadController.updateLead(req, res));
+router.delete("/", (req, res) => leadController.deleteLead(req, res));
 router.get("/conversion-rates", (req, res) =>
   leadController.getConversionRates(req, res)
 );
