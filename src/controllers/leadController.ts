@@ -521,7 +521,7 @@ if (req.query.clientId) {
 
       const message =
       deletedResult.deletedCount > 0
-        ? `${deletedResult.deletedCount} lead(s) have been deleted successfully.`
+        ? `${deletedResult.deletedCount} lead(s) have been deleted successfully!`
         : "No leads were deleted. Please check the provided IDs.";
 
       utils.sendSuccessResponse(res, 200, {success: true, data: deletedResult, info: message});
