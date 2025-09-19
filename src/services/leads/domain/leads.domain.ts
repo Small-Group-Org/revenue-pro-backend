@@ -23,6 +23,8 @@ export interface ILead {
     zip?: number;
     [key: string]: number | undefined;
   };
+  isDeleted?: boolean;
+  deletedAt?: Date | null;
 }
 
 export interface ILeadDocument extends ILead, Document {

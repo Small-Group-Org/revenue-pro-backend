@@ -513,7 +513,7 @@ if (req.query.clientId) {
       const ids = Array.isArray(req.body.leadIds) ? req.body.leadIds : [req.body.leadIds];
 
       if (!ids || ids.length === 0) {
-      utils.sendErrorResponse(res, "Required leadId missing");
+      utils.sendErrorResponse(res, "Required leadId missing");
       return;
       }
 

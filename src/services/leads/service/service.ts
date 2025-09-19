@@ -1353,8 +1353,11 @@ public async recalculateAllLeadScores(clientId: string): Promise<{
   }
 
   public async deleteLeads(ids: string[]): Promise<{ deletedCount: number }> {
-    const result = await LeadModel.deleteMany({ _id: { $in: ids } });
-    return { deletedCount: result.deletedCount || 0 };
+    const result = await LeadModel.updateMany(
+      { _id: { $in: ids } },
+      { $set: { isDeleted: true, deletedAt: new Date() } }
+    );
+    return { deletedCount: result.modifiedCount || 0 };
   }
 
 

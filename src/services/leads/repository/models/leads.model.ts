@@ -25,6 +25,8 @@ const leadSchema = new Schema<ILeadDocument>(
       default: {},
       required: false // stores per-lead conversion rates for service, adSetName, adName, leadDate, zip
     },
+    isDeleted: { type: Boolean, default: false },
+    deletedAt: { type: Date, default: null },
   },
   { timestamps: true }
 );
