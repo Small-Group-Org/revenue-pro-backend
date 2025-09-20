@@ -1,0 +1,234 @@
+import LeadModel from './models/leads.model.js';
+import { ILead } from '../domain/leads.domain.js';
+import { ILeadAggregationRepository } from './interfaces.js';
+
+export class LeadAggregationRepository implements ILeadAggregationRepository {
+  
+  // Helper method to add soft delete filter consistently
+  private addSoftDeleteFilter(query: any): any {
+    return { ...query, isDeleted: false };
+  }
+
+  // Pagination and filtering
+  async findLeadsWithCount(options: {
+    query?: Partial<ILead>;
+    sortField?: string;
+    sortOrder?: 1 | -1;
+    skip?: number;
+    limit?: number;
+  }): Promise<{ totalCount: number; leads: Partial<ILead>[] }> {
+    const {
+      query = {},
+      sortField = '_id',
+      sortOrder = 1,
+      skip = 0,
+      limit = 10
+    } = options;
+
+    const finalQuery = this.addSoftDeleteFilter(query);
+
+    const [totalCount, leads] = await Promise.all([
+      LeadModel.countDocuments(finalQuery).exec(),
+      LeadModel.find(finalQuery)
+        .sort({ [sortField]: sortOrder })
+        .skip(skip)
+        .limit(limit)
+        .lean()
+        .exec()
+    ]);
+
+    return { totalCount, leads };
+  }
+
+  // Filter options and statistics
+  async getLeadFilterOptionsAndStats(query: any): Promise<{
+    services: string[];
+    adSetNames: string[];
+    adNames: string[];
+    statuses: string[];
+    unqualifiedLeadReasons: string[];
+    statusAgg: { _id: string; count: number }[];
+  }> {
+    const finalQuery = this.addSoftDeleteFilter(query);
+    const unqualifiedQuery = { ...finalQuery, status: "unqualified" };
+
+    const [services, adSetNames, adNames, statuses, unqualifiedLeadReasons, statusAgg] =
+      await Promise.all([
+        LeadModel.distinct("service", finalQuery).exec(),
+        LeadModel.distinct("adSetName", finalQuery).exec(),
+        LeadModel.distinct("adName", finalQuery).exec(),
+        LeadModel.distinct("status", finalQuery).exec(),
+        LeadModel.distinct("unqualifiedLeadReason", unqualifiedQuery).exec(),
+        LeadModel.aggregate([
+          { $match: finalQuery },
+          {
+            $group: {
+              _id: "$status",
+              count: { $sum: 1 }
+            }
+          }
+        ]).exec()
+      ]);
+
+    return { services, adSetNames, adNames, statuses, unqualifiedLeadReasons, statusAgg };
+  }
+
+  // Performance analytics - Ad Set Performance
+  async getAdSetPerformance(
+    query: any, 
+    page: number, 
+    limit: number, 
+    sortOptions?: any
+  ): Promise<{ totalCount: number; data: any[] }> {
+    
+    const finalQuery = this.addSoftDeleteFilter(query);
+    
+    const pipeline: any[] = [
+      { $match: finalQuery },
+      {
+        $group: {
+          _id: '$adSetName',
+          total: { $sum: 1 },
+          estimateSet: {
+            $sum: { $cond: [{ $eq: ['$status', 'estimate_set'] }, 1, 0] }
+          }
+        }
+      },
+      {
+        $project: {
+          adSetName: '$_id',
+          total: 1,
+          estimateSet: 1,
+          percentage: {
+            $multiply: [
+              { $divide: ['$estimateSet', '$total'] },
+              100
+            ]
+          },
+          _id: 0
+        }
+      }
+    ];
+
+    // Add sorting
+    if (sortOptions?.showTopRanked) {
+      pipeline.push({ $sort: { percentage: -1, estimateSet: -1 } });
+    } else if (sortOptions?.adSetSortField) {
+      const sortField = sortOptions.adSetSortField === 'percentage'
+        ? 'percentage'
+        : sortOptions.adSetSortField;
+
+      const sortOrder: 1 | -1 = sortOptions.adSetSortOrder === 'asc' ? 1 : -1;
+      pipeline.push({ $sort: { [sortField]: sortOrder } });
+    }
+
+    // Define the pagination stages
+    const skip = (page - 1) * limit;
+    const paginationPipeline: any[] = [
+      { $skip: skip },
+      { $limit: limit }
+    ];
+
+    // Run the aggregation with $facet to get both total count and paginated data in one call
+    const result = await LeadModel.aggregate([
+      {
+        $facet: {
+          totalCount: [
+            ...pipeline,
+            { $count: 'total' }
+          ],
+          data: [
+            ...pipeline,
+            ...paginationPipeline
+          ]
+        }
+      }
+    ]);
+
+    // Extract and format results
+    const totalCount = result[0].totalCount[0]?.total || 0;
+    const data = result[0].data || [];
+    
+    return { totalCount, data };
+  }
+
+  // Performance analytics - Ad Name Performance
+  async getAdNamePerformance(
+    query: any, 
+    page: number, 
+    limit: number, 
+    sortOptions?: any
+  ): Promise<{ totalCount: number; data: any[] }> {
+    
+    const finalQuery = this.addSoftDeleteFilter(query);
+    
+    const pipeline: any[] = [
+      { $match: finalQuery },
+      {
+        $group: {
+          _id: { adName: '$adName', adSetName: '$adSetName' },
+          total: { $sum: 1 },
+          estimateSet: {
+            $sum: { $cond: [{ $eq: ['$status', 'estimate_set'] }, 1, 0] }
+          }
+        }
+      },
+      {
+        $project: {
+          adName: '$_id.adName',
+          adSetName: '$_id.adSetName',
+          total: 1,
+          estimateSet: 1,
+          percentage: {
+            $multiply: [
+              { $divide: ['$estimateSet', '$total'] },
+              100
+            ]
+          },
+          _id: 0
+        }
+      }
+    ];
+
+    // Add sorting
+    if (sortOptions?.showTopRanked) {
+      pipeline.push({ $sort: { percentage: -1, estimateSet: -1 } });
+    } else if (sortOptions?.adNameSortField) {
+      const sortField = sortOptions.adNameSortField === 'percentage' ? 'percentage' : sortOptions.adNameSortField;
+      const sortOrder: 1 | -1 = sortOptions.adNameSortOrder === 'asc' ? 1 : -1;
+      pipeline.push({ $sort: { [sortField]: sortOrder } });
+    }
+
+    // Define the pagination stages
+    const skip = (page - 1) * limit;
+    const paginationPipeline: any[] = [
+      { $skip: skip },
+      { $limit: limit }
+    ];
+
+    // Run the aggregation with $facet to get both total count and paginated data in one call
+    const result = await LeadModel.aggregate([
+      {
+        $facet: {
+          totalCount: [
+            ...pipeline,
+            { $count: 'total' }
+          ],
+          data: [
+            ...pipeline,
+            ...paginationPipeline
+          ]
+        }
+      }
+    ]);
+
+    // Extract and format results
+    const totalCount = result[0].totalCount[0]?.total || 0;
+    const data = result[0].data || [];
+    
+    return { totalCount, data };
+  }
+}
+
+// Export singleton instance
+export const leadAggregationRepository = new LeadAggregationRepository();
