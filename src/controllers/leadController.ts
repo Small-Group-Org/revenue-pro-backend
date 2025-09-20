@@ -1,8 +1,8 @@
 import { Request, Response } from "express";
-import { LeadService } from "../services/leads/service/service.js";
+import { CombinedLeadService } from "../services/leads/service/index.js";
 import { SheetsService } from "../services/leads/service/sheets.service.js";
 import utils from "../utils/utils.js";
-import { conversionRateRepository } from "../services/leads/repository/repository.js";
+import { conversionRateRepository } from "../services/leads/repository/index.js";
 import { sanitizeLeadData } from "../services/leads/utils/leads.util.js";
 import mongoose from "mongoose";
 
@@ -123,10 +123,10 @@ if (req.query.clientId) {
 }
 
 
-  private service: LeadService;
+  private service: CombinedLeadService;
 
   constructor() {
-    this.service = new LeadService();
+    this.service = new CombinedLeadService();
 
     this.createLead = this.createLead.bind(this);
     this.updateLead = this.updateLead.bind(this);
