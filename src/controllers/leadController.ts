@@ -1,8 +1,8 @@
 import { Request, Response } from "express";
-import { LeadService } from "../services/leads/service/service.js";
+import { CombinedLeadService } from "../services/leads/service/index.js";
 import { SheetsService } from "../services/leads/service/sheets.service.js";
 import utils from "../utils/utils.js";
-import { conversionRateRepository } from "../services/leads/repository/repository.js";
+import { conversionRateRepository } from "../services/leads/repository/index.js";
 import { sanitizeLeadData } from "../services/leads/utils/leads.util.js";
 import mongoose from "mongoose";
 
@@ -123,10 +123,10 @@ if (req.query.clientId) {
 }
 
 
-  private service: LeadService;
+  private service: CombinedLeadService;
 
   constructor() {
-    this.service = new LeadService();
+    this.service = new CombinedLeadService();
 
     this.createLead = this.createLead.bind(this);
     this.updateLead = this.updateLead.bind(this);
@@ -164,15 +164,15 @@ if (req.query.clientId) {
       // Filters
       const filters: any = {};
       if (typeof req.query.service === "string")
-        filters.service = req.query.service;
+        filters.service = req.query.service.trim();
       if (typeof req.query.adSetName === "string")
-        filters.adSetName = req.query.adSetName;
+        filters.adSetName = req.query.adSetName.trim();
       if (typeof req.query.adName === "string")
-        filters.adName = req.query.adName;
+        filters.adName = req.query.adName.trim();
       if (typeof req.query.status === "string")
-        filters.status = req.query.status;
+        filters.status = req.query.status.trim();
       if (typeof req.query.unqualifiedLeadReason === "string")
-        filters.unqualifiedLeadReason = req.query.unqualifiedLeadReason;
+        filters.unqualifiedLeadReason = req.query.unqualifiedLeadReason.trim();
 
       // Fetch paginated leads
       const result = await this.service.getLeadsPaginated(
@@ -431,6 +431,9 @@ if (req.query.clientId) {
       if (!payload.status) {
         payload.status = "new";
       }
+
+      payload.isDeleted = false;
+      payload.deletedAt = null;
 
       // Validate status
       if (!["new", "in_progress", "estimate_set", "unqualified"].includes(payload.status)) {

@@ -1,63 +1,38 @@
-import LeadModel from './models/leads.model.js';
-import { ILead, ILeadDocument } from '../domain/leads.domain.js';
 import ConversionRateModel, { IConversionRate, IConversionRateDocument } from './models/conversionRate.model.js';
+import { IConversionRateRepository } from './interfaces.js';
 
-// ----------------- Lead Repository -----------------
-export const leadRepository = {
-  async createLead(data: ILead): Promise<ILeadDocument> {
-    return await LeadModel.create(data);
-  },
-  async getLeads(filter: Partial<ILead> = {}): Promise<ILeadDocument[]> {
-    return await LeadModel.find(filter).exec();
-  },
-  async getLeadById(id: string): Promise<ILeadDocument | null> {
-    return await LeadModel.findById(id).exec();
-  },
-  async updateLead(id: string, update: Partial<ILead>): Promise<ILeadDocument | null> {
-    return await LeadModel.findByIdAndUpdate(id, update, { new: true }).exec();
-  },
-  async deleteLead(id: string): Promise<ILeadDocument | null> {
-    return await LeadModel.findByIdAndDelete(id).exec();
-  },
-  async getLeadsByDateRange(start: string, end: string): Promise<ILeadDocument[]> {
-    return await LeadModel.find({ leadDate: { $gte: start, $lte: end } }).exec();
-  },
-  async insertMany(leads: ILead[]): Promise<ILeadDocument[]> {
-    return await LeadModel.insertMany(leads);
-  }
-};
-
-// ----------------- ConversionRate Repository -----------------
-export const conversionRateRepository = {
+export class ConversionRateRepository implements IConversionRateRepository {
+  
+  // Basic CRUD operations
   async createConversionRate(data: IConversionRate): Promise<IConversionRateDocument> {
     return await ConversionRateModel.create(data);
-  },
-  async getConversionRates(filter: Partial<IConversionRate> = {}): Promise<IConversionRateDocument[]> {
-    return await ConversionRateModel.find(filter).exec();
-  },
-  async getConversionRateById(id: string): Promise<IConversionRateDocument | null> {
-    return await ConversionRateModel.findById(id).exec();
-  },
+  }
+
   async updateConversionRate(id: string, update: Partial<IConversionRate>): Promise<IConversionRateDocument | null> {
     return await ConversionRateModel.findByIdAndUpdate(id, update, { new: true }).exec();
-  },
+  }
+
   async deleteConversionRate(id: string): Promise<IConversionRateDocument | null> {
     return await ConversionRateModel.findByIdAndDelete(id).exec();
-  },
+  }
+
+  // Query operations
+  async getConversionRateById(id: string): Promise<IConversionRateDocument | null> {
+    return await ConversionRateModel.findById(id).exec();
+  }
+
+  async getConversionRates(filter: Partial<IConversionRate> = {}): Promise<IConversionRateDocument[]> {
+    return await ConversionRateModel.find(filter).exec();
+  }
+
+  // Bulk operations
   async insertMany(conversionRates: IConversionRate[]): Promise<IConversionRateDocument[]> {
     return await ConversionRateModel.insertMany(conversionRates);
-  },
-  async upsertConversionRate(data: IConversionRate): Promise<IConversionRateDocument> {
-    return await ConversionRateModel.findOneAndUpdate(
-      { clientId: data.clientId, keyField: data.keyField, keyName: data.keyName },
-      data,
-      { new: true, upsert: true }
-    ).exec();
-  },
+  }
 
   /**
    * Batch upsert multiple conversion rates - much more efficient than individual upserts
-   * Now returns detailed statistics about new vs updated records
+   * Returns detailed statistics about new vs updated records
    */
   async batchUpsertConversionRates(conversionRates: IConversionRate[]): Promise<{
     documents: IConversionRateDocument[];
@@ -135,4 +110,16 @@ export const conversionRateRepository = {
       }
     };
   }
-};
+
+  // Upsert operation
+  async upsertConversionRate(data: IConversionRate): Promise<IConversionRateDocument> {
+    return await ConversionRateModel.findOneAndUpdate(
+      { clientId: data.clientId, keyField: data.keyField, keyName: data.keyName },
+      data,
+      { new: true, upsert: true }
+    ).exec();
+  }
+}
+
+// Export singleton instance
+export const conversionRateRepository = new ConversionRateRepository();

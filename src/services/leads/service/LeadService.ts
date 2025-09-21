@@ -1,0 +1,395 @@
+import { ILead, ILeadDocument } from "../domain/leads.domain.js";
+import { ILeadRepository, ILeadAggregationRepository } from "../repository/interfaces.js";
+import { leadRepository } from "../repository/LeadRepository.js";
+import { leadAggregationRepository } from "../repository/LeadAggregationRepository.js";
+import { TimezoneUtils } from "../../../utils/timezoneUtils.js";
+import mongoose from "mongoose";
+import User from "../../user/repository/models/user.model.js";
+
+// Types for service operations
+interface PaginationOptions {
+  page: number;
+  limit: number;
+  sortBy: 'date' | 'score';
+  sortOrder: 'asc' | 'desc';
+}
+
+interface FilterOptions {
+  service?: string;
+  adSetName?: string;
+  adName?: string;
+  status?: string;
+  unqualifiedLeadReason?: string;
+}
+
+interface PaginatedLeadsResult {
+  leads: Partial<ILead>[];
+  pagination: {
+    currentPage: number;
+    totalPages: number;
+    totalCount: number;
+    pageSize: number;
+    hasNext: boolean;
+    hasPrev: boolean;
+  };
+}
+
+interface BulkCreateResult {
+  documents: ILeadDocument[];
+  stats: {
+    total: number;
+    newInserts: number;
+    duplicatesUpdated: number;
+  };
+}
+
+export class LeadService {
+  
+  constructor(
+    private leadRepo: ILeadRepository = leadRepository,
+    private aggregationRepo: ILeadAggregationRepository = leadAggregationRepository
+  ) {}
+
+  // ============= BASIC CRUD OPERATIONS =============
+
+  /**
+   * Create a single lead
+   */
+  async createLead(payload: ILead): Promise<ILeadDocument> {
+    return await this.leadRepo.createLead(payload);
+  }
+
+  /**
+   * Update a lead by ID
+   */
+  async updateLead(
+    id: string,
+    data: Partial<Pick<ILead, "status" | "unqualifiedLeadReason">>
+  ): Promise<ILeadDocument> {
+    const existing = await this.leadRepo.getLeadById(id);
+    if (!existing) throw new Error("Lead not found");
+
+    if (typeof data.status !== "undefined") {
+      existing.status = data.status;
+      // Clear unqualifiedLeadReason if status is not "unqualified"
+      if (data.status !== 'unqualified') {
+        existing.unqualifiedLeadReason = '';
+      }
+    }
+
+    if (typeof data.unqualifiedLeadReason !== "undefined") {
+      existing.unqualifiedLeadReason = data.unqualifiedLeadReason;
+    }
+
+    await existing.save();
+    return existing;
+  }
+
+  /**
+   * Soft delete multiple leads
+   */
+  async deleteLeads(ids: string[]): Promise<{ deletedCount: number }> {
+    const result = await this.leadRepo.bulkDeleteLeads(ids);
+    return { deletedCount: result.modifiedCount || 0 };
+  }
+
+  /**
+   * Upsert a lead (update if exists, create if not)
+   */
+  async upsertLead(
+    query: Pick<ILeadDocument, "clientId" | "adSetName" | "email" | "phone" | "service" | "adName" | "zip">, 
+    payload: Partial<ILeadDocument>
+  ): Promise<ILeadDocument> {
+    const existingLead: Partial<ILead> | null = (await this.leadRepo.findLeads(query))[0] || null;
+    
+    if (existingLead) {
+      const updatePayload = { ...payload };
+      updatePayload.leadScore = existingLead.leadScore;
+      updatePayload.conversionRates = existingLead.conversionRates;
+      
+      const result = await this.leadRepo.updateLead(query, updatePayload);
+      if (!result) throw new Error("Failed to update lead");
+      return result;
+    } else {
+      if (!payload.clientId || !payload.service || !payload.adSetName || !payload.adName || (!payload.phone && !payload.email)) {
+        throw new Error('Missing required fields: clientId, service, adSetName, adName, and at least phone or email');
+      }
+      
+      const newLeadPayload = { ...payload };
+      // Note: Lead scoring will be handled by LeadScoringService
+      newLeadPayload.leadScore = 0;
+      newLeadPayload.conversionRates = {};
+
+      return await this.leadRepo.upsertLead(query, newLeadPayload);
+    }
+  }
+
+  // ============= BULK OPERATIONS =============
+
+  /**
+   * Bulk create leads with optional duplicate prevention
+   */
+  async bulkCreateLeads(
+    payloads: ILead[], 
+    uniquenessByPhoneEmail: boolean = false
+  ): Promise<BulkCreateResult> {
+    if (payloads.length === 0) return { 
+      documents: [], 
+      stats: { total: 0, newInserts: 0, duplicatesUpdated: 0 }
+    };
+
+    // Build operations based on uniqueness flag
+    const bulkOps = payloads.map(lead => {
+      const filter: any = { clientId: lead.clientId };
+      
+      // Apply email/phone uniqueness logic if enabled
+      if (uniquenessByPhoneEmail) {
+        const hasEmail = lead.email && lead.email.trim() !== '';
+        const hasPhone = lead.phone && lead.phone.trim() !== '';
+        
+        if (hasEmail && hasPhone) {
+          // Both exist: match by either email OR phone
+          filter.$or = [
+            { email: lead.email },
+            { phone: lead.phone }
+          ];
+        } else if (hasEmail) {
+          filter.email = lead.email;
+        } else if (hasPhone) {
+          filter.phone = lead.phone;
+        } else {
+          // Neither email nor phone exist: force new document
+          filter._id = new Date().getTime() + Math.random();
+        }
+      } else {
+        // No uniqueness - always create new documents by using unique temporary ID
+        filter._id = new Date().getTime() + Math.random() + Math.random();
+      }
+
+      return {
+        updateOne: {
+          filter,
+          update: { $set: lead },
+          upsert: true
+        }
+      };
+    });
+
+    const result = await this.leadRepo.bulkWriteLeads(bulkOps, { ordered: false });
+    
+    const newInserts = result.upsertedCount || 0;
+    const duplicatesUpdated = result.modifiedCount || 0;
+    const total = newInserts + duplicatesUpdated;
+    
+    return {
+      documents: [], // Return empty array to avoid expensive query
+      stats: {
+        total,
+        newInserts,
+        duplicatesUpdated
+      }
+    };
+  }
+
+  // ============= QUERY OPERATIONS =============
+
+  /**
+   * Get leads with optional filtering
+   */
+  async getLeads(
+    clientId?: string,
+    startDate?: string,
+    endDate?: string
+  ): Promise<ILeadDocument[]> {
+    const query: any = {};
+    if (clientId) query.clientId = clientId;
+    if (startDate && endDate)
+      query.leadDate = { $gte: startDate, $lte: endDate };
+    else if (startDate) query.leadDate = { $gte: startDate };
+    else if (endDate) query.leadDate = { $lte: endDate };
+
+    const leads = await this.leadRepo.getSortedLeads(query);
+    return leads as ILeadDocument[];
+  }
+
+  /**
+   * Get paginated leads with sorting and filtering
+   */
+  async getLeadsPaginated(
+    clientId?: string,
+    startDate?: string,
+    endDate?: string,
+    pagination: PaginationOptions = { page: 1, limit: 50, sortBy: 'date', sortOrder: 'desc' },
+    filters: FilterOptions = {}
+  ): Promise<PaginatedLeadsResult> {
+    const query: any = {};
+
+    // Client filter
+    if (clientId) query.clientId = clientId;
+
+    // Date filter - use timezone-aware date range query
+    if (startDate || endDate) {
+      query.leadDate = this.createDateRangeQuery(startDate, endDate);
+    }
+
+    // Filters
+    if (filters.service) query.service = filters.service;
+    if (filters.adSetName) query.adSetName = filters.adSetName
+    if (filters.adName) query.adName = filters.adName
+    if (filters.status) query.status = filters.status;
+    if (filters.unqualifiedLeadReason) {
+      query.status = 'unqualified';
+      query.unqualifiedLeadReason = filters.unqualifiedLeadReason;
+    }
+
+    // Pagination setup
+    const skip = (pagination.page - 1) * pagination.limit;
+    const sortField = pagination.sortBy === 'score' ? 'leadScore' : 'leadDate';
+    const sortOrder = pagination.sortOrder === 'desc' ? -1 : 1;
+
+    const { totalCount, leads } = await this.aggregationRepo.findLeadsWithCount({
+      query,
+      sortField: sortField,
+      sortOrder: sortOrder,
+      skip: skip,
+      limit: pagination.limit
+    });
+
+    const totalPages = Math.max(1, Math.ceil(totalCount / pagination.limit));
+
+    return {
+      leads,
+      pagination: {
+        currentPage: pagination.page,
+        totalPages,
+        totalCount,
+        pageSize: pagination.limit,
+        hasNext: pagination.page < totalPages,
+        hasPrev: pagination.page > 1
+      }
+    };
+  }
+
+  /**
+   * Get filter options and status counts
+   */
+  async fetchLeadFiltersAndCounts(
+    clientId?: string,
+    startDate?: string,
+    endDate?: string
+  ): Promise<{
+    filterOptions: {
+      services: string[];
+      adSetNames: string[];
+      adNames: string[];
+      statuses: string[];
+      unqualifiedLeadReasons: string[];
+    };
+    statusCounts: {
+      new: number;
+      inProgress: number;
+      estimateSet: number;
+      unqualified: number;
+    };
+  }> {
+    const query: any = {};
+    if (clientId) query.clientId = clientId;
+
+    if (startDate || endDate) {
+      query.leadDate = this.createDateRangeQuery(startDate, endDate);
+    }
+
+    const { 
+      services, 
+      adSetNames, 
+      adNames, 
+      statuses, 
+      unqualifiedLeadReasons, 
+      statusAgg 
+    } = await this.aggregationRepo.getLeadFilterOptionsAndStats(query);
+
+    // Normalize status counts
+    const statusCountsMap = statusAgg.reduce((acc, item) => {
+      acc[item._id?.toLowerCase() || "unknown"] = item.count;
+      return acc;
+    }, {} as Record<string, number>);
+
+    const statusCounts = {
+      new: statusCountsMap["new"] || 0,
+      inProgress: statusCountsMap["in_progress"] || 0,
+      estimateSet: statusCountsMap["estimate_set"] || 0,
+      unqualified: statusCountsMap["unqualified"] || 0
+    };
+
+    return {
+      filterOptions: {
+        services: services.filter(Boolean).sort(),
+        adSetNames: adSetNames.filter(Boolean).sort(),
+        adNames: adNames.filter(Boolean).sort(),
+        statuses: statuses.filter(Boolean).sort(),
+        unqualifiedLeadReasons: unqualifiedLeadReasons.filter(Boolean).sort(),
+      },
+      statusCounts
+    };
+  }
+
+  // ============= UTILITY METHODS =============
+
+  /**
+   * Check if user exists
+   */
+  async doesUserExist(clientId: string): Promise<boolean> {
+    if (!mongoose.Types.ObjectId.isValid(clientId)) {
+      return false;
+    }
+    return (await User.exists({ _id: clientId })) !== null;
+  }
+
+  /**
+   * Check if user has any leads
+   */
+  async hasLeadData(clientId: string): Promise<boolean> {
+    if (!mongoose.Types.ObjectId.isValid(clientId)) {
+      return false;
+    }
+    return await this.leadRepo.existsByClientId(clientId);
+  }
+
+  /**
+   * Get all unique client IDs
+   */
+  async getAllClientIds(): Promise<string[]> {
+    const clientIds = await this.leadRepo.getDistinctClientIds();
+    return clientIds.filter(id => id);
+  }
+
+  /**
+   * Get all leads for a specific client
+   */
+  async getAllLeadsForClient(clientId: string): Promise<ILead[]> {
+    const leads = await this.leadRepo.getLeadsByClientId(clientId);
+    return leads as ILead[];
+  }
+
+  // ============= PRIVATE HELPER METHODS =============
+
+  /**
+   * Create date range query for timezone-aware filtering
+   */
+  private createDateRangeQuery(startDate?: string, endDate?: string): any {
+    if (!startDate && !endDate) return {};
+    
+    if (startDate && endDate) {
+      const dateRange = TimezoneUtils.createDateRangeQuery(startDate, endDate);
+      return dateRange.leadDate;
+    } else if (startDate) {
+      const dateRange = TimezoneUtils.createDateRangeQuery(startDate, startDate);
+      return { $gte: dateRange.leadDate.$gte };
+    } else if (endDate) {
+      const dateRange = TimezoneUtils.createDateRangeQuery(endDate, endDate);
+      return { $lte: dateRange.leadDate.$lte };
+    }
+    
+    return {};
+  }
+}

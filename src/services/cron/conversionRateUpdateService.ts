@@ -1,16 +1,18 @@
 import cron from "node-cron";
-import { LeadService } from "../leads/service/service.js";
+import { LeadScoringService, LeadService } from "../leads/service/index.js";
 import logger from "../../utils/logger.js";
 import CronLogger from "../../utils/cronLogger.js";
 import { MongoCronLogger } from "../../utils/mongoCronLogger.js";
 import { ObjectId } from "mongoose";
 
 export class ConversionRateUpdateService {
+  private leadScoringService: LeadScoringService;
   private leadService: LeadService;
   private isRunning: boolean = false;
   private currentLogId: ObjectId | null = null;
 
   constructor() {
+    this.leadScoringService = new LeadScoringService();
     this.leadService = new LeadService();
   }
 
@@ -166,7 +168,7 @@ export class ConversionRateUpdateService {
           CronLogger.logClientUpdateStart(clientId);
           
           // Use the comprehensive update method that handles both conversion rates AND lead updates
-          const result = await this.leadService.updateConversionRatesAndLeadScoresForClient(clientId);
+          const result = await this.leadScoringService.updateConversionRatesAndLeadScoresForClient(clientId);
           
           totalUpdatedConversionRates += result.updatedConversionRates;
           totalUpdatedLeads += result.updatedLeads;
