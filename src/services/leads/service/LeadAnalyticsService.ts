@@ -130,11 +130,8 @@ export class LeadAnalyticsService {
       }
     }
 
-    console.log("Analytics query", query);
-
     // Fetch filtered leads
     const leads = await this.leadRepo.findLeads(query);
-    console.log("Analytics leads count", leads.length);
 
     if (leads.length === 0) {
       return this.getEmptyAnalyticsResult();

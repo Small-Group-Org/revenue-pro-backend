@@ -73,7 +73,7 @@ export class SheetsService {
     const gidMatch = sheetUrl.match(/[?&#]gid=([0-9]+)/);
     let targetGid: string | null = gidMatch ? gidMatch[1] : null;
     
-    console.log(`📊 Sheet ID: ${sheetId}${targetGid ? `, Target GID: ${targetGid}` : ' (default sheet)'}`);
+    console.log(`Processing sheet ${sheetId}${targetGid ? ` (gid ${targetGid})` : ''}`);
     
     // Build export URL - if specific gid is provided, include it
     let url = `https://docs.google.com/spreadsheets/d/${sheetId}/export?format=xlsx`;
@@ -94,17 +94,17 @@ export class SheetsService {
       const workbook = XLSX.read(buffer, { type: "array", cellDates: true });
       availableSubSheets = workbook.SheetNames;
       
-      console.log(`📋 Available sub-sheets: ${availableSubSheets.join(', ')}`);
+      console.log(`Found ${availableSubSheets.length} sub-sheets`);
       
       // Determine which sheet to process
       if (targetGid) {
         // Find sheet by GID - when exporting with specific GID, it usually becomes the first (and only) sheet
         targetSheetName = availableSubSheets[0];
-        console.log(`🎯 Processing sub-sheet with GID ${targetGid}: "${targetSheetName}"`);
+        console.log(`Processing target sub-sheet by gid: ${targetSheetName}`);
       } else {
         // No specific GID - use first sheet
         targetSheetName = availableSubSheets[0];
-        console.log(`🎯 Processing default sub-sheet: "${targetSheetName}"`);
+        console.log(`Processing default sub-sheet: ${targetSheetName}`);
       }
       
       const sheet = workbook.Sheets[targetSheetName];
@@ -118,9 +118,6 @@ export class SheetsService {
         const headerValue = cell ? XLSX.utils.format_cell(cell) : "";
         allHeaders.push(headerValue.trim()); // don't skip empty ones
       }
-
-      console.log("All detected headers (including blanks):", allHeaders);
-
       
       // Now parse the data with all headers included, skipping the header row
       const sheetRange = XLSX.utils.decode_range(sheet['!ref'] || 'A1:A1');
@@ -152,12 +149,8 @@ export class SheetsService {
         });
       }
 
-      console.log("Sheet parsing successful. Total rows parsed:", data.length);
+      console.log(`Parsed ${data.length} rows from sheet`);
       
-      // Log final available columns
-      if (data.length > 0) {
-        console.log("Available columns:", Object.keys(data[0]));
-      }
     } catch (error: any) {
       console.error("Error parsing sheet:", error);
       throw new Error(`Failed to parse sheet data: ${error.message}`);
@@ -216,7 +209,6 @@ export class SheetsService {
       if (!row || typeof row !== 'object') {
         skipReasons.invalidRowStructure++;
         skipReasons.total++;
-        console.warn(`⚠️  Sheet Row ${sheetRowNumber}: Invalid row structure - skipping`);
         continue;
       }
       
@@ -239,28 +231,24 @@ export class SheetsService {
         skipReasons.missingName++;
         skipReasons.total++;
         shouldSkip = true;
-        console.warn(`⚠️  Sheet Row ${sheetRowNumber}: Missing Name - skipping`);
       }
       
       if (!hasService) {
         skipReasons.missingService++;
         if (!shouldSkip) skipReasons.total++;
         shouldSkip = true;
-        console.warn(`⚠️  Sheet Row ${sheetRowNumber}: Missing Service for lead "${leadName}" - skipping`);
       }
       
       if (!hasAdSetName) {
         skipReasons.missingAdSetName++;
         if (!shouldSkip) skipReasons.total++;
         shouldSkip = true;
-        console.warn(`⚠️  Sheet Row ${sheetRowNumber}: Missing Ad Set Name for lead "${leadName}" - skipping`);
       }
       
       if (!hasAdName) {
         skipReasons.missingAdName++;
         if (!shouldSkip) skipReasons.total++;
         shouldSkip = true;
-        console.warn(`⚠️  Sheet Row ${sheetRowNumber}: Missing Ad Name for lead "${leadName}" - skipping`);
       }
       
       if (shouldSkip) {
@@ -276,9 +264,7 @@ export class SheetsService {
         const unqualifiedLeadReason = isEstimateSet ? '' : String(row["Unqualified Lead Reason"] || "");
 
         // Parse date using utility helper function
-        const leadDate = utils.parseDate(row["Lead Date"], sheetRowNumber);
-        console.log(`Processing Sheet Row ${sheetRowNumber}, email:`, row["Email"]);
-        
+        const leadDate = utils.parseDate(row["Lead Date"], sheetRowNumber);        
         // Create raw lead data and sanitize it at entry point
         const rawLeadData = {
           status,
@@ -306,17 +292,8 @@ export class SheetsService {
     }
 
     // Log detailed skip summary
-    if (skipReasons.total > 0) {
-      console.log(`✅ Processed ${validLeads.length} valid leads, ❌ skipped ${skipReasons.total} rows:`);
-      if (skipReasons.missingName > 0) console.log(`  - ${skipReasons.missingName} rows missing Name`);
-      if (skipReasons.missingService > 0) console.log(`  - ${skipReasons.missingService} rows missing Service`);
-      if (skipReasons.missingAdSetName > 0) console.log(`  - ${skipReasons.missingAdSetName} rows missing Ad Set Name`);
-      if (skipReasons.missingAdName > 0) console.log(`  - ${skipReasons.missingAdName} rows missing Ad Name`);
-      if (skipReasons.invalidRowStructure > 0) console.log(`  - ${skipReasons.invalidRowStructure} rows with invalid structure`);
-      if (skipReasons.processingErrors > 0) console.log(`  - ${skipReasons.processingErrors} rows with processing errors`);
-    } else {
-      console.log(`✅ Successfully processed all ${validLeads.length} leads from sheet`);
-    }
+    // main summary log
+    console.log(`Processed ${validLeads.length} valid leads, skipped ${skipReasons.total}`);
 
     // Convert skipReasons to breakdown array
     const skipReasonsBreakdown: string[] = [

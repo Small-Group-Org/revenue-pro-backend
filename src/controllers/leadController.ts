@@ -73,7 +73,6 @@ if (req.query.clientId) {
     const results = [];
     for (const clientId of clientIds) {
       try {
-        console.log(`[API] Processing clientId: ${clientId}`);
         const result =
           await this.service.updateConversionRatesAndLeadScoresForClient(
             clientId
@@ -543,9 +542,6 @@ if (req.query.clientId) {
         return;
       }
 
-      console.log("Sheet processing started for client:", clientId);
-      console.log("Uniqueness by phone/email enabled:", !!uniquenessByPhoneEmail);
-
       // Process the entire sheet with comprehensive statistics
       const sheetsService = new SheetsService();
       const { result: processingResult, conversionData } =
@@ -565,9 +561,6 @@ if (req.query.clientId) {
         );
 
         // After processing new leads and updating conversion rates, recalculate lead scores
-        console.log(
-          `Recalculating lead scores for client ${clientId} after sheet processing`
-        );
         try {
           const scoreResult = await this.service.recalculateAllLeadScores(
             clientId

@@ -142,9 +142,6 @@ export class ActualController {
         actualData
       );
 
-      console.log('upserted', upserted);
-      
-
       // Always return as array for consistency
       res.status(200).json({ success: true, data: [upserted.toObject ? upserted.toObject() : upserted] });
     } catch (error: any) {
