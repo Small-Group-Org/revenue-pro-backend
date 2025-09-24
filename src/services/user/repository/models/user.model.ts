@@ -31,6 +31,14 @@ const userSchema = new Schema<IUser, IUserModel>(
       type: String,
       required: false,
     },
+    isDeleted: {
+      type: Boolean,
+      default: false,
+    },
+    deletedAt: {
+      type: Date,
+      default: null,
+    },
   },
   {
     timestamps: { createdAt: "created_at", updatedAt: "updated_at" },
