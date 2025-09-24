@@ -194,25 +194,6 @@ export class LeadService {
   // ============= QUERY OPERATIONS =============
 
   /**
-   * Get leads with optional filtering
-   */
-  async getLeads(
-    clientId?: string,
-    startDate?: string,
-    endDate?: string,
-    timezone?: string
-  ): Promise<ILeadDocument[]> {
-    const query: any = {};
-    if (clientId) query.clientId = clientId;
-    if (startDate || endDate) {
-      query.leadDate = this.createDateRangeQuery(startDate, endDate, timezone);
-    }
-
-    const leads = await this.leadRepo.getSortedLeads(query);
-    return leads as ILeadDocument[];
-  }
-
-  /**
    * Get paginated leads with sorting and filtering
    */
   async getLeadsPaginated(
@@ -221,7 +202,7 @@ export class LeadService {
     endDate?: string,
     pagination: PaginationOptions = { page: 1, limit: 50, sortBy: 'date', sortOrder: 'desc' },
     filters: FilterOptions = {},
-    timezone?: string
+    timezone: string = 'UTC'
   ): Promise<PaginatedLeadsResult> {
     const query: any = {};
 

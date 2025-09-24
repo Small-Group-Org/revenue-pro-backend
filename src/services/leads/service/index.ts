@@ -41,9 +41,6 @@ export class CombinedLeadService {
   async bulkCreateLeads(payloads: any[], uniquenessByPhoneEmail?: boolean) { 
     return this.leadService.bulkCreateLeads(payloads, uniquenessByPhoneEmail); 
   }
-  async getLeads(clientId?: string, startDate?: string, endDate?: string, timezone?: string) { 
-    return this.leadService.getLeads(clientId, startDate, endDate, timezone); 
-  }
   async getLeadsPaginated(clientId?: string, startDate?: string, endDate?: string, pagination?: any, filters?: any, timezone?: string) { 
     return this.leadService.getLeadsPaginated(clientId, startDate, endDate, pagination, filters, timezone); 
   }

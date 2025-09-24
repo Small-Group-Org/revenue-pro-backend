@@ -57,14 +57,6 @@ export class LeadRepository implements ILeadRepository {
     return await LeadModel.find(this.addSoftDeleteFilter(query)).lean().exec();
   }
 
-  async getSortedLeads(query: Partial<ILead> = {}): Promise<Partial<ILead>[]> {
-    const finalQuery = this.addSoftDeleteFilter(query);
-    return await LeadModel.find(finalQuery)
-      .sort({ leadDate: 1, _id: 1 })
-      .lean()
-      .exec();
-  }
-
   // Bulk operations
   async insertMany(leads: ILead[]): Promise<ILeadDocument[]> {
     const normalizedLeads = leads.map(lead => ({ ...lead, isDeleted: false }));
