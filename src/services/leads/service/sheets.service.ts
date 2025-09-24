@@ -1,13 +1,16 @@
 import fetch from "node-fetch";
 import * as XLSX from "xlsx";
 import { ILead, LeadStatus } from "../domain/leads.domain.js";
+import { getMonthlyName, sanitizeLeadData } from "../utils/leads.util.js";
 import { 
-  getMonthlyName, 
   parseEstimateSetValue,
   validateSheetHeaders,
   getRequiredSheetHeaders,
-  sanitizeLeadData
-} from "../utils/leads.util.js";
+  validateSheetUrl,
+  extractSheetId,
+  extractGid,
+  mapSheetRowToLead
+} from "../utils/sheet.util.js";
 import utils from "../../../utils/utils.js";
 // Note: LeadService import removed to avoid circular dependency
 // We'll use dependency injection instead
@@ -65,13 +68,12 @@ export class SheetsService {
     leads: ILead[];
     stats: SheetProcessingStats;
   }> {
-    const match = sheetUrl.match(/\/d\/([a-zA-Z0-9-_]+)/);
-    if (!match) throw new Error("Invalid Google Sheet URL");
-    const sheetId = match[1];
+    if (!validateSheetUrl(sheetUrl)) throw new Error("Invalid Google Sheet URL");
+    const sheetId = extractSheetId(sheetUrl);
+    if (!sheetId) throw new Error("Failed to extract sheet ID from URL");
     
     // Extract GID (sub-sheet ID) from URL if present
-    const gidMatch = sheetUrl.match(/[?&#]gid=([0-9]+)/);
-    let targetGid: string | null = gidMatch ? gidMatch[1] : null;
+    let targetGid: string | null = extractGid(sheetUrl);
     
     console.log(`Processing sheet ${sheetId}${targetGid ? ` (gid ${targetGid})` : ''}`);
     
@@ -265,19 +267,12 @@ export class SheetsService {
 
         // Parse date using utility helper function (assume UTC for sheets inputs)
         const leadDate = utils.parseDate(row["Lead Date"], sheetRowNumber);
-        // Create raw lead data and sanitize it at entry point
+        // Map row to lead structure using helper, then override fields we computed
         const rawLeadData = {
+          ...mapSheetRowToLead(row, clientId),
           status,
-          leadDate,
-          name: row["Name"] || "",
-          email: row["Email"] || "",
-          phone: row["Phone"] || "",
-          zip: row["Zip"] || "",
-          service: row["Service"] || "",
-          adSetName: row["Ad Set Name"] || "",
-          adName: row["Ad Name"] || "",
           unqualifiedLeadReason,
-          clientId,
+          leadDate
         };
         
         // Apply sanitization at entry point - this handles all string trimming
