@@ -55,7 +55,7 @@ class utils {
   }
 
   /**
-   * Parse various date formats and convert from CST to UTC
+   * Parse various date formats and convert to UTC (assumes incoming has timezone; else assumes UTC).
    * Handles multiple formats: MM-DD-YYYY, MM/DD/YYYY, DD-MM-YYYY, DD/MM/YYYY, YYYY-MM-DD, etc.
    * Returns UTC ISO string for database storage
    * 
@@ -67,7 +67,7 @@ class utils {
     if (!dateValue) return "";
 
     try {
-      // Use the new timezone utility for consistent CST to UTC conversion
+      // Use the timezone utility to convert using provided timezone if present; else assume UTC
       const result = TimezoneUtils.convertLeadDateToUTCString(dateValue, rowIndex);
       
       if (result.success && result.utcIsoString) {

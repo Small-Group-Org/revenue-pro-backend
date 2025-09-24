@@ -16,7 +16,17 @@ export interface DateConversionResult {
 
 export class TimezoneUtils {
   /**
-   * Convert a lead date from CST to UTC and return as ISO string
+   * Extract and validate timezone from request headers
+   */
+  public static extractTimeZoneFromHeader(headerValue?: string): string {
+    if (!headerValue || typeof headerValue !== 'string' || headerValue.trim() === '') {
+      throw new Error('X-Timezone header is required');
+    }
+    return headerValue;
+  }
+  /**
+   * Convert an incoming lead date to UTC ISO string preserving provided timezone when present.
+   * If no timezone info is present, assume UTC.
    * @param dateValue - The incoming date value (string, Date, or number)
    * @param rowIndex - Optional row index for logging
    * @returns DateConversionResult with UTC ISO string or error
@@ -38,14 +48,14 @@ export class TimezoneUtils {
 
       // Handle different input types
       if (dateValue instanceof Date) {
-        // If it's already a Date object, assume it's in CST
-        dateTime = DateTime.fromJSDate(dateValue, { zone: LEAD_TIMEZONE });
+        // Treat Date object as UTC
+        dateTime = DateTime.fromJSDate(dateValue, { zone: 'UTC' });
       } else if (typeof dateValue === 'string') {
-        // Parse string date in CST timezone
-        dateTime = this.parseStringDateInCST(dateValue);
+        // Parse string date respecting embedded timezone if present; otherwise assume UTC
+        dateTime = this.parseStringDateAssumingUTC(dateValue);
       } else if (typeof dateValue === 'number') {
-        // Handle timestamp - assume it's in CST
-        dateTime = DateTime.fromMillis(dateValue, { zone: LEAD_TIMEZONE });
+        // Treat numeric timestamp as epoch millis in UTC
+        dateTime = DateTime.fromMillis(dateValue, { zone: 'UTC' });
       } else {
         return {
           success: false,
@@ -115,51 +125,47 @@ export class TimezoneUtils {
   }
 
   /**
-   * Parse a string date assuming it's in CST timezone
+   * Parse a string date respecting embedded timezone; if absent, assume UTC.
    * @param dateString - The date string to parse
-   * @returns DateTime object in CST timezone
+   * @returns DateTime object in appropriate timezone (or UTC when unspecified)
    */
-  private static parseStringDateInCST(dateString: string): DateTime {
+  private static parseStringDateAssumingUTC(dateString: string): DateTime {
     const trimmed = dateString.trim();
     
     // Try different parsing approaches
     let dateTime: DateTime | null = null;
 
-    // 1. Try parsing as ISO date (YYYY-MM-DD) - treat as midnight CST
+    // 1. Try parsing as ISO date (YYYY-MM-DD) - treat as midnight UTC
     if (/^\d{4}-\d{1,2}-\d{1,2}$/.test(trimmed)) {
-      dateTime = DateTime.fromISO(trimmed, { zone: LEAD_TIMEZONE });
+      dateTime = DateTime.fromISO(trimmed, { zone: 'UTC' });
     }
-    // 2. Try parsing as space-separated datetime (YYYY-MM-DD H:mm:ss or HH:mm:ss) - treat as CST
+    // 2. Try parsing as space-separated datetime (YYYY-MM-DD H:mm:ss or HH:mm:ss) - assume UTC
     else if (/^\d{4}-\d{1,2}-\d{1,2} \d{1,2}:\d{1,2}:\d{1,2}$/.test(trimmed)) {
       // Use flexible format that handles both single and double digit hours
-      dateTime = DateTime.fromFormat(trimmed, 'yyyy-M-d H:m:s', { zone: LEAD_TIMEZONE });
+      dateTime = DateTime.fromFormat(trimmed, 'yyyy-M-d H:m:s', { zone: 'UTC' });
     }
     // 3. Try parsing as ISO datetime with timezone info (YYYY-MM-DDTHH:mm:ss[Z|+/-HH:mm])
     else if (/^\d{4}-\d{1,2}-\d{1,2}T\d{1,2}:\d{1,2}:\d{1,2}(\.\d{3})?([Z]|[+-]\d{2}:?\d{2})$/.test(trimmed)) {
-      // Parse with timezone info, then convert to CST
+      // Parse with timezone info
       dateTime = DateTime.fromISO(trimmed);
-      if (dateTime.isValid) {
-        // Convert to CST timezone
-        dateTime = dateTime.setZone(LEAD_TIMEZONE);
-      }
     }
-    // 4. Try parsing as ISO datetime without timezone (YYYY-MM-DDTHH:mm:ss) - treat as CST
+    // 4. Try parsing as ISO datetime without timezone (YYYY-MM-DDTHH:mm:ss) - assume UTC
     else if (/^\d{4}-\d{1,2}-\d{1,2}T\d{1,2}:\d{1,2}:\d{1,2}(\.\d{3})?$/.test(trimmed)) {
-      // Parse as ISO directly in CST timezone
-      dateTime = DateTime.fromISO(trimmed, { zone: LEAD_TIMEZONE });
+      // Parse as ISO directly in UTC timezone
+      dateTime = DateTime.fromISO(trimmed, { zone: 'UTC' });
     }
-    // 5. Try parsing as US/European format (MM/DD/YYYY or DD/MM/YYYY)
+    // 5. Try parsing as US/European format (MM/DD/YYYY or DD/MM/YYYY) - assume UTC
     else if (/^\d{1,2}[-\/]\d{1,2}[-\/]\d{4}$/.test(trimmed)) {
       const parts = trimmed.split(/[-\/]/);
       if (parts.length === 3) {
         // Try MM/DD/YYYY first (US format)
         const usFormat = `${parts[0]}/${parts[1]}/${parts[2]}`;
-        dateTime = DateTime.fromFormat(usFormat, 'M/d/yyyy', { zone: LEAD_TIMEZONE });
+        dateTime = DateTime.fromFormat(usFormat, 'M/d/yyyy', { zone: 'UTC' });
         
         // If invalid and might be DD/MM/YYYY, try that (European format)
         if (!dateTime.isValid && (parseInt(parts[0]) > 12 || parseInt(parts[1]) > 12)) {
           const euroFormat = `${parts[1]}/${parts[0]}/${parts[2]}`;
-          dateTime = DateTime.fromFormat(euroFormat, 'M/d/yyyy', { zone: LEAD_TIMEZONE });
+          dateTime = DateTime.fromFormat(euroFormat, 'M/d/yyyy', { zone: 'UTC' });
         }
       }
     }
@@ -184,7 +190,7 @@ export class TimezoneUtils {
             dateObj.millisecond = parseInt(millisecond.padEnd(3, '0'));
           }
           
-          dateTime = DateTime.fromObject(dateObj, { zone: LEAD_TIMEZONE });
+          dateTime = DateTime.fromObject(dateObj, { zone: 'UTC' });
         } catch (error) {
           // If manual construction fails, continue to other fallbacks
         }
@@ -194,12 +200,9 @@ export class TimezoneUtils {
       if (!dateTime || !dateTime.isValid) {
         // First try parsing as-is (might have timezone info)
         dateTime = DateTime.fromISO(trimmed);
-        if (dateTime.isValid) {
-          // Convert to CST timezone
-          dateTime = dateTime.setZone(LEAD_TIMEZONE);
-        } else {
-          // If that fails, try parsing as CST
-          dateTime = DateTime.fromISO(trimmed, { zone: LEAD_TIMEZONE });
+        if (!dateTime.isValid) {
+          // If that fails, try parsing assuming UTC
+          dateTime = DateTime.fromISO(trimmed, { zone: 'UTC' });
         }
       }
     }
@@ -247,56 +250,10 @@ export class TimezoneUtils {
     return { isValid: true };
   }
 
-  /**
-   * Log date conversion for debugging
-   * @param original - Original date value
-   * @param converted - Converted UTC ISO string
-   * @param rowIndex - Optional row index
-   */
+  //Log date conversion for debugging
   private static logConversion(original: any, converted: string, rowIndex?: number): void {
     const rowInfo = rowIndex !== undefined ? ` for row ${rowIndex}` : '';
-    console.log(`[TIMEZONE] Converted${rowInfo}: "${original}" (CST) → "${converted}" (UTC)`);
-  }
-
-  /**
-   * Convert UTC ISO string back to CST for display
-   * @param utcIsoString - UTC ISO string from database
-   * @returns Date in CST timezone
-   */
-  public static convertUTCStringToCST(utcIsoString: string): Date {
-    const utcDateTime = DateTime.fromISO(utcIsoString, { zone: STORAGE_TIMEZONE });
-    const cstDateTime = utcDateTime.setZone(LEAD_TIMEZONE);
-    return cstDateTime.toJSDate();
-  }
-
-  /**
-   * Get current time in CST as ISO string
-   * @returns Current time in CST as ISO string
-   */
-  public static getCurrentCSTTimeAsISO(): string {
-    const iso = DateTime.now().setZone(LEAD_TIMEZONE).toISO();
-    return iso || '';
-  }
-
-  /**
-   * Get current time in UTC as ISO string
-   * @returns Current time in UTC as ISO string
-   */
-  public static getCurrentUTCTimeAsISO(): string {
-    const iso = DateTime.now().toUTC().toISO();
-    return iso || '';
-  }
-
-  /**
-   * Format UTC ISO string for display in CST
-   * @param utcIsoString - UTC ISO string from database
-   * @param format - Luxon format string
-   * @returns Formatted date string in CST
-   */
-  public static formatUTCStringInCST(utcIsoString: string, format: string = 'yyyy-MM-dd'): string {
-    const utcDateTime = DateTime.fromISO(utcIsoString, { zone: STORAGE_TIMEZONE });
-    const cstDateTime = utcDateTime.setZone(LEAD_TIMEZONE);
-    return cstDateTime.toFormat(format);
+    console.log(`[TIMEZONE] Converted${rowInfo}: "${original}" → "${converted}" (UTC)`);
   }
 
   /**
@@ -305,19 +262,25 @@ export class TimezoneUtils {
    * @param endDate - End date in CST (YYYY-MM-DD format)
    * @returns MongoDB query object with UTC ISO strings
    */
-  public static createDateRangeQuery(startDate: string, endDate: string): { leadDate: { $gte: string; $lte: string } } {
+  public static createDateRangeQuery(
+    startDate: string,
+    endDate: string,
+    timezone: string
+  ): { leadDate: { $gte: string; $lte: string } } {
+    const tz = timezone && typeof timezone === 'string' && timezone.trim() !== '' ? timezone : LEAD_TIMEZONE;
+
     // Convert start date to UTC
-    const startCST = DateTime.fromISO(startDate, { zone: LEAD_TIMEZONE });
-    const startUTC = startCST.toUTC().toISO();
-    
+    const startInTz = DateTime.fromISO(startDate, { zone: tz });
+    const startUTC = startInTz.toUTC().toISO();
+
     // Convert end date to UTC (end of day)
-    const endCST = DateTime.fromISO(endDate, { zone: LEAD_TIMEZONE }).endOf('day');
-    const endUTC = endCST.toUTC().toISO();
-    
+    const endInTz = DateTime.fromISO(endDate, { zone: tz }).endOf('day');
+    const endUTC = endInTz.toUTC().toISO();
+
     if (!startUTC || !endUTC) {
       throw new Error('Failed to convert dates to UTC ISO strings');
     }
-    
+
     return {
       leadDate: {
         $gte: startUTC,

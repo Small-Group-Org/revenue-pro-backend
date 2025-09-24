@@ -41,14 +41,11 @@ export class CombinedLeadService {
   async bulkCreateLeads(payloads: any[], uniquenessByPhoneEmail?: boolean) { 
     return this.leadService.bulkCreateLeads(payloads, uniquenessByPhoneEmail); 
   }
-  async getLeads(clientId?: string, startDate?: string, endDate?: string) { 
-    return this.leadService.getLeads(clientId, startDate, endDate); 
+  async getLeadsPaginated(clientId?: string, startDate?: string, endDate?: string, pagination?: any, filters?: any, timezone?: string) { 
+    return this.leadService.getLeadsPaginated(clientId, startDate, endDate, pagination, filters, timezone); 
   }
-  async getLeadsPaginated(clientId?: string, startDate?: string, endDate?: string, pagination?: any, filters?: any) { 
-    return this.leadService.getLeadsPaginated(clientId, startDate, endDate, pagination, filters); 
-  }
-  async fetchLeadFiltersAndCounts(clientId?: string, startDate?: string, endDate?: string) { 
-    return this.leadService.fetchLeadFiltersAndCounts(clientId, startDate, endDate); 
+  async fetchLeadFiltersAndCounts(clientId?: string, startDate?: string, endDate?: string, timezone?: string) { 
+    return this.leadService.fetchLeadFiltersAndCounts(clientId, startDate, endDate, timezone); 
   }
   async doesUserExist(clientId: string) { return this.leadService.doesUserExist(clientId); }
   async hasLeadData(clientId: string) { return this.leadService.hasLeadData(clientId); }
@@ -56,8 +53,8 @@ export class CombinedLeadService {
   async getAllLeadsForClient(clientId: string) { return this.leadService.getAllLeadsForClient(clientId); }
 
   // Delegate analytics operations to LeadAnalyticsService
-  async getLeadAnalytics(clientId: string, timeFilter?: any) { 
-    return this.analyticsService.getLeadAnalytics(clientId, timeFilter); 
+  async getLeadAnalytics(clientId: string, timeFilter: any, userTimeZone: string) { 
+    return this.analyticsService.getLeadAnalytics(clientId, timeFilter, userTimeZone);
   }
   async getPerformanceTables(clientId: string, commonTimeFilter?: any, adSetPage?: number, adNamePage?: number, adSetItemsPerPage?: number, adNameItemsPerPage?: number, sortOptions?: any) { 
     return this.analyticsService.getPerformanceTables(clientId, commonTimeFilter, adSetPage, adNamePage, adSetItemsPerPage, adNameItemsPerPage, sortOptions); 

@@ -12,7 +12,6 @@ export class ActualRepository {
 
   async createActual(data: IWeeklyActual): Promise<IWeeklyActualDocument> {
     const res = await this.model.create(data);
-    console.log("actual created", res);
     return res;
   }
 
@@ -24,9 +23,6 @@ export class ActualRepository {
       data,
       { new: true }
     );
-    console.clear();
-    console.log("actual updated", res);
-
     return res;
   }
 

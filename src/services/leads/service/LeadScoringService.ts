@@ -12,8 +12,7 @@ import {
   getMonthIndex,
   isEmptyValue,
   type LeadKeyField,
-  type UniqueKey,
-  getDateConversionRateFromMap
+  type UniqueKey
 } from "../utils/leads.util.js";
 
 // Types for scoring operations
@@ -62,22 +61,17 @@ export class LeadScoringService {
   async updateConversionRatesAndLeadScoresForClient(clientId: string): Promise<UpdateResult> {
     const errors: string[] = [];
     try {
-      console.log(`[CR Update] Starting update for clientId: ${clientId}`);
-      
       // 1. Fetch all leads for client
       const leads = await this.leadRepo.getLeadsByClientId(clientId);
       if (leads.length === 0) {
-        console.log(`[CR Update] No leads found for clientId: ${clientId}`);
         return { updatedConversionRates: 0, updatedLeads: 0, totalProcessedLeads: 0, errors: [] };
       }
 
       // 2. Calculate conversion rates for all unique fields
       const conversionData = this.processLeads(leads as ILead[], clientId);
-      console.log(`[CR Update] Calculated ${conversionData.length} conversion rates for clientId: ${clientId}`);
 
       // 3. Upsert conversion rates to DB
       const crUpsertResult = await this.conversionRateRepo.batchUpsertConversionRates(conversionData);
-      console.log(`[CR Update] Upserted conversion rates to DB for clientId: ${clientId} - New: ${crUpsertResult.stats.newInserts}, Updated: ${crUpsertResult.stats.updated}`);
 
       // 4. Fetch conversion rates from DB for this client
       const dbConversionRates = await this.conversionRateRepo.getConversionRates({ clientId });
@@ -92,8 +86,6 @@ export class LeadScoringService {
         const result = await this.leadRepo.bulkWriteLeads(bulkOps);
         modifiedCount = result.modifiedCount;
         console.log(`[CR Update] Updated ${modifiedCount} leads with new scores and conversionRates for clientId: ${clientId}`);
-      } else {
-        console.log(`[CR Update] No leads needed updating for clientId: ${clientId}`);
       }
 
       return {
@@ -126,7 +118,6 @@ export class LeadScoringService {
     const errors: string[] = [];
     
     try {
-      console.log(`Starting lead score recalculation for client ${clientId}`);
       
       // Get all leads for this client
       const allLeads = await this.leadRepo.getLeadsByClientId(clientId);
@@ -143,8 +134,6 @@ export class LeadScoringService {
       const conversionRates = await this.conversionRateRepo.getConversionRates({ clientId });
       
       if (conversionRates.length === 0) {
-        console.log(`No conversion rates found for client ${clientId}, setting all lead scores to 0`);
-
         const updatePayload = { 
           $set: { 
             leadScore: 0,
@@ -182,8 +171,6 @@ export class LeadScoringService {
         const result = await this.leadRepo.bulkWriteLeads(bulkOps);
         modifiedCount = result.modifiedCount;
         console.log(`Recalculated scores and conversion rates for ${modifiedCount} leads for client ${clientId}`);
-      } else {
-        console.log(`No leads needed updating for client ${clientId}`);
       }
 
       return {
@@ -250,19 +237,14 @@ export class LeadScoringService {
     );
 
     if (leadsWithoutScores.length === 0) {
-      console.log(`All leads already have lead scores for client ${clientId}`);
       return leads;
     }
-
-    console.log(`Calculating lead scores for ${leadsWithoutScores.length} leads for client ${clientId}`);
 
     try {
       // Get conversion rates for this client
       const conversionRates = await this.conversionRateRepo.getConversionRates({ clientId });
       
-      if (conversionRates.length === 0) {
-        console.log(`No conversion rates found for client ${clientId}, setting lead scores to 0`);
-        
+      if (conversionRates.length === 0) {        
         // Set all scores to 0 if no conversion rates exist
         const bulkOps = leadsWithoutScores.map(lead => ({
           updateOne: {
@@ -299,7 +281,6 @@ export class LeadScoringService {
 
       // Bulk update lead scores in database
       await this.leadRepo.bulkWriteLeads(bulkOps);
-      console.log(`Updated lead scores for ${bulkOps.length} leads`);
 
       // Update the leads array with calculated scores
       leads.forEach(lead => {
@@ -447,9 +428,8 @@ export class LeadScoringService {
     const adSetNameRate = getConversionRateFromMap(conversionRatesMap, 'adSetName', lead.adSetName || '');
     const adNameRate = getConversionRateFromMap(conversionRatesMap, 'adName', lead.adName || '');
     
-    // leadDate is now a UTC ISO string, convert to CST for month extraction
-    const cstDate = TimezoneUtils.convertUTCStringToCST(lead.leadDate);
-    const monthName = cstDate.toLocaleString("en-US", { month: "long" });
+    const dt = new Date(lead.leadDate);
+    const monthName = dt.toLocaleString("en-US", { month: "long" });
     const leadDateRate = getConversionRateFromMap(conversionRatesMap, 'leadDate', monthName);
     const zipRate = getConversionRateFromMap(conversionRatesMap, 'zip', lead.zip || '');
 
