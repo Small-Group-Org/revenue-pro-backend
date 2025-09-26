@@ -194,25 +194,6 @@ export class LeadService {
   // ============= QUERY OPERATIONS =============
 
   /**
-   * Get leads with optional filtering
-   */
-  async getLeads(
-    clientId?: string,
-    startDate?: string,
-    endDate?: string
-  ): Promise<ILeadDocument[]> {
-    const query: any = {};
-    if (clientId) query.clientId = clientId;
-    if (startDate && endDate)
-      query.leadDate = { $gte: startDate, $lte: endDate };
-    else if (startDate) query.leadDate = { $gte: startDate };
-    else if (endDate) query.leadDate = { $lte: endDate };
-
-    const leads = await this.leadRepo.getSortedLeads(query);
-    return leads as ILeadDocument[];
-  }
-
-  /**
    * Get paginated leads with sorting and filtering
    */
   async getLeadsPaginated(
@@ -220,7 +201,8 @@ export class LeadService {
     startDate?: string,
     endDate?: string,
     pagination: PaginationOptions = { page: 1, limit: 50, sortBy: 'date', sortOrder: 'desc' },
-    filters: FilterOptions = {}
+    filters: FilterOptions = {},
+    timezone: string = 'UTC'
   ): Promise<PaginatedLeadsResult> {
     const query: any = {};
 
@@ -229,7 +211,7 @@ export class LeadService {
 
     // Date filter - use timezone-aware date range query
     if (startDate || endDate) {
-      query.leadDate = this.createDateRangeQuery(startDate, endDate);
+      query.leadDate = this.createDateRangeQuery(startDate, endDate, timezone);
     }
 
     // Filters
@@ -276,7 +258,8 @@ export class LeadService {
   async fetchLeadFiltersAndCounts(
     clientId?: string,
     startDate?: string,
-    endDate?: string
+    endDate?: string,
+    timezone?: string
   ): Promise<{
     filterOptions: {
       services: string[];
@@ -296,7 +279,7 @@ export class LeadService {
     if (clientId) query.clientId = clientId;
 
     if (startDate || endDate) {
-      query.leadDate = this.createDateRangeQuery(startDate, endDate);
+      query.leadDate = this.createDateRangeQuery(startDate, endDate, timezone);
     }
 
     const { 
@@ -376,17 +359,17 @@ export class LeadService {
   /**
    * Create date range query for timezone-aware filtering
    */
-  private createDateRangeQuery(startDate?: string, endDate?: string): any {
+  private createDateRangeQuery(startDate?: string, endDate?: string, timezone: string = 'UTC'): any {
     if (!startDate && !endDate) return {};
     
     if (startDate && endDate) {
-      const dateRange = TimezoneUtils.createDateRangeQuery(startDate, endDate);
+      const dateRange = TimezoneUtils.createDateRangeQuery(startDate, endDate, timezone);
       return dateRange.leadDate;
     } else if (startDate) {
-      const dateRange = TimezoneUtils.createDateRangeQuery(startDate, startDate);
+      const dateRange = TimezoneUtils.createDateRangeQuery(startDate, startDate, timezone);
       return { $gte: dateRange.leadDate.$gte };
     } else if (endDate) {
-      const dateRange = TimezoneUtils.createDateRangeQuery(endDate, endDate);
+      const dateRange = TimezoneUtils.createDateRangeQuery(endDate, endDate, timezone);
       return { $lte: dateRange.leadDate.$lte };
     }
     

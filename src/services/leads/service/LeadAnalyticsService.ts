@@ -70,7 +70,8 @@ export class LeadAnalyticsService {
    */
   async getLeadAnalytics(
     clientId: string,
-    timeFilter: TimeFilterOptions['timeFilter'] = 'all'
+    timeFilter: TimeFilterOptions['timeFilter'] = 'all',
+    userTimeZone: string
   ): Promise<AnalyticsResult> {
     // Build time filter query
     const query: any = { clientId };
@@ -81,7 +82,7 @@ export class LeadAnalyticsService {
       case 'this_month': {
         const startDate = fmt(startOfMonth(now));
         const endDate = fmt(endOfMonth(now));
-        const dateRangeQuery = TimezoneUtils.createDateRangeQuery(startDate, endDate);
+        const dateRangeQuery = TimezoneUtils.createDateRangeQuery(startDate, endDate, userTimeZone);
         query.leadDate = dateRangeQuery.leadDate;
         break;
       }
@@ -90,7 +91,7 @@ export class LeadAnalyticsService {
         const lastMonth = subMonths(now, 1);
         const startDate = fmt(startOfMonth(lastMonth));
         const endDate = fmt(endOfMonth(lastMonth));
-        const dateRangeQuery = TimezoneUtils.createDateRangeQuery(startDate, endDate);
+        const dateRangeQuery = TimezoneUtils.createDateRangeQuery(startDate, endDate, userTimeZone);
         query.leadDate = dateRangeQuery.leadDate;
         break;
       }
@@ -98,7 +99,7 @@ export class LeadAnalyticsService {
       case 'this_quarter': {
         const startDate = fmt(startOfQuarter(now));
         const endDate = fmt(endOfQuarter(now));
-        const dateRangeQuery = TimezoneUtils.createDateRangeQuery(startDate, endDate);
+        const dateRangeQuery = TimezoneUtils.createDateRangeQuery(startDate, endDate, userTimeZone);
         query.leadDate = dateRangeQuery.leadDate;
         break;
       }
@@ -107,7 +108,7 @@ export class LeadAnalyticsService {
         const lastQuarter = subQuarters(now, 1);
         const startDate = fmt(startOfQuarter(lastQuarter));
         const endDate = fmt(endOfQuarter(lastQuarter));
-        const dateRangeQuery = TimezoneUtils.createDateRangeQuery(startDate, endDate);
+        const dateRangeQuery = TimezoneUtils.createDateRangeQuery(startDate, endDate, userTimeZone);
         query.leadDate = dateRangeQuery.leadDate;
         break;
       }
@@ -115,7 +116,7 @@ export class LeadAnalyticsService {
       case 'this_year': {
         const startDate = fmt(startOfYear(now));
         const endDate = fmt(endOfYear(now));
-        const dateRangeQuery = TimezoneUtils.createDateRangeQuery(startDate, endDate);
+        const dateRangeQuery = TimezoneUtils.createDateRangeQuery(startDate, endDate, userTimeZone);
         query.leadDate = dateRangeQuery.leadDate;
         break;
       }
@@ -124,17 +125,14 @@ export class LeadAnalyticsService {
         const lastYear = subYears(now, 1);
         const startDate = fmt(startOfYear(lastYear));
         const endDate = fmt(endOfYear(lastYear));
-        const dateRangeQuery = TimezoneUtils.createDateRangeQuery(startDate, endDate);
+        const dateRangeQuery = TimezoneUtils.createDateRangeQuery(startDate, endDate, userTimeZone);
         query.leadDate = dateRangeQuery.leadDate;
         break;
       }
     }
 
-    console.log("Analytics query", query);
-
     // Fetch filtered leads
     const leads = await this.leadRepo.findLeads(query);
-    console.log("Analytics leads count", leads.length);
 
     if (leads.length === 0) {
       return this.getEmptyAnalyticsResult();
@@ -273,9 +271,9 @@ export class LeadAnalyticsService {
    */
   private async processDayOfWeekAnalysis(leads: any[]) {
     const dayOfWeekAnalysis = leads.reduce((acc, lead) => {
-      // Convert UTC ISO string to CST for day of week calculation
-      const cstDate = TimezoneUtils.convertUTCStringToCST(lead.leadDate);
-      const dayOfWeek = cstDate.toLocaleDateString('en-US', { weekday: 'long' });
+      // Use stored timestamp as-is for day of week calculation
+      const dt = new Date(lead.leadDate);
+      const dayOfWeek = dt.toLocaleDateString('en-US', { weekday: 'long' });
       if (!acc[dayOfWeek]) {
         acc[dayOfWeek] = { total: 0, estimateSet: 0 };
       }
@@ -303,9 +301,8 @@ export class LeadAnalyticsService {
    */
   private async processLeadDateAnalysis(estimateSetLeads: any[], estimateSetCount: number) {
     const leadDateAnalysis = estimateSetLeads.reduce((acc, lead) => {
-      // Convert UTC ISO string to CST for date analysis
-      const cstDate = TimezoneUtils.convertUTCStringToCST(lead.leadDate);
-      const date = cstDate.toLocaleDateString('en-US', { 
+      const dt = new Date(lead.leadDate);
+      const date = dt.toLocaleDateString('en-US', { 
         month: 'short', 
         day: 'numeric' 
       });

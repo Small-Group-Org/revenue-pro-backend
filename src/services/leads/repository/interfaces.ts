@@ -17,7 +17,6 @@ export interface ILeadRepository {
   getLeadsByClientId(clientId: string): Promise<Partial<ILead>[]>;
   getLeadsByDateRange(start: string, end: string): Promise<ILeadDocument[]>;
   findLeads(query?: Partial<ILead>): Promise<Partial<ILead>[]>;
-  getSortedLeads(query?: Partial<ILead>): Promise<Partial<ILead>[]>;
   
   // Bulk operations
   insertMany(leads: ILead[]): Promise<ILeadDocument[]>;

@@ -1,0 +1,22 @@
+name: Sync DB   # 👈 this is the button/workflow name shown in GitHub Actions
+
+on:
+  workflow_dispatch:  # 👈 makes it manual, adds "Run workflow" button
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Install MongoDB Tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y mongodb-database-tools
+
+      - name: Dump Prod DB
+        run: |
+          mongodump --uri="${{ secrets.MONGO_PROD_URI }}" --out=./dump
+
+      - name: Restore into Dev DB
+        run: |
+          mongorestore --uri="${{ secrets.MONGO_DEV_URI }}" --drop ./dump

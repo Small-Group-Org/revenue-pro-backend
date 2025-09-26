@@ -109,9 +109,7 @@ export class DateUtils {
   }
 
   // Test function to verify getMonthWeeks works
-  static testGetMonthWeeks() {
-    console.log("=== Testing getMonthWeeks ===");
-    
+  static testGetMonthWeeks() {    
     const testCases = [
       { start: "2025-01-01", end: "2025-01-31" },
       { start: "2025-02-01", end: "2025-02-28" },
