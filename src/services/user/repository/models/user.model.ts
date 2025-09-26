@@ -33,7 +33,7 @@ const userSchema = new Schema<IUser, IUserModel>(
     },
     status: {
       type: String,
-      enum: ['active', 'deleted'],
+      enum: ['active', 'deleted', 'inactive'],
       default: 'active',
     },
     deletedAt: {

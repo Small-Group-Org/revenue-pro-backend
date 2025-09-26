@@ -91,6 +91,9 @@ export class LeadAggregationRepository implements ILeadAggregationRepository {
           total: { $sum: 1 },
           estimateSet: {
             $sum: { $cond: [{ $eq: ['$status', 'estimate_set'] }, 1, 0] }
+          },
+          unqualified: {
+            $sum: { $cond: [{ $eq: ['$status', 'unqualified'] }, 1, 0] }
           }
         }
       },
@@ -99,10 +102,15 @@ export class LeadAggregationRepository implements ILeadAggregationRepository {
           adSetName: '$_id',
           total: 1,
           estimateSet: 1,
+          unqualified: 1,
           percentage: {
-            $multiply: [
-              { $divide: ['$estimateSet', '$total'] },
-              100
+            $cond: [
+              { $gt: [ { $add: ['$estimateSet', '$unqualified'] }, 0 ] },
+              { $multiply: [
+                { $divide: ['$estimateSet', { $add: ['$estimateSet', '$unqualified'] }] },
+                100
+              ] },
+              0
             ]
           },
           _id: 0
@@ -170,6 +178,9 @@ export class LeadAggregationRepository implements ILeadAggregationRepository {
           total: { $sum: 1 },
           estimateSet: {
             $sum: { $cond: [{ $eq: ['$status', 'estimate_set'] }, 1, 0] }
+          },
+          unqualified: {
+            $sum: { $cond: [{ $eq: ['$status', 'unqualified'] }, 1, 0] }
           }
         }
       },
@@ -179,10 +190,15 @@ export class LeadAggregationRepository implements ILeadAggregationRepository {
           adSetName: '$_id.adSetName',
           total: 1,
           estimateSet: 1,
+          unqualified: 1,
           percentage: {
-            $multiply: [
-              { $divide: ['$estimateSet', '$total'] },
-              100
+            $cond: [
+              { $gt: [ { $add: ['$estimateSet', '$unqualified'] }, 0 ] },
+              { $multiply: [
+                { $divide: ['$estimateSet', { $add: ['$estimateSet', '$unqualified'] }] },
+                100
+              ] },
+              0
             ]
           },
           _id: 0
