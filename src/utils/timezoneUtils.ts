@@ -15,15 +15,7 @@ export interface DateConversionResult {
 }
 
 export class TimezoneUtils {
-  /**
-   * Extract and validate timezone from request headers
-   */
-  public static extractTimeZoneFromHeader(headerValue?: string): string {
-    if (!headerValue || typeof headerValue !== 'string' || headerValue.trim() === '') {
-      throw new Error('X-Timezone header is required');
-    }
-    return headerValue;
-  }
+
   /**
    * Convert an incoming lead date to UTC ISO string preserving provided timezone when present.
    * If no timezone info is present, assume UTC.
