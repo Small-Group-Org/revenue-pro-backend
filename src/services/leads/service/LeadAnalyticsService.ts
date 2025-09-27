@@ -70,52 +70,17 @@ export class LeadAnalyticsService {
    */
   async getLeadAnalytics(
     clientId: string,
-    timeFilter: TimeFilterOptions['timeFilter'] = 'all',
-    userTimeZone: string
+    startDate?: string,
+    endDate?: string
   ): Promise<AnalyticsResult> {
-    // Build time filter query
+    // Build query with clientId and date range
     const query: any = { clientId };
-    const now = new Date();
-    const fmt = (d: Date) => format(d, 'yyyy-MM-dd');
 
-    // Helper function to apply date range to query
-    const applyDateRange = (startDate: string, endDate: string) => {
-      const dateRangeQuery = TimezoneUtils.createDateRangeQuery(startDate, endDate, userTimeZone);
-      if (dateRangeQuery.leadDate) {
-        query.leadDate = dateRangeQuery.leadDate;
-      }
-    };
-
-    switch (timeFilter) {
-      case 'this_month':
-        applyDateRange(fmt(startOfMonth(now)), fmt(endOfMonth(now)));
-        break;
-
-      case 'last_month': {
-        const lastMonth = subMonths(now, 1);
-        applyDateRange(fmt(startOfMonth(lastMonth)), fmt(endOfMonth(lastMonth)));
-        break;
-      }
-
-      case 'this_quarter':
-        applyDateRange(fmt(startOfQuarter(now)), fmt(endOfQuarter(now)));
-        break;
-
-      case 'last_quarter': {
-        const lastQuarter = subQuarters(now, 1);
-        applyDateRange(fmt(startOfQuarter(lastQuarter)), fmt(endOfQuarter(lastQuarter)));
-        break;
-      }
-
-      case 'this_year':
-        applyDateRange(fmt(startOfYear(now)), fmt(endOfYear(now)));
-        break;
-
-      case 'last_year': {
-        const lastYear = subYears(now, 1);
-        applyDateRange(fmt(startOfYear(lastYear)), fmt(endOfYear(lastYear)));
-        break;
-      }
+    // Directly use startDate and endDate as UTC ISO strings
+    if (startDate || endDate) {
+      query.leadDate = {};
+      if (startDate) query.leadDate.$gte = startDate;
+      if (endDate) query.leadDate.$lte = endDate;
     }
 
     // Fetch filtered leads
@@ -135,8 +100,8 @@ export class LeadAnalyticsService {
    */
   async getPerformanceTables(
     clientId: string,
-    commonTimeFilter: 'all' | '7' | '14' | '30' | '60' = 'all',
-    userTimeZone: string = 'UTC',
+    startDate?: string,
+    endDate?: string,
     adSetPage: number = 1,
     adNamePage: number = 1,
     adSetItemsPerPage: number = 15,
@@ -149,17 +114,14 @@ export class LeadAnalyticsService {
       showTopRanked?: boolean;
     }
   ): Promise<PaginatedPerformanceResult> {
-    // Build time filter query
+    // Build query with clientId and date range
     const query: any = { clientId };
-    
-    if (commonTimeFilter !== 'all') {
-      const daysAgo = new Date();
-      daysAgo.setDate(daysAgo.getDate() - parseInt(commonTimeFilter));
-      const startDate = format(daysAgo, 'yyyy-MM-dd');
-      const dateRangeQuery = TimezoneUtils.createDateRangeQuery(startDate, undefined, userTimeZone);
-      if (dateRangeQuery.leadDate) {
-        query.leadDate = dateRangeQuery.leadDate;
-      }
+
+    // Directly use startDate and endDate as UTC ISO strings
+    if (startDate || endDate) {
+      query.leadDate = {};
+      if (startDate) query.leadDate.$gte = startDate;
+      if (endDate) query.leadDate.$lte = endDate;
     }
 
     // Use aggregation pipelines for better performance
