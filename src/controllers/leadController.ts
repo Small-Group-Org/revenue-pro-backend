@@ -288,18 +288,12 @@ if (req.query.clientId) {
         typeof req.query.clientId === "string" ? req.query.clientId : undefined;
       const { timeFilter = 'all' } = req.query;
       const userTimeZoneHeader = req.header('X-Timezone');
-      if (!userTimeZoneHeader || typeof userTimeZoneHeader !== 'string' || userTimeZoneHeader.trim() === '') {
-        utils.sendErrorResponse(res, {
-          message: 'X-Timezone header is required',
-          statusCode: 400
-        });
-        return;
-      }
+      const timezone = TimezoneUtils.extractTimeZoneFromHeader(userTimeZoneHeader);
 
       const analytics = await this.service.getLeadAnalytics(
       clientId as string, 
       timeFilter as any,
-      userTimeZoneHeader
+      timezone
     );
     res.json({
       success: true,
@@ -329,17 +323,12 @@ if (req.query.clientId) {
     } = req.query;
 
     const userTimeZoneHeader = req.header('X-Timezone');
-    if (!userTimeZoneHeader || typeof userTimeZoneHeader !== 'string' || userTimeZoneHeader.trim() === '') {
-      utils.sendErrorResponse(res, {
-        message: 'X-Timezone header is required',
-        statusCode: 400
-      });
-      return;
-    }
+    const timezone = TimezoneUtils.extractTimeZoneFromHeader(userTimeZoneHeader);
 
     const performanceData = await this.service.getPerformanceTables(
       clientId as string,
       commonTimeFilter as any,
+      timezone,
       parseInt(adSetPage as string),
       parseInt(adNamePage as string),
       parseInt(adSetItemsPerPage as string),

@@ -56,8 +56,8 @@ export class CombinedLeadService {
   async getLeadAnalytics(clientId: string, timeFilter: any, userTimeZone: string) { 
     return this.analyticsService.getLeadAnalytics(clientId, timeFilter, userTimeZone);
   }
-  async getPerformanceTables(clientId: string, commonTimeFilter?: any, adSetPage?: number, adNamePage?: number, adSetItemsPerPage?: number, adNameItemsPerPage?: number, sortOptions?: any) { 
-    return this.analyticsService.getPerformanceTables(clientId, commonTimeFilter, adSetPage, adNamePage, adSetItemsPerPage, adNameItemsPerPage, sortOptions); 
+  async getPerformanceTables(clientId: string, commonTimeFilter?: any, userTimeZone?: string, adSetPage?: number, adNamePage?: number, adSetItemsPerPage?: number, adNameItemsPerPage?: number, sortOptions?: any) { 
+    return this.analyticsService.getPerformanceTables(clientId, commonTimeFilter, userTimeZone, adSetPage, adNamePage, adSetItemsPerPage, adNameItemsPerPage, sortOptions); 
   }
 
   // Delegate scoring operations to LeadScoringService

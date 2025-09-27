@@ -78,55 +78,42 @@ export class LeadAnalyticsService {
     const now = new Date();
     const fmt = (d: Date) => format(d, 'yyyy-MM-dd');
 
-    switch (timeFilter) {
-      case 'this_month': {
-        const startDate = fmt(startOfMonth(now));
-        const endDate = fmt(endOfMonth(now));
-        const dateRangeQuery = TimezoneUtils.createDateRangeQuery(startDate, endDate, userTimeZone);
+    // Helper function to apply date range to query
+    const applyDateRange = (startDate: string, endDate: string) => {
+      const dateRangeQuery = TimezoneUtils.createDateRangeQuery(startDate, endDate, userTimeZone);
+      if (dateRangeQuery.leadDate) {
         query.leadDate = dateRangeQuery.leadDate;
-        break;
       }
+    };
+
+    switch (timeFilter) {
+      case 'this_month':
+        applyDateRange(fmt(startOfMonth(now)), fmt(endOfMonth(now)));
+        break;
 
       case 'last_month': {
         const lastMonth = subMonths(now, 1);
-        const startDate = fmt(startOfMonth(lastMonth));
-        const endDate = fmt(endOfMonth(lastMonth));
-        const dateRangeQuery = TimezoneUtils.createDateRangeQuery(startDate, endDate, userTimeZone);
-        query.leadDate = dateRangeQuery.leadDate;
+        applyDateRange(fmt(startOfMonth(lastMonth)), fmt(endOfMonth(lastMonth)));
         break;
       }
 
-      case 'this_quarter': {
-        const startDate = fmt(startOfQuarter(now));
-        const endDate = fmt(endOfQuarter(now));
-        const dateRangeQuery = TimezoneUtils.createDateRangeQuery(startDate, endDate, userTimeZone);
-        query.leadDate = dateRangeQuery.leadDate;
+      case 'this_quarter':
+        applyDateRange(fmt(startOfQuarter(now)), fmt(endOfQuarter(now)));
         break;
-      }
 
       case 'last_quarter': {
         const lastQuarter = subQuarters(now, 1);
-        const startDate = fmt(startOfQuarter(lastQuarter));
-        const endDate = fmt(endOfQuarter(lastQuarter));
-        const dateRangeQuery = TimezoneUtils.createDateRangeQuery(startDate, endDate, userTimeZone);
-        query.leadDate = dateRangeQuery.leadDate;
+        applyDateRange(fmt(startOfQuarter(lastQuarter)), fmt(endOfQuarter(lastQuarter)));
         break;
       }
 
-      case 'this_year': {
-        const startDate = fmt(startOfYear(now));
-        const endDate = fmt(endOfYear(now));
-        const dateRangeQuery = TimezoneUtils.createDateRangeQuery(startDate, endDate, userTimeZone);
-        query.leadDate = dateRangeQuery.leadDate;
+      case 'this_year':
+        applyDateRange(fmt(startOfYear(now)), fmt(endOfYear(now)));
         break;
-      }
 
       case 'last_year': {
         const lastYear = subYears(now, 1);
-        const startDate = fmt(startOfYear(lastYear));
-        const endDate = fmt(endOfYear(lastYear));
-        const dateRangeQuery = TimezoneUtils.createDateRangeQuery(startDate, endDate, userTimeZone);
-        query.leadDate = dateRangeQuery.leadDate;
+        applyDateRange(fmt(startOfYear(lastYear)), fmt(endOfYear(lastYear)));
         break;
       }
     }
@@ -149,6 +136,7 @@ export class LeadAnalyticsService {
   async getPerformanceTables(
     clientId: string,
     commonTimeFilter: 'all' | '7' | '14' | '30' | '60' = 'all',
+    userTimeZone: string = 'UTC',
     adSetPage: number = 1,
     adNamePage: number = 1,
     adSetItemsPerPage: number = 15,
@@ -167,7 +155,11 @@ export class LeadAnalyticsService {
     if (commonTimeFilter !== 'all') {
       const daysAgo = new Date();
       daysAgo.setDate(daysAgo.getDate() - parseInt(commonTimeFilter));
-      query.leadDate = { $gte: daysAgo.toISOString().split('T')[0] };
+      const startDate = format(daysAgo, 'yyyy-MM-dd');
+      const dateRangeQuery = TimezoneUtils.createDateRangeQuery(startDate, undefined, userTimeZone);
+      if (dateRangeQuery.leadDate) {
+        query.leadDate = dateRangeQuery.leadDate;
+      }
     }
 
     // Use aggregation pipelines for better performance
