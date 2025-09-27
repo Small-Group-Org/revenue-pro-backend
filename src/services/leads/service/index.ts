@@ -41,11 +41,11 @@ export class CombinedLeadService {
   async bulkCreateLeads(payloads: any[], uniquenessByPhoneEmail?: boolean) { 
     return this.leadService.bulkCreateLeads(payloads, uniquenessByPhoneEmail); 
   }
-  async getLeadsPaginated(clientId?: string, startDate?: string, endDate?: string, pagination?: any, filters?: any, timezone?: string) { 
-    return this.leadService.getLeadsPaginated(clientId, startDate, endDate, pagination, filters, timezone); 
+  async getLeadsPaginated(clientId?: string, startDate?: string, endDate?: string, pagination?: any, filters?: any) { 
+    return this.leadService.getLeadsPaginated(clientId, startDate, endDate, pagination, filters); 
   }
-  async fetchLeadFiltersAndCounts(clientId?: string, startDate?: string, endDate?: string, timezone?: string) { 
-    return this.leadService.fetchLeadFiltersAndCounts(clientId, startDate, endDate, timezone); 
+  async fetchLeadFiltersAndCounts(clientId?: string, startDate?: string, endDate?: string) { 
+    return this.leadService.fetchLeadFiltersAndCounts(clientId, startDate, endDate); 
   }
   async doesUserExist(clientId: string) { return this.leadService.doesUserExist(clientId); }
   async hasLeadData(clientId: string) { return this.leadService.hasLeadData(clientId); }
@@ -53,11 +53,11 @@ export class CombinedLeadService {
   async getAllLeadsForClient(clientId: string) { return this.leadService.getAllLeadsForClient(clientId); }
 
   // Delegate analytics operations to LeadAnalyticsService
-  async getLeadAnalytics(clientId: string, timeFilter: any, userTimeZone: string) { 
-    return this.analyticsService.getLeadAnalytics(clientId, timeFilter, userTimeZone);
+  async getLeadAnalytics(clientId: string, startDate?: string, endDate?: string) { 
+    return this.analyticsService.getLeadAnalytics(clientId, startDate, endDate);
   }
-  async getPerformanceTables(clientId: string, commonTimeFilter?: any, userTimeZone?: string, adSetPage?: number, adNamePage?: number, adSetItemsPerPage?: number, adNameItemsPerPage?: number, sortOptions?: any) { 
-    return this.analyticsService.getPerformanceTables(clientId, commonTimeFilter, userTimeZone, adSetPage, adNamePage, adSetItemsPerPage, adNameItemsPerPage, sortOptions); 
+  async getPerformanceTables(clientId: string, startDate?: string, endDate?: string, adSetPage?: number, adNamePage?: number, adSetItemsPerPage?: number, adNameItemsPerPage?: number, sortOptions?: any) { 
+    return this.analyticsService.getPerformanceTables(clientId, startDate, endDate, adSetPage, adNamePage, adSetItemsPerPage, adNameItemsPerPage, sortOptions); 
   }
 
   // Delegate scoring operations to LeadScoringService

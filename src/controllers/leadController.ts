@@ -144,8 +144,6 @@ if (req.query.clientId) {
    */
   async getLeadsPaginated(req: Request, res: Response): Promise<void> {
     try {
-      const userTimeZoneHeader = req.header('X-Timezone');
-      const timezone = TimezoneUtils.extractTimeZoneFromHeader(userTimeZoneHeader);
       const clientId =
         typeof req.query.clientId === "string" ? req.query.clientId : undefined;
       const startDate =
@@ -183,7 +181,6 @@ if (req.query.clientId) {
         endDate,
         { page, limit, sortBy, sortOrder },
         filters,
-        timezone
       );
 
       // Fetch grouped conversion rates for frontend
@@ -237,8 +234,6 @@ if (req.query.clientId) {
 
   async getLeadFiltersAndCounts(req: Request, res: Response): Promise<void> {
     try {
-      const userTimeZoneHeader = req.header('X-Timezone');
-      const timezone = TimezoneUtils.extractTimeZoneFromHeader(userTimeZoneHeader);
       // Check if clientId is missing or empty
       if (!req.query.clientId) {
         utils.sendErrorResponse(res, {
@@ -270,7 +265,6 @@ if (req.query.clientId) {
         clientId,
         startDate,
         endDate,
-        timezone
       );
       utils.sendSuccessResponse(res, 200, {
         success: true,
@@ -286,19 +280,20 @@ if (req.query.clientId) {
     try {
       const clientId =
         typeof req.query.clientId === "string" ? req.query.clientId : undefined;
-      const { timeFilter = 'all' } = req.query;
-      const userTimeZoneHeader = req.header('X-Timezone');
-      const timezone = TimezoneUtils.extractTimeZoneFromHeader(userTimeZoneHeader);
+      const startDate =
+        typeof req.query.startDate === "string" ? req.query.startDate : undefined;
+      const endDate =
+        typeof req.query.endDate === "string" ? req.query.endDate : undefined;
 
       const analytics = await this.service.getLeadAnalytics(
-      clientId as string, 
-      timeFilter as any,
-      timezone
-    );
-    res.json({
-      success: true,
-      data: analytics
-    });
+        clientId as string,
+        startDate,
+        endDate
+      );
+      res.json({
+        success: true,
+        data: analytics
+      });
     } catch (error) {
       console.error("Error in getAnalytics", error);
       utils.sendErrorResponse(res, error);
@@ -309,36 +304,34 @@ if (req.query.clientId) {
   try {
     const clientId =
       typeof req.query.clientId === "string" ? req.query.clientId : undefined;
-    const {
-      commonTimeFilter = 'all',
-      adSetPage = '1',
-      adNamePage = '1',
-      adSetItemsPerPage = '15',
-      adNameItemsPerPage = '10',
-      adSetSortField = 'estimateSet',
-      adSetSortOrder = 'desc',
-      adNameSortField = 'estimateSet',
-      adNameSortOrder = 'desc',
-      showTopRanked = 'false'
-    } = req.query;
-
-    const userTimeZoneHeader = req.header('X-Timezone');
-    const timezone = TimezoneUtils.extractTimeZoneFromHeader(userTimeZoneHeader);
+    const startDate =
+      typeof req.query.startDate === "string" ? req.query.startDate : undefined;
+    const endDate =
+      typeof req.query.endDate === "string" ? req.query.endDate : undefined;
+    const adSetPage = req.query.adSetPage ? parseInt(req.query.adSetPage as string, 15) : 1;
+    const adNamePage = req.query.adNamePage ? parseInt(req.query.adNamePage as string, 10) : 1;
+    const adSetItemsPerPage = req.query.adSetItemsPerPage ? parseInt(req.query.adSetItemsPerPage as string, 10) : 15;
+    const adNameItemsPerPage = req.query.adNameItemsPerPage ? parseInt(req.query.adNameItemsPerPage as string, 10) : 10;
+    const adSetSortField = req.query.adSetSortField as 'adSetName' | 'total' | 'estimateSet' | 'percentage' | undefined;
+    const adSetSortOrder = req.query.adSetSortOrder as 'asc' | 'desc' | undefined;
+    const adNameSortField = req.query.adNameSortField as 'adName' | 'total' | 'estimateSet' | 'percentage' | undefined;
+    const adNameSortOrder = req.query.adNameSortOrder as 'asc' | 'desc' | undefined;
+    const showTopRanked = req.query.showTopRanked === 'true';
 
     const performanceData = await this.service.getPerformanceTables(
       clientId as string,
-      commonTimeFilter as any,
-      timezone,
-      parseInt(adSetPage as string),
-      parseInt(adNamePage as string),
-      parseInt(adSetItemsPerPage as string),
-      parseInt(adNameItemsPerPage as string),
+      startDate,
+      endDate,
+      adSetPage,
+      adNamePage,
+      adSetItemsPerPage,
+      adNameItemsPerPage,
       {
-        adSetSortField: adSetSortField as any,
-        adSetSortOrder: adSetSortOrder as any,
-        adNameSortField: adNameSortField as any,
-        adNameSortOrder: adNameSortOrder as any,
-        showTopRanked: showTopRanked === 'true'
+        adSetSortField,
+        adSetSortOrder,
+        adNameSortField,
+        adNameSortOrder,
+        showTopRanked
       }
     );
 
