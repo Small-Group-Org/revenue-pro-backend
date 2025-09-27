@@ -202,7 +202,6 @@ export class LeadService {
     endDate?: string,
     pagination: PaginationOptions = { page: 1, limit: 50, sortBy: 'date', sortOrder: 'desc' },
     filters: FilterOptions = {},
-    timezone: string = 'UTC'
   ): Promise<PaginatedLeadsResult> {
     const query: any = {};
 
@@ -211,7 +210,10 @@ export class LeadService {
 
     // Date filter - use timezone-aware date range query
     if (startDate || endDate) {
-      query.leadDate = this.createDateRangeQuery(startDate, endDate, timezone);
+      const dateRange = createDateRangeQuery(startDate, endDate);
+      if (dateRange.leadDate) {
+        query.leadDate = dateRange.leadDate;
+      }
     }
 
     // Filters
@@ -259,7 +261,6 @@ export class LeadService {
     clientId?: string,
     startDate?: string,
     endDate?: string,
-    timezone?: string
   ): Promise<{
     filterOptions: {
       services: string[];
@@ -279,7 +280,10 @@ export class LeadService {
     if (clientId) query.clientId = clientId;
 
     if (startDate || endDate) {
-      query.leadDate = this.createDateRangeQuery(startDate, endDate, timezone);
+      const dateRange = createDateRangeQuery(startDate, endDate);
+      if (dateRange.leadDate) {
+        query.leadDate = dateRange.leadDate;
+      }
     }
 
     const { 
@@ -354,25 +358,21 @@ export class LeadService {
     return leads as ILead[];
   }
 
-  // ============= PRIVATE HELPER METHODS =============
+}
 
-  /**
-   * Create date range query for timezone-aware filtering
-   */
-  private createDateRangeQuery(startDate?: string, endDate?: string, timezone: string = 'UTC'): any {
-    if (!startDate && !endDate) return {};
-    
-    if (startDate && endDate) {
-      const dateRange = TimezoneUtils.createDateRangeQuery(startDate, endDate, timezone);
-      return dateRange.leadDate;
-    } else if (startDate) {
-      const dateRange = TimezoneUtils.createDateRangeQuery(startDate, startDate, timezone);
-      return { $gte: dateRange.leadDate.$gte };
-    } else if (endDate) {
-      const dateRange = TimezoneUtils.createDateRangeQuery(endDate, endDate, timezone);
-      return { $lte: dateRange.leadDate.$lte };
-    }
-    
+// Add this utility function in LeadService.ts or a utils file
+function createDateRangeQuery(startDate?: string, endDate?: string): { leadDate?: { $gte?: string; $lte?: string } } {
+  if (!startDate && !endDate) {
     return {};
   }
+  const result: { leadDate?: { $gte?: string; $lte?: string } } = {};
+  if (startDate) {
+    if (!result.leadDate) result.leadDate = {};
+    result.leadDate.$gte = startDate;
+  }
+  if (endDate) {
+    if (!result.leadDate) result.leadDate = {};
+    result.leadDate.$lte = endDate;
+  }
+  return result;
 }

@@ -1,22 +1,31 @@
-name: Sync DB   # 👈 this is the button/workflow name shown in GitHub Actions
+name: Sync DB   # This shows as the button in Actions
 
 on:
-  workflow_dispatch:  # 👈 makes it manual, adds "Run workflow" button
+  workflow_dispatch:   # Manual trigger
 
 jobs:
   sync:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Install MongoDB Tools
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y mongodb-database-tools
+      # Step 1: Checkout your repository (needed for mounting the folder)
+      - name: Checkout repo
+        uses: actions/checkout@v3
 
-      - name: Dump Prod DB
-        run: |
-          mongodump --uri="${{ secrets.MONGO_PROD_URI }}" --out=./dump
+      # Step 2: Create a temporary folder for the Mongo dump
+      - name: Create dump folder
+        run: mkdir -p $PWD/mongodump
 
-      - name: Restore into Dev DB
+      # Step 3: Dump and restore using MongoDB Docker
+      - name: Dump & Restore MongoDB
         run: |
-          mongorestore --uri="${{ secrets.MONGO_DEV_URI }}" --drop ./dump
+          docker run --rm -v $PWD/mongodump:/dump mongo:7 bash -c "
+            echo 'Dumping production database...'
+            mongodump --uri='${{ secrets.MONGO_PROD_URI }}' --archive=/dump/dump.gz --gzip &&
+            echo 'Restoring to development database...'
+            mongorestore --uri='${{ secrets.MONGO_DEV_URI }}' --archive=/dump/dump.gz --gzip --drop
+          "
+
+      # Step 4: Clean up temporary dump folder (optional)
+      - name: Clean up dump folder
+        run: rm -rf $PWD/mongodump

@@ -258,35 +258,51 @@ export class TimezoneUtils {
 
   /**
    * Create a date range query for MongoDB using ISO strings
-   * @param startDate - Start date in CST (YYYY-MM-DD format)
-   * @param endDate - End date in CST (YYYY-MM-DD format)
-   * @returns MongoDB query object with UTC ISO strings
+   * @param startDate - Start date in timezone (YYYY-MM-DD format), optional
+   * @param endDate - End date in timezone (YYYY-MM-DD format), optional
+   * @param timezone - Timezone for date conversion, defaults to LEAD_TIMEZONE
+   * @returns MongoDB query object with UTC ISO strings, or empty object if no dates provided
    */
   public static createDateRangeQuery(
-    startDate: string,
-    endDate: string,
-    timezone: string
-  ): { leadDate: { $gte: string; $lte: string } } {
-    const tz = timezone && typeof timezone === 'string' && timezone.trim() !== '' ? timezone : LEAD_TIMEZONE;
-
-    // Convert start date to UTC
-    const startInTz = DateTime.fromISO(startDate, { zone: tz });
-    const startUTC = startInTz.toUTC().toISO();
-
-    // Convert end date to UTC (end of day)
-    const endInTz = DateTime.fromISO(endDate, { zone: tz }).endOf('day');
-    const endUTC = endInTz.toUTC().toISO();
-
-    if (!startUTC || !endUTC) {
-      throw new Error('Failed to convert dates to UTC ISO strings');
+    startDate?: string,
+    endDate?: string,
+    timezone: string = LEAD_TIMEZONE
+  ): { leadDate?: { $gte?: string; $lte?: string } } {
+    // Return empty object if no dates provided
+    if (!startDate && !endDate) {
+      return {};
     }
 
-    return {
-      leadDate: {
-        $gte: startUTC,
-        $lte: endUTC
+    const tz = timezone && typeof timezone === 'string' && timezone.trim() !== '' ? timezone : LEAD_TIMEZONE;
+    const result: { leadDate?: { $gte?: string; $lte?: string } } = {};
+
+    // Handle start date
+    if (startDate) {
+      const startInTz = DateTime.fromISO(startDate, { zone: tz });
+      const startUTC = startInTz.toUTC().toISO();
+      
+      if (!startUTC) {
+        throw new Error(`Failed to convert start date '${startDate}' to UTC ISO string`);
       }
-    };
+      
+      if (!result.leadDate) result.leadDate = {};
+      result.leadDate.$gte = startUTC;
+    }
+
+    // Handle end date
+    if (endDate) {
+      const endInTz = DateTime.fromISO(endDate, { zone: tz }).endOf('day');
+      const endUTC = endInTz.toUTC().toISO();
+      
+      if (!endUTC) {
+        throw new Error(`Failed to convert end date '${endDate}' to UTC ISO string`);
+      }
+      
+      if (!result.leadDate) result.leadDate = {};
+      result.leadDate.$lte = endUTC;
+    }
+
+    return result;
   }
 }
 
