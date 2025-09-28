@@ -145,7 +145,10 @@ export class LeadAnalyticsService {
     const totalLeads = leads.length;
     const estimateSetCount = leads.filter(lead => lead.status === 'estimate_set').length;
     const unqualifiedCount = leads.filter(lead => lead.status === 'unqualified').length;
-    const estimateSetRate = ((estimateSetCount / (unqualifiedCount + estimateSetCount)) * 100).toFixed(1);
+    let estimateSetRate = ((estimateSetCount / (unqualifiedCount + estimateSetCount)) * 100).toFixed(1);
+    if (isNaN(Number(estimateSetRate))) {
+      estimateSetRate = '0.0';
+    }
 
     // Process each analytics section in parallel
     const [zipData, serviceData, leadDateData, dayOfWeekData, ulrData] = await Promise.all([
