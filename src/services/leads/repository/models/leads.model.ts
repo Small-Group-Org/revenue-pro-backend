@@ -7,7 +7,7 @@ const leadSchema = new Schema<ILeadDocument>(
     name: { type: String, required: true },
     email: { type: String, required: false, default: '' },
     phone: { type: String, required: false, default: '' },
-    zip: { type: String, required: false, default: '' },
+    zip: { type: String, required: true },
     service: { type: String, required: true },
     adSetName: { type: String, required: true },
     adName: { type: String, required: true },

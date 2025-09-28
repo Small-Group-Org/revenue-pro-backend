@@ -57,6 +57,13 @@ export class LeadService {
    * Create a single lead
    */
   async createLead(payload: ILead): Promise<ILeadDocument> {
+    // Validate required fields
+    if (!payload.clientId || !payload.service || !payload.zip || !payload.zip.trim() || 
+        !payload.adSetName || !payload.adName || !payload.name || !payload.leadDate ||
+        (!payload.phone && !payload.email)) {
+      throw new Error('Missing required fields: clientId, service, zip, adSetName, adName, name, leadDate, and at least phone or email');
+    }
+    
     return await this.leadRepo.createLead(payload);
   }
 
@@ -112,8 +119,8 @@ export class LeadService {
       if (!result) throw new Error("Failed to update lead");
       return result;
     } else {
-      if (!payload.clientId || !payload.service || !payload.adSetName || !payload.adName || (!payload.phone && !payload.email)) {
-        throw new Error('Missing required fields: clientId, service, adSetName, adName, and at least phone or email');
+      if (!payload.clientId || !payload.service || !payload.zip || !payload.zip.trim() || !payload.adSetName || !payload.adName || (!payload.phone && !payload.email)) {
+        throw new Error('Missing required fields: clientId, service, zip, adSetName, adName, and at least phone or email');
       }
       
       const newLeadPayload = { ...payload };
@@ -138,6 +145,31 @@ export class LeadService {
       documents: [], 
       stats: { total: 0, newInserts: 0, duplicatesUpdated: 0 }
     };
+
+    // Validate all leads before processing
+    const invalidLeads: string[] = [];
+    payloads.forEach((lead, index) => {
+      const missingFields: string[] = [];
+      
+      if (!lead.clientId) missingFields.push('clientId');
+      if (!lead.service) missingFields.push('service');
+      if (!lead.zip || lead.zip.trim() === '') missingFields.push('zip');
+      if (!lead.adSetName) missingFields.push('adSetName');
+      if (!lead.adName) missingFields.push('adName');
+      if (!lead.name) missingFields.push('name');
+      if (!lead.leadDate) missingFields.push('leadDate');
+      if ((!lead.phone || lead.phone.trim() === '') && (!lead.email || lead.email.trim() === '')) {
+        missingFields.push('phone or email');
+      }
+      
+      if (missingFields.length > 0) {
+        invalidLeads.push(`Lead ${index + 1}: Missing ${missingFields.join(', ')}`);
+      }
+    });
+
+    if (invalidLeads.length > 0) {
+      throw new Error(`Invalid leads found:\n${invalidLeads.join('\n')}`);
+    }
 
     // Build operations based on uniqueness flag
     const bulkOps = payloads.map(lead => {

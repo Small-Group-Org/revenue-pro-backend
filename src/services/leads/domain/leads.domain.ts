@@ -7,7 +7,7 @@ export interface ILead {
   name: string;
   email?: string;
   phone?: string;
-  zip?: string;
+  zip: string;
   service: string;
   adSetName: string;
   adName: string;
