@@ -2,20 +2,7 @@ import { ILead } from "../domain/leads.domain.js";
 import { ILeadRepository, ILeadAggregationRepository } from "../repository/interfaces.js";
 import { leadRepository } from "../repository/LeadRepository.js";
 import { leadAggregationRepository } from "../repository/LeadAggregationRepository.js";
-import { TimezoneUtils } from "../../../utils/timezoneUtils.js";
-import { TimeFilter } from "../../../types/timeFilter.js";
 import { ANALYTICS } from "../utils/config.js";
-import { 
-  startOfMonth, endOfMonth, 
-  startOfQuarter, endOfQuarter, 
-  startOfYear, endOfYear, 
-  subMonths, subQuarters, subYears, format
-} from 'date-fns';
-
-// Types for analytics
-interface TimeFilterOptions {
-  timeFilter: TimeFilter;
-}
 
 interface AnalyticsResult {
   overview: {
@@ -23,12 +10,12 @@ interface AnalyticsResult {
     estimateSetCount: number;
     unqualifiedCount: number;
     estimateSetRate: string;
+    estimateSetPercent: string;
   };
-  zipData: Array<{ zip: string; count: number; percentage: string }>;
-  serviceData: Array<{ service: string; count: number; percentage: string }>;
-  leadDateData: Array<{ date: string; count: number; percentage: string }>;
-  dayOfWeekData: Array<{ day: string; total: number; estimateSet: number; percentage: string }>;
-  ulrData: Array<{ reason: string; count: number; percentage: string }>;
+  zipData: Array<{ zip: string; estimateSetCount: number; estimateSetRate: string }>;
+  serviceData: Array<{ service: string; estimateSetCount: number; estimateSetRate: string }>;
+  dayOfWeekData: Array<{ day: string; totalLeads: number; estimateSetCount: number; estimateSetRate: string }>;
+  ulrData: Array<{ reason: string; totalLeads: number; percentage: string }>;
 }
 
 interface PaginatedPerformanceResult {
@@ -149,12 +136,12 @@ export class LeadAnalyticsService {
     if (isNaN(Number(estimateSetRate))) {
       estimateSetRate = '0.0';
     }
+    let estimateSetPercent = totalLeads > 0 ? ((estimateSetCount / totalLeads) * 100).toFixed(1) : '0.0';
 
     // Process each analytics section in parallel
-    const [zipData, serviceData, leadDateData, dayOfWeekData, ulrData] = await Promise.all([
+    const [zipData, serviceData, dayOfWeekData, ulrData] = await Promise.all([
       this.processZipAnalysis(leads),
       this.processServiceAnalysis(leads),
-      this.processLeadDateAnalysis(leads),
       this.processDayOfWeekAnalysis(leads),
       this.processUnqualifiedReasonsAnalysis(
         leads.filter(lead => lead.status === 'unqualified'),
@@ -163,10 +150,9 @@ export class LeadAnalyticsService {
     ]);
 
     return {
-      overview: { totalLeads, estimateSetCount, unqualifiedCount, estimateSetRate },
+      overview: { totalLeads, estimateSetCount, unqualifiedCount, estimateSetRate, estimateSetPercent },
       zipData,
       serviceData,
-      leadDateData,
       dayOfWeekData,
       ulrData
     };
@@ -189,17 +175,19 @@ export class LeadAnalyticsService {
         const denominator = estimateSet + unqualified;
         return {
           zip,
-          count: estimateSet,
-          percentage: denominator > 0 ? ((estimateSet / denominator) * 100).toFixed(1) : '0.0'
+          estimateSetCount: estimateSet,
+          estimateSetRate: denominator > 0 ? ((estimateSet / denominator) * 100).toFixed(1) : '0.0'
         };
       })
-      .sort((a, b) => b.count - a.count);
+      .sort((a, b) => b.estimateSetCount - a.estimateSetCount);
   }
 
   /**
    * Process service analysis
    */
   private async processServiceAnalysis(leads: any[]) {
+    // Calculate total estimate_set for the client
+    const clientEstimateSetCount = leads.filter(lead => lead.status === 'estimate_set').length;
     const serviceGroups: Record<string, { estimateSet: number; unqualified: number }> = {};
     for (const lead of leads) {
       if (!lead.service) continue;
@@ -209,14 +197,17 @@ export class LeadAnalyticsService {
     }
     return Object.entries(serviceGroups)
       .map(([service, { estimateSet, unqualified }]) => {
+        // estimateSetRate: ratio of estimate_set to (estimate_set + unqualified)
+        //percentage: estimateSetOfService/TotalEstimateSet
         const denominator = estimateSet + unqualified;
         return {
           service,
-          count: estimateSet,
-          percentage: denominator > 0 ? ((estimateSet / denominator) * 100).toFixed(1) : '0.0'
+          estimateSetCount: estimateSet,
+          estimateSetRate: denominator > 0 ? ((estimateSet / denominator) * 100).toFixed(1) : '0.0',
+          percentage: clientEstimateSetCount > 0 ? ((estimateSet / clientEstimateSetCount) * 100).toFixed(1) : '0.0'
         };
       })
-      .sort((a, b) => b.count - a.count);
+      .sort((a, b) => b.estimateSetCount - a.estimateSetCount);
   }
 
   /**
@@ -224,15 +215,23 @@ export class LeadAnalyticsService {
    */
   private async processDayOfWeekAnalysis(leads: any[]) {
     const dayOfWeekAnalysis = leads.reduce((acc, lead) => {
-      // Use stored timestamp as-is for day of week calculation
+      if (!lead.leadDate) {
+        return acc; // Skip if no date
+      }
       const dt = new Date(lead.leadDate);
+      if (isNaN(dt.getTime())) {
+        return acc; // Skip if invalid date
+      }
       const dayOfWeek = dt.toLocaleDateString('en-US', { weekday: 'long' });
       if (!acc[dayOfWeek]) {
-        acc[dayOfWeek] = { total: 0, estimateSet: 0 };
+        acc[dayOfWeek] = { total: 0, estimateSet: 0, unqualified: 0 };
       }
       acc[dayOfWeek].total += 1;
       if (lead.status === 'estimate_set') {
         acc[dayOfWeek].estimateSet += 1;
+      }
+      if (lead.status === 'unqualified') {
+        acc[dayOfWeek].unqualified += 1;
       }
       return acc;
     }, {});
@@ -240,38 +239,17 @@ export class LeadAnalyticsService {
     return Object.entries(dayOfWeekAnalysis)
       .map(([day, data]: [string, any]) => ({
         day,
-        total: data.total,
-        estimateSet: data.estimateSet,
-        percentage: data.total > 0 ? ((data.estimateSet / data.total) * 100).toFixed(1) : '0.0'
+        totalLeads: data.total,
+        estimateSetCount: data.estimateSet,
+        estimateSetRate: (data.estimateSet + data.unqualified) > 0
+          ? ((data.estimateSet / (data.estimateSet + data.unqualified)) * 100).toFixed(1)
+          : '0.0'
       }))
       .sort((a, b) => {
         return ANALYTICS.DAY_ORDER.indexOf(a.day as any) - ANALYTICS.DAY_ORDER.indexOf(b.day as any);
       });
   }
 
-  /**
-   * Process lead date analysis
-   */
-  private async processLeadDateAnalysis(leads: any[]) {
-    const dateGroups: Record<string, { estimateSet: number; unqualified: number }> = {};
-    for (const lead of leads) {
-      const dt = new Date(lead.leadDate);
-      const date = dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-      if (!dateGroups[date]) dateGroups[date] = { estimateSet: 0, unqualified: 0 };
-      if (lead.status === 'estimate_set') dateGroups[date].estimateSet += 1;
-      if (lead.status === 'unqualified') dateGroups[date].unqualified += 1;
-    }
-    return Object.entries(dateGroups)
-      .map(([date, { estimateSet, unqualified }]) => {
-        const denominator = estimateSet + unqualified;
-        return {
-          date,
-          count: estimateSet,
-          percentage: denominator > 0 ? ((estimateSet / denominator) * 100).toFixed(1) : '0.0'
-        };
-      })
-      .sort((a, b) => new Date(a.date + ', 2024').getTime() - new Date(b.date + ', 2024').getTime());
-  }
 
   /**
    * Process unqualified reasons analysis
@@ -288,10 +266,10 @@ export class LeadAnalyticsService {
     return Object.entries(ulrAnalysis)
       .map(([reason, count]: [string, any]) => ({
         reason,
-        count,
+        totalLeads: count,
         percentage: unqualifiedCount > 0 ? ((count / unqualifiedCount) * 100).toFixed(1) : '0.0'
       }))
-      .sort((a, b) => b.count - a.count);
+      .sort((a, b) => b.totalLeads - a.totalLeads);
   }
 
   // ============= PERFORMANCE METHODS =============
@@ -327,7 +305,8 @@ export class LeadAnalyticsService {
     return {
       data: data.map(item => ({
         ...item,
-        percentage: item.percentage.toFixed(1)
+        estimateSetRate: item.percentage.toFixed(1),
+        percentage: undefined,
       })),
       pagination: {
         currentPage: page,
@@ -371,7 +350,8 @@ export class LeadAnalyticsService {
     return {
       data: data.map(item => ({
         ...item,
-        percentage: item.percentage.toFixed(1)
+        estimateSetRate: item.percentage.toFixed(1),
+        percentage: undefined,
       })),
       pagination: {
         currentPage: page,
@@ -391,10 +371,9 @@ export class LeadAnalyticsService {
    */
   private getEmptyAnalyticsResult(): AnalyticsResult {
     return {
-      overview: { totalLeads: 0, estimateSetCount: 0, unqualifiedCount: 0, estimateSetRate: '0.0' },
+      overview: { totalLeads: 0, estimateSetCount: 0, unqualifiedCount: 0, estimateSetRate: '0.0', estimateSetPercent: '0.0' },
       zipData: [],
       serviceData: [],
-      leadDateData: [],
       dayOfWeekData: [],
       ulrData: []
     };
