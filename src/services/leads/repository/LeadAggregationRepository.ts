@@ -100,7 +100,7 @@ export class LeadAggregationRepository implements ILeadAggregationRepository {
       {
         $project: {
           adSetName: '$_id',
-          total: 1,
+          totalLeads: '$total',
           estimateSet: 1,
           unqualified: 1,
           percentage: {
@@ -188,7 +188,7 @@ export class LeadAggregationRepository implements ILeadAggregationRepository {
         $project: {
           adName: '$_id.adName',
           adSetName: '$_id.adSetName',
-          total: 1,
+          totalLeads: '$total',
           estimateSet: 1,
           unqualified: 1,
           percentage: {
