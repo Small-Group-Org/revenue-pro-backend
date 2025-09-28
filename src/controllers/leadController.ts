@@ -173,7 +173,10 @@ if (req.query.clientId) {
         filters.status = req.query.status.trim();
       if (typeof req.query.unqualifiedLeadReason === "string")
         filters.unqualifiedLeadReason = req.query.unqualifiedLeadReason.trim();
-
+      if (typeof req.query.name === "string" && req.query.name.trim() !== "") {
+        // Add regex for partial name search (case-insensitive)
+        filters.name = { $regex: req.query.name.trim(), $options: "i" };
+      }      
       // Fetch paginated leads
       const result = await this.service.getLeadsPaginated(
         clientId,
