@@ -287,11 +287,14 @@ if (req.query.clientId) {
         typeof req.query.startDate === "string" ? req.query.startDate : undefined;
       const endDate =
         typeof req.query.endDate === "string" ? req.query.endDate : undefined;
+      const sort =
+        typeof req.query.sort === "string" ? req.query.sort : undefined;
 
       const analytics = await this.service.getLeadAnalytics(
         clientId as string,
         startDate,
-        endDate
+        endDate,
+        sort
       );
       res.json({
         success: true,

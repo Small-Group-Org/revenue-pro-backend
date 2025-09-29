@@ -58,7 +58,8 @@ export class LeadAnalyticsService {
   async getLeadAnalytics(
     clientId: string,
     startDate?: string,
-    endDate?: string
+    endDate?: string,
+    sort?: string
   ): Promise<AnalyticsResult> {
     // Build query with clientId and date range
     const query: any = { clientId };
@@ -78,7 +79,7 @@ export class LeadAnalyticsService {
     }
 
     // Process analytics
-    const analytics = await this.processLeadAnalytics(leads);
+    const analytics = await this.processLeadAnalytics(leads, sort);
     return analytics;
   }
 
@@ -128,7 +129,7 @@ export class LeadAnalyticsService {
   /**
    * Process lead analytics using aggregation
    */
-  private async processLeadAnalytics(leads: any[]): Promise<AnalyticsResult> {
+  private async processLeadAnalytics(leads: any[], sort?: string): Promise<AnalyticsResult> {
     const totalLeads = leads.length;
     const estimateSetCount = leads.filter(lead => lead.status === 'estimate_set').length;
     const unqualifiedCount = leads.filter(lead => lead.status === 'unqualified').length;
@@ -140,7 +141,7 @@ export class LeadAnalyticsService {
 
     // Process each analytics section in parallel
     const [zipData, serviceData, dayOfWeekData, ulrData] = await Promise.all([
-      this.processZipAnalysis(leads),
+      this.processZipAnalysis(leads, sort),
       this.processServiceAnalysis(leads),
       this.processDayOfWeekAnalysis(leads),
       this.processUnqualifiedReasonsAnalysis(
@@ -161,7 +162,7 @@ export class LeadAnalyticsService {
   /**
    * Process ZIP code analysis
    */
-  private async processZipAnalysis(leads: any[]) {
+  private async processZipAnalysis(leads: any[], sort?: string) {
     // Group by zip
     const zipGroups: Record<string, { estimateSet: number; unqualified: number; totalJobBookedAmount: number; totalProposalAmount: number }> = {};
     for (const lead of leads) {
@@ -182,7 +183,7 @@ export class LeadAnalyticsService {
         zipGroups[lead.zip].totalProposalAmount += lead.proposalAmount;
       }
     }
-    return Object.entries(zipGroups)
+    const zipResults = Object.entries(zipGroups)
       .map(([zip, { estimateSet, unqualified, totalJobBookedAmount, totalProposalAmount }]) => {
         const denominator = estimateSet + unqualified;
         return {
@@ -192,8 +193,14 @@ export class LeadAnalyticsService {
           jobBookedAmount: Math.round(totalJobBookedAmount * 100) / 100,
           proposalAmount: Math.round(totalProposalAmount * 100) / 100
         };
-      })
-      .sort((a, b) => b.estimateSetCount - a.estimateSetCount);
+      });
+
+    // Apply sorting based on sort parameter
+    if (sort === 'jobBooked_zip') {
+      return zipResults.sort((a, b) => b.jobBookedAmount - a.jobBookedAmount);
+    } else {
+      return zipResults.sort((a, b) => b.estimateSetCount - a.estimateSetCount);
+    }
   }
 
   /**
