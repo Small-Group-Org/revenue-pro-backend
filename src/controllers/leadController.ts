@@ -315,9 +315,9 @@ if (req.query.clientId) {
     const adNamePage = req.query.adNamePage ? parseInt(req.query.adNamePage as string, 10) : 1;
     const adSetItemsPerPage = req.query.adSetItemsPerPage ? parseInt(req.query.adSetItemsPerPage as string, 10) : 15;
     const adNameItemsPerPage = req.query.adNameItemsPerPage ? parseInt(req.query.adNameItemsPerPage as string, 10) : 10;
-    const adSetSortField = req.query.adSetSortField as 'adSetName' | 'total' | 'estimateSet' | 'percentage' | undefined;
+    const adSetSortField = req.query.adSetSortField as 'adSetName' | 'total' | 'estimateSet' | 'percentage' | 'totalJobBookedAmount' | 'totalProposalAmount' | undefined;
     const adSetSortOrder = req.query.adSetSortOrder as 'asc' | 'desc' | undefined;
-    const adNameSortField = req.query.adNameSortField as 'adName' | 'total' | 'estimateSet' | 'percentage' | undefined;
+    const adNameSortField = req.query.adNameSortField as 'adName' | 'total' | 'estimateSet' | 'percentage' | 'totalJobBookedAmount' | 'totalProposalAmount' | undefined;
     const adNameSortOrder = req.query.adNameSortOrder as 'asc' | 'desc' | undefined;
     const showTopRanked = req.query.showTopRanked === 'true';
 
