@@ -19,6 +19,8 @@ const leadSchema = new Schema<ILeadDocument>(
     },
     clientId: { type: String, required: true },
     unqualifiedLeadReason: { type: String, default: '' },
+    proposalAmount: { type: Number, required: false, default: 0 },
+    jobBookedAmount: { type: Number, required: false, default: 0 },
     leadScore: { type: Number, required: false },
     conversionRates: {
       type: Object,

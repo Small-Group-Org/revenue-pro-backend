@@ -59,21 +59,56 @@ export class LeadService {
    */
   async updateLead(
     id: string,
-    data: Partial<Pick<ILead, "status" | "unqualifiedLeadReason">>
+    data: Partial<Pick<ILead, "status" | "unqualifiedLeadReason" | "proposalAmount" | "jobBookedAmount">>
   ): Promise<ILeadDocument> {
     const existing = await this.leadRepo.getLeadById(id);
     if (!existing) throw new Error("Lead not found");
 
-    if (typeof data.status !== "undefined") {
+    // Validate amounts if provided
+    if (data.proposalAmount) {
+      if (typeof data.proposalAmount !== "number" || data.proposalAmount < 0 || !isFinite(data.proposalAmount)) {
+        throw new Error("proposalAmount must be a non-negative finite number");
+      }
+    }
+    
+    if (data.jobBookedAmount) {
+      if (typeof data.jobBookedAmount !== "number" || data.jobBookedAmount < 0 || !isFinite(data.jobBookedAmount)) {
+        throw new Error("jobBookedAmount must be a non-negative finite number");
+      }
+    }
+
+    if (data.status) {
       existing.status = data.status;
       // Clear unqualifiedLeadReason if status is not "unqualified"
       if (data.status !== 'unqualified') {
         existing.unqualifiedLeadReason = '';
       }
+      
+      // Reset proposal and job amounts if status is not "estimate_set"
+      // But preserve existing values if status is changing TO estimate_set
+      if (data.status !== 'estimate_set') {
+        existing.proposalAmount = 0;
+        existing.jobBookedAmount = 0;
+      }
     }
 
-    if (typeof data.unqualifiedLeadReason !== "undefined") {
+    if (data.unqualifiedLeadReason) {
       existing.unqualifiedLeadReason = data.unqualifiedLeadReason;
+    }
+
+    // Only allow proposalAmount and jobBookedAmount to be set when status is "estimate_set"
+    if (existing.status === 'estimate_set') {
+      if (data.proposalAmount) {
+        existing.proposalAmount = data.proposalAmount;
+      }
+      if (data.jobBookedAmount) {
+        existing.jobBookedAmount = data.jobBookedAmount;
+      }
+    } else {
+      // Warn if user tries to set amounts when status doesn't allow it
+      if (data.proposalAmount || data.jobBookedAmount) {
+        throw new Error("proposalAmount and jobBookedAmount can only be set when status is 'estimate_set'");
+      }
     }
 
     await existing.save();
@@ -102,9 +137,15 @@ export class LeadService {
       updatePayload.leadScore = existingLead.leadScore;
       updatePayload.conversionRates = existingLead.conversionRates;
       
+      // Handle proposalAmount and jobBookedAmount based on status
+      if (updatePayload.status !== 'estimate_set') {
+        updatePayload.proposalAmount = 0;
+        updatePayload.jobBookedAmount = 0;
+      }
+      
       const result = await this.leadRepo.updateLead(query, updatePayload);
       if (!result) throw new Error("Failed to update lead");
-      return result;
+      return this.normalizeLeadAmounts(result);
     } else {
       if (!payload.clientId || !payload.service || !payload.zip || !payload.adSetName || !payload.adName || (!payload.phone && !payload.email)) {
         throw new Error('Missing required fields: clientId, service, zip, adSetName, adName, and at least phone or email');
@@ -114,6 +155,10 @@ export class LeadService {
       // Note: Lead scoring will be handled by LeadScoringService
       newLeadPayload.leadScore = 0;
       newLeadPayload.conversionRates = {};
+      
+      // Initialize proposalAmount and jobBookedAmount based on status
+      newLeadPayload.proposalAmount = newLeadPayload.status === 'estimate_set' ? (newLeadPayload.proposalAmount ?? 0) : 0;
+      newLeadPayload.jobBookedAmount = newLeadPayload.status === 'estimate_set' ? (newLeadPayload.jobBookedAmount ?? 0) : 0;
 
       return await this.leadRepo.upsertLead(query, newLeadPayload);
     }
@@ -239,7 +284,7 @@ export class LeadService {
     const totalPages = Math.max(1, Math.ceil(totalCount / pagination.limit));
 
     return {
-      leads,
+      leads: leads.map(lead => this.normalizeLeadAmounts(lead)),
       pagination: {
         currentPage: pagination.page,
         totalPages,
@@ -352,7 +397,28 @@ export class LeadService {
    */
   async getAllLeadsForClient(clientId: string): Promise<ILead[]> {
     const leads = await this.leadRepo.getLeadsByClientId(clientId);
-    return leads as ILead[];
+    return leads.map(lead => this.normalizeLeadAmounts(lead)) as ILead[];
+  }
+
+  // ============= HELPER METHODS =============
+
+  /**
+   * Normalize lead amounts for backward compatibility
+   * Returns 0 for proposalAmount and jobBookedAmount if they don't exist or are invalid
+   */
+  private normalizeLeadAmounts(lead: any): any {
+    const normalizeAmount = (value: any): number => {
+      if (typeof value === 'number' && isFinite(value) && value >= 0) {
+        return value;
+      }
+      return 0;
+    };
+
+    return {
+      ...lead,
+      proposalAmount: normalizeAmount(lead.proposalAmount),
+      jobBookedAmount: normalizeAmount(lead.jobBookedAmount)
+    };
   }
 
 }

@@ -94,6 +94,12 @@ export class LeadAggregationRepository implements ILeadAggregationRepository {
           },
           unqualified: {
             $sum: { $cond: [{ $eq: ['$status', 'unqualified'] }, 1, 0] }
+          },
+          totalJobBookedAmount: {
+            $sum: { $cond: [{ $gt: ['$jobBookedAmount', 0] }, '$jobBookedAmount', 0] }
+          },
+          totalProposalAmount: {
+            $sum: { $cond: [{ $gt: ['$proposalAmount', 0] }, '$proposalAmount', 0] }
           }
         }
       },
@@ -103,6 +109,8 @@ export class LeadAggregationRepository implements ILeadAggregationRepository {
           totalLeads: '$total',
           estimateSet: 1,
           unqualified: 1,
+          jobBookedAmount: { $round: ['$totalJobBookedAmount', 2] },
+          proposalAmount: { $round: ['$totalProposalAmount', 2] },
           percentage: {
             $cond: [
               { $gt: [ { $add: ['$estimateSet', '$unqualified'] }, 0 ] },
@@ -181,6 +189,12 @@ export class LeadAggregationRepository implements ILeadAggregationRepository {
           },
           unqualified: {
             $sum: { $cond: [{ $eq: ['$status', 'unqualified'] }, 1, 0] }
+          },
+          totalJobBookedAmount: {
+            $sum: { $cond: [{ $gt: ['$jobBookedAmount', 0] }, '$jobBookedAmount', 0] }
+          },
+          totalProposalAmount: {
+            $sum: { $cond: [{ $gt: ['$proposalAmount', 0] }, '$proposalAmount', 0] }
           }
         }
       },
@@ -191,6 +205,8 @@ export class LeadAggregationRepository implements ILeadAggregationRepository {
           totalLeads: '$total',
           estimateSet: 1,
           unqualified: 1,
+          jobBookedAmount: { $round: ['$totalJobBookedAmount', 2] },
+          proposalAmount: { $round: ['$totalProposalAmount', 2] },
           percentage: {
             $cond: [
               { $gt: [ { $add: ['$estimateSet', '$unqualified'] }, 0 ] },

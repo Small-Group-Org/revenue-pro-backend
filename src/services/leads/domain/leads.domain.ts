@@ -14,6 +14,8 @@ export interface ILead {
   status: LeadStatus;
   clientId: string;
   unqualifiedLeadReason?: string;
+  proposalAmount?: number; // only when status is 'estimate_set'
+  jobBookedAmount?: number; // only when status is 'estimate_set'
   leadScore?: number; // calculated lead score
   conversionRates?: {
     service?: number;
