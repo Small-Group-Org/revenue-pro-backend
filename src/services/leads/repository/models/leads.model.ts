@@ -7,7 +7,7 @@ const leadSchema = new Schema<ILeadDocument>(
     name: { type: String, required: true },
     email: { type: String, required: false, default: '' },
     phone: { type: String, required: false, default: '' },
-    zip: { type: String, required: false, default: '' },
+    zip: { type: String, required: true },
     service: { type: String, required: true },
     adSetName: { type: String, required: true },
     adName: { type: String, required: true },
@@ -19,6 +19,8 @@ const leadSchema = new Schema<ILeadDocument>(
     },
     clientId: { type: String, required: true },
     unqualifiedLeadReason: { type: String, default: '' },
+    proposalAmount: { type: Number, required: false, default: 0 },
+    jobBookedAmount: { type: Number, required: false, default: 0 },
     leadScore: { type: Number, required: false },
     conversionRates: {
       type: Object,

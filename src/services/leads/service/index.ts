@@ -34,7 +34,6 @@ export class CombinedLeadService {
   }
 
   // Delegate CRUD operations to LeadService
-  async createLead(payload: any) { return this.leadService.createLead(payload); }
   async updateLead(id: string, data: any) { return this.leadService.updateLead(id, data); }
   async deleteLeads(ids: string[]) { return this.leadService.deleteLeads(ids); }
   async upsertLead(query: any, payload: any) { return this.leadService.upsertLead(query, payload); }
@@ -53,8 +52,8 @@ export class CombinedLeadService {
   async getAllLeadsForClient(clientId: string) { return this.leadService.getAllLeadsForClient(clientId); }
 
   // Delegate analytics operations to LeadAnalyticsService
-  async getLeadAnalytics(clientId: string, startDate?: string, endDate?: string) { 
-    return this.analyticsService.getLeadAnalytics(clientId, startDate, endDate);
+  async getLeadAnalytics(clientId: string, startDate?: string, endDate?: string, sort?: string) { 
+    return this.analyticsService.getLeadAnalytics(clientId, startDate, endDate, sort);
   }
   async getPerformanceTables(clientId: string, startDate?: string, endDate?: string, adSetPage?: number, adNamePage?: number, adSetItemsPerPage?: number, adNameItemsPerPage?: number, sortOptions?: any) { 
     return this.analyticsService.getPerformanceTables(clientId, startDate, endDate, adSetPage, adNamePage, adSetItemsPerPage, adNameItemsPerPage, sortOptions); 

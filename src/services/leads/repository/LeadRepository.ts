@@ -10,9 +10,6 @@ export class LeadRepository implements ILeadRepository {
   }
 
   // Basic CRUD operations
-  async createLead(data: ILead): Promise<ILeadDocument> {
-    return await LeadModel.create({ ...data, isDeleted: false });
-  }
 
   async updateLead(
     queryOrId: string | Partial<Pick<ILeadDocument, "clientId" | "adSetName" | "email" | "phone" | "service" | "adName" | "zip">>,

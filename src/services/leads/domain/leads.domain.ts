@@ -7,13 +7,15 @@ export interface ILead {
   name: string;
   email?: string;
   phone?: string;
-  zip?: string;
+  zip: string;
   service: string;
   adSetName: string;
   adName: string;
   status: LeadStatus;
   clientId: string;
   unqualifiedLeadReason?: string;
+  proposalAmount?: number; // only when status is 'estimate_set'
+  jobBookedAmount?: number; // only when status is 'estimate_set'
   leadScore?: number; // calculated lead score
   conversionRates?: {
     service?: number;

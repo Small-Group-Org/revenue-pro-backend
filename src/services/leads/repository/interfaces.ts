@@ -4,7 +4,6 @@ import { IConversionRate, IConversionRateDocument } from './models/conversionRat
 // Lead Repository Interface
 export interface ILeadRepository {
   // Basic CRUD operations
-  createLead(data: ILead): Promise<ILeadDocument>;
   updateLead(
     queryOrId: string | Partial<Pick<ILeadDocument, "clientId" | "adSetName" | "email" | "phone" | "service" | "adName" | "zip">>,
     update: Partial<ILead>

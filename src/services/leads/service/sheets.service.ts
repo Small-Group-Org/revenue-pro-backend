@@ -25,6 +25,7 @@ export interface SkipReasons {
   missingService: number;
   missingAdSetName: number;
   missingAdName: number;
+  missingZip: number;
   invalidRowStructure: number;
   processingErrors: number;
   total: number;
@@ -197,6 +198,7 @@ export class SheetsService {
       missingService: 0,
       missingAdSetName: 0,
       missingAdName: 0,
+      missingZip: 0,
       invalidRowStructure: 0,
       processingErrors: 0,
       total: 0
@@ -219,11 +221,13 @@ export class SheetsService {
       const serviceValue = row["Service"];
       const adSetNameValue = row["Ad Set Name"];
       const adNameValue = row["Ad Name"];
+      const zipValue = row["Zip"];
       
       const hasName = nameValue && String(nameValue).trim();
       const hasService = serviceValue && String(serviceValue).trim();
       const hasAdSetName = adSetNameValue && String(adSetNameValue).trim();
       const hasAdName = adNameValue && String(adNameValue).trim();
+      const hasZip = zipValue && String(zipValue).trim();
       
       // Track specific missing fields
       let shouldSkip = false;
@@ -249,6 +253,12 @@ export class SheetsService {
       
       if (!hasAdName) {
         skipReasons.missingAdName++;
+        if (!shouldSkip) skipReasons.total++;
+        shouldSkip = true;
+      }
+      
+      if (!hasZip) {
+        skipReasons.missingZip++;
         if (!shouldSkip) skipReasons.total++;
         shouldSkip = true;
       }
@@ -296,6 +306,7 @@ export class SheetsService {
       ...(skipReasons.missingService > 0 ? [`${skipReasons.missingService} rows missing Service`] : []),
       ...(skipReasons.missingAdSetName > 0 ? [`${skipReasons.missingAdSetName} rows missing Ad Set Name`] : []),
       ...(skipReasons.missingAdName > 0 ? [`${skipReasons.missingAdName} rows missing Ad Name`] : []),
+      ...(skipReasons.missingZip > 0 ? [`${skipReasons.missingZip} rows missing Zip`] : []),
       ...(skipReasons.invalidRowStructure > 0 ? [`${skipReasons.invalidRowStructure} rows with invalid structure`] : []),
       ...(skipReasons.processingErrors > 0 ? [`${skipReasons.processingErrors} rows with processing errors`] : [])
     ];
