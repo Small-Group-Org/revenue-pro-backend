@@ -64,19 +64,6 @@ export class LeadService {
     const existing = await this.leadRepo.getLeadById(id);
     if (!existing) throw new Error("Lead not found");
 
-    // Validate amounts if provided
-    if (data.proposalAmount) {
-      if (typeof data.proposalAmount !== "number" || data.proposalAmount < 0 || !isFinite(data.proposalAmount)) {
-        throw new Error("proposalAmount must be a non-negative finite number");
-      }
-    }
-    
-    if (data.jobBookedAmount) {
-      if (typeof data.jobBookedAmount !== "number" || data.jobBookedAmount < 0 || !isFinite(data.jobBookedAmount)) {
-        throw new Error("jobBookedAmount must be a non-negative finite number");
-      }
-    }
-
     if (data.status) {
       existing.status = data.status;
       // Clear unqualifiedLeadReason if status is not "unqualified"
@@ -98,15 +85,17 @@ export class LeadService {
 
     // Only allow proposalAmount and jobBookedAmount to be set when status is "estimate_set"
     if (existing.status === 'estimate_set') {
-      if (data.proposalAmount) {
-        existing.proposalAmount = data.proposalAmount;
+      if (data.proposalAmount !== undefined) {
+        const parsedProposal = Number(data.proposalAmount);
+        existing.proposalAmount = isFinite(parsedProposal) && parsedProposal >= 0 ? parsedProposal : 0;
       }
-      if (data.jobBookedAmount) {
-        existing.jobBookedAmount = data.jobBookedAmount;
+      if (data.jobBookedAmount !== undefined) {
+        const parsedBooked = Number(data.jobBookedAmount);
+        existing.jobBookedAmount = isFinite(parsedBooked) && parsedBooked >= 0 ? parsedBooked : 0;
       }
     } else {
       // Warn if user tries to set amounts when status doesn't allow it
-      if (data.proposalAmount || data.jobBookedAmount) {
+      if (data.proposalAmount !== undefined || data.jobBookedAmount !== undefined) {
         throw new Error("proposalAmount and jobBookedAmount can only be set when status is 'estimate_set'");
       }
     }

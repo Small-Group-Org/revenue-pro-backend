@@ -444,11 +444,12 @@ if (req.query.clientId) {
         return;
       }
 
-      const updateData: any = {};
-      if (status) updateData.status = status;
-      if (unqualifiedLeadReason) updateData.unqualifiedLeadReason = unqualifiedLeadReason;
-      if (proposalAmount) updateData.proposalAmount = proposalAmount;
-      if (jobBookedAmount) updateData.jobBookedAmount = jobBookedAmount;
+      const updateData = {
+        status,
+        unqualifiedLeadReason,
+        proposalAmount,
+        jobBookedAmount
+      };
 
       const updatedLead = await this.service.updateLead(_id, updateData);
 
