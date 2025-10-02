@@ -1,4 +1,5 @@
 import { IConversionRate } from "../repository/models/conversionRate.model.js";
+import { ILead } from "../domain/leads.domain.js";
 
 /**
  * Lead Service Utility Functions
@@ -63,6 +64,13 @@ class MonthNameCache {
 
 // Singleton instance of the cache
 const monthNameCache = new MonthNameCache();
+
+/**
+ * Generate a unique lookup key for a lead based on email, phone, service, and zip
+ */
+export const generateLeadLookupKey = (lead: ILead): string => {
+  return `${lead.email || ''}_${lead.phone || ''}_${lead.service || ''}_${lead.zip || ''}`;
+};
 
 /**
  * Get monthly name from date string with caching for performance

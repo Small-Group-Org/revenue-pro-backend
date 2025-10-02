@@ -1,7 +1,7 @@
 import fetch from "node-fetch";
 import * as XLSX from "xlsx";
 import { ILead, LeadStatus } from "../domain/leads.domain.js";
-import { getMonthlyName, sanitizeLeadData } from "../utils/leads.util.js";
+import { getMonthlyName, sanitizeLeadData, generateLeadLookupKey } from "../utils/leads.util.js";
 import { 
   parseEstimateSetValue,
   validateSheetHeaders,
@@ -422,8 +422,7 @@ export class SheetsService {
     // Create a lookup for quick access
     const leadLookup = new Map();
     existingLeads.forEach(lead => {
-      // Use a unique key, e.g., email or phone + adSetName + service
-      const key = `${lead.email || ''}_${lead.phone || ''}_${lead.adSetName}_${lead.service}`;
+      const key = generateLeadLookupKey(lead);
       leadLookup.set(key, lead);
     });
 
@@ -433,21 +432,32 @@ export class SheetsService {
       const hasUnqualifiedReason =
         lead.unqualifiedLeadReason && lead.unqualifiedLeadReason.trim() !== "";
 
+      // Check if this lead already exists in DB
+      const key = generateLeadLookupKey(lead);
+      const existing = leadLookup.get(key);
+
+      // For existing leads, preserve the original leadDate
+      if (existing) {
+        lead.leadDate = existing.leadDate;
+      }
+
       if (!isEstimateSet && !hasUnqualifiedReason) {
-        // Preserve in_progress status if DB is in_progress and sheet is new
-        const key = `${lead.email || ''}_${lead.phone || ''}_${lead.adSetName}_${lead.service}`;
-        const existing = leadLookup.get(key);
+        // For existing leads, preserve the original status
         if (existing) {
-          return { ...lead, status: existing.status };
+          return { 
+            ...lead, 
+            status: existing.status
+          };
         }
         return {
           ...lead,
           status: "new",
-          unqualifiedLeadReason: "",
+          unqualifiedLeadReason: ""
         };
       }
-      //Checks ULR for in_progress and updates the status 
-      if(hasUnqualifiedReason &&  lead.unqualifiedLeadReason === "in_progress"){
+
+      // For handling client specific edge cases of ULRs in their lead sheets
+      if(hasUnqualifiedReason && lead.unqualifiedLeadReason === "in_progress"){
           lead.status = "in_progress";
           lead.unqualifiedLeadReason="";
       }
