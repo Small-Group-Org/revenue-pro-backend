@@ -168,7 +168,7 @@ export class ConversionRateUpdateService {
           CronLogger.logClientUpdateStart(clientId);
           
           // Use the comprehensive update method that handles both conversion rates AND lead updates
-          const result = await this.leadScoringService.updateConversionRatesAndLeadScoresForClient(clientId);
+          const result = await this.leadScoringService.processLeadScoresAndCRsByClientId(clientId);
           
           totalUpdatedConversionRates += result.updatedConversionRates;
           totalUpdatedLeads += result.updatedLeads;

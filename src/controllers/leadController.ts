@@ -2,7 +2,6 @@ import { Request, Response } from "express";
 import { CombinedLeadService } from "../services/leads/service/index.js";
 import { SheetsService } from "../services/leads/service/sheets.service.js";
 import utils from "../utils/utils.js";
-import { TimezoneUtils } from "../utils/timezoneUtils.js";
 import { conversionRateRepository } from "../services/leads/repository/index.js";
 import { sanitizeLeadData } from "../services/leads/utils/leads.util.js";
 import mongoose from "mongoose";
@@ -12,7 +11,7 @@ export class LeadController {
    * Endpoint to update conversion rates and lead scores for all clients
    * POST /leads/update-cr-all
    */
-  async updateConversionRatesAndLeadScores(
+  async processLeadScoresAndCRs(
   req: Request,
   res: Response
 ): Promise<void> {
@@ -75,7 +74,7 @@ if (req.query.clientId) {
     for (const clientId of clientIds) {
       try {
         const result =
-          await this.service.updateConversionRatesAndLeadScoresForClient(
+          await this.service.processLeadScoresAndCRsByClientId(
             clientId
           );
 
@@ -115,7 +114,7 @@ if (req.query.clientId) {
     });
   } catch (error) {
     console.error(
-      "Error in updateConversionRatesAndLeadScores endpoint:",
+      "Error in processLeadScoresAndCRs endpoint:",
       error
     );
     utils.sendErrorResponse(res, error);
@@ -132,8 +131,8 @@ if (req.query.clientId) {
     this.updateLead = this.updateLead.bind(this);
     this.processSheetLeads = this.processSheetLeads.bind(this);
     this.getConversionRates = this.getConversionRates.bind(this);
-    this.updateConversionRatesAndLeadScores =
-      this.updateConversionRatesAndLeadScores.bind(this);
+    this.processLeadScoresAndCRs =
+      this.processLeadScoresAndCRs.bind(this);
     this.getLeadsPaginated = this.getLeadsPaginated.bind(this);
   }
   /**
@@ -500,7 +499,7 @@ if (req.query.clientId) {
           clientId, 
           !!uniquenessByPhoneEmail,
           this.service.bulkCreateLeads.bind(this.service),
-          this.service.processLeads.bind(this.service),
+          this.service.computeConversionRatesForClient.bind(this.service),
           this.service.getAllLeadsForClient.bind(this.service)
         );
 

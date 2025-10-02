@@ -17,7 +17,7 @@ const conversionRateSchema = new Schema<IConversionRateDocument>(
     keyName: { type: String, required: true },
     keyField: { type: String, required: true },
     conversionRate: { type: Number, required: true },
-    pastTotalCount: { type: Number, required: true },
+    pastTotalCount: { type: Number, required: true }, // (estimate_set + unqualified)
     pastTotalEst: { type: Number, required: true },
   },
   { timestamps: true }

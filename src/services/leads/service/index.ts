@@ -60,15 +60,14 @@ export class CombinedLeadService {
   }
 
   // Delegate scoring operations to LeadScoringService
-  async updateConversionRatesAndLeadScoresForClient(clientId: string) { 
-    return this.scoringService.updateConversionRatesAndLeadScoresForClient(clientId); 
+  async processLeadScoresAndCRsByClientId(clientId: string) { 
+    return this.scoringService.processLeadScoresAndCRsByClientId(clientId); 
   }
   async recalculateAllLeadScores(clientId: string) { 
     return this.scoringService.recalculateAllLeadScores(clientId); 
   }
-  processLeads(leads: any[], clientId: string) { return this.scoringService.processLeads(leads, clientId); }
-  async calculateAndStoreMissingLeadScores(leads: any[], clientId: string) { 
-    return this.scoringService.calculateAndStoreMissingLeadScores(leads, clientId); 
+  computeConversionRatesForClient(leads: any[], clientId: string) { 
+    return this.scoringService.computeConversionRatesForClient(leads, clientId); 
   }
 }
 

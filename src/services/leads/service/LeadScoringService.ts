@@ -1,14 +1,13 @@
-import { ILead, ILeadDocument } from "../domain/leads.domain.js";
+import { ILead } from "../domain/leads.domain.js";
+import _ from "lodash";
 import { ILeadRepository, IConversionRateRepository } from "../repository/interfaces.js";
 import { leadRepository } from "../repository/LeadRepository.js";
 import { conversionRateRepository } from "../repository/ConversionRateRepository.js";
-import { TimezoneUtils } from "../../../utils/timezoneUtils.js";
 import {
   FIELD_WEIGHTS,
   getMonthlyName,
   createConversionRatesMap,
   getConversionRateFromMap,
-  calculateLeadScore,
   getMonthIndex,
   isEmptyValue,
   type LeadKeyField,
@@ -58,7 +57,7 @@ export class LeadScoringService {
    * - Recalculates lead scores for all leads
    * - Stores conversion rates for each lead in a new field 'conversionRates'
    */
-  async updateConversionRatesAndLeadScoresForClient(clientId: string): Promise<UpdateResult> {
+  async processLeadScoresAndCRsByClientId(clientId: string): Promise<UpdateResult> {
     const errors: string[] = [];
     try {
       // 1. Fetch all leads for client
@@ -68,7 +67,7 @@ export class LeadScoringService {
       }
 
       // 2. Calculate conversion rates for all unique fields
-      const conversionData = this.processLeads(leads as ILead[], clientId);
+      const conversionData = this.computeConversionRatesForClient(leads as ILead[], clientId);
 
       // 3. Upsert conversion rates to DB
       const crUpsertResult = await this.conversionRateRepo.batchUpsertConversionRates(conversionData);
@@ -78,7 +77,7 @@ export class LeadScoringService {
       const conversionRatesMap = createConversionRatesMap(dbConversionRates);
       
       // 5. Build bulk operations using helper function
-      const { bulkOps, actuallyUpdatedLeads } = this.buildLeadUpdateBulkOps(leads, conversionRatesMap);
+      const { bulkOps, actuallyUpdatedLeads } = this.prepareLeadScoreAndCRUpdates(leads, conversionRatesMap);
 
       // 6. Bulk update only changed leads
       let modifiedCount = 0;
@@ -163,7 +162,7 @@ export class LeadScoringService {
       const conversionRatesMap = createConversionRatesMap(conversionRates);
 
       // Build bulk operations using helper function
-      const { bulkOps, actuallyUpdatedLeads } = this.buildLeadUpdateBulkOps(allLeads, conversionRatesMap);
+      const { bulkOps, actuallyUpdatedLeads } = this.prepareLeadScoreAndCRUpdates(allLeads, conversionRatesMap);
 
       // Bulk update only changed leads
       let modifiedCount = 0;
@@ -196,17 +195,17 @@ export class LeadScoringService {
   /**
    * Process leads to calculate conversion rates for all unique field values
    */
-  processLeads(leads: ILead[], clientId: string): ConversionData[] {
+  computeConversionRatesForClient(leads: ILead[], clientId: string): ConversionData[] {
     const result: ConversionData[] = [];
 
-    // OPTIMIZATION: Filter leads by clientId once instead of in each calculation
+    // Filter leads by clientId
     const clientLeads = leads.filter((lead) => lead.clientId === clientId);
     
     if (clientLeads.length === 0) {
-      return result; // Early return if no leads for this client
+      return result;
     }
 
-    const allKeys = this.getUniqueFieldValues(clientLeads); // Use filtered leads
+    const allKeys = this.getUniqueFieldValues(clientLeads);
 
     for (const { value: keyName, field: keyField } of allKeys) {
       const { conversionRate, pastTotalCount, pastTotalEst } =
@@ -222,82 +221,6 @@ export class LeadScoringService {
     }
 
     return result;
-  }
-
-  /**
-   * Calculate and store lead scores for leads that don't have them
-   */
-  async calculateAndStoreMissingLeadScores(
-    leads: ILeadDocument[], 
-    clientId: string
-  ): Promise<ILeadDocument[]> {
-    // Find leads without lead scores
-    const leadsWithoutScores = leads.filter(lead => 
-      typeof lead.leadScore === 'undefined' || lead.leadScore === null
-    );
-
-    if (leadsWithoutScores.length === 0) {
-      return leads;
-    }
-
-    try {
-      // Get conversion rates for this client
-      const conversionRates = await this.conversionRateRepo.getConversionRates({ clientId });
-      
-      if (conversionRates.length === 0) {        
-        // Set all scores to 0 if no conversion rates exist
-        const bulkOps = leadsWithoutScores.map(lead => ({
-          updateOne: {
-            filter: { _id: lead._id },
-            update: { $set: { leadScore: 0 } }
-          }
-        }));
-
-        await this.leadRepo.bulkWriteLeads(bulkOps);
-        
-        // Update the leads array with score 0
-        leads.forEach(lead => {
-          if (leadsWithoutScores.some(l => (l._id as any).toString() === (lead._id as any).toString())) {
-            lead.leadScore = 0;
-          }
-        });
-        
-        return leads;
-      }
-
-      // Create conversion rates map for efficient lookups
-      const conversionRatesMap = createConversionRatesMap(conversionRates);
-
-      // Calculate scores for leads without them
-      const bulkOps = leadsWithoutScores.map(lead => {
-        const leadScore = calculateLeadScore(lead, conversionRatesMap);
-        return {
-          updateOne: {
-            filter: { _id: lead._id },
-            update: { $set: { leadScore } }
-          }
-        };
-      });
-
-      // Bulk update lead scores in database
-      await this.leadRepo.bulkWriteLeads(bulkOps);
-
-      // Update the leads array with calculated scores
-      leads.forEach(lead => {
-        const leadWithoutScore = leadsWithoutScores.find(l => 
-          (l._id as any).toString() === (lead._id as any).toString()
-        );
-        if (leadWithoutScore) {
-          lead.leadScore = calculateLeadScore(lead, conversionRatesMap);
-        }
-      });
-
-      return leads;
-    } catch (error: any) {
-      console.error(`Error calculating lead scores for client ${clientId}:`, error);
-      // Return leads as-is if calculation fails
-      return leads;
-    }
   }
 
   // ============= PRIVATE HELPER METHODS =============
@@ -353,59 +276,46 @@ export class LeadScoringService {
 
   /**
    * Calculate conversion rate for a specific field and value
+   * Conversion Rate = estimate_set / (estimate_set + unqualified)
    */
   private calculateConversionRate(
     clientLeads: ILead[], // Already filtered by clientId
     keyName: string,
     keyField: LeadKeyField
   ) {
-    let totalForKey = 0;
-    let yesForKey = 0;
+    let yesForKey = 0; // estimate_set count
+    let unqualifiedForKey = 0; // unqualified count
 
-    if (keyField === "leadDate") {
+    // Build a matcher for the selected key type, then do a single-pass count
+    let matches: (lead: ILead) => boolean;
+
+    if (keyField === 'leadDate') {
       const monthIndex = getMonthIndex(keyName);
-      if (monthIndex === undefined)
-        throw new Error(`Invalid month name: ${keyName}`);
-
-      // Single pass through leads for date filtering
-      for (const lead of clientLeads) {
-        const leadMonth = new Date(lead.leadDate).getMonth();
-        if (leadMonth === monthIndex) {
-          totalForKey++;
-          if (lead.status === 'estimate_set') {
-            yesForKey++;
-          }
-        }
-      }
-    } else if (keyField === "zip") {
-      // Single pass through leads for ZIP filtering
-      for (const lead of clientLeads) {
-        if (lead.zip === keyName) {
-          totalForKey++;
-          if (lead.status === 'estimate_set') {
-            yesForKey++;
-          }
-        }
-      }
+      if (monthIndex === undefined) throw new Error(`Invalid month name: ${keyName}`);
+      matches = (lead: ILead) => new Date(lead.leadDate).getMonth() === monthIndex;
     } else {
-      // Single pass through leads for field filtering
-      for (const lead of clientLeads) {
-        if (lead[keyField] === keyName) {
-          totalForKey++;
-          if (lead.status === 'estimate_set') {
-            yesForKey++;
-          }
-        }
+      const normalizedKey = String(keyName ?? '').trim().toLowerCase();
+      matches = (lead: ILead) => {
+        const raw = (lead as any)[keyField];
+        const normalizedVal = String(raw ?? '').trim().toLowerCase();
+        return normalizedVal === normalizedKey;
       }
     }
 
+    for (const lead of clientLeads) {
+      if (!matches(lead)) continue;
+      if (lead.status === 'estimate_set') yesForKey++;
+      else if (lead.status === 'unqualified') unqualifiedForKey++;
+    }
+
     // Conversion rate as decimal, rounded to 2 decimals
-    const conversionRate = totalForKey === 0 ? 0 :
-      Math.round((yesForKey / totalForKey) * 100) / 100;
+    const effectiveTotal = yesForKey + unqualifiedForKey;
+    const conversionRate = effectiveTotal === 0 ? 0 :
+      Math.round((yesForKey / effectiveTotal) * 100) / 100;
       
     return {
       conversionRate,
-      pastTotalCount: totalForKey,
+      pastTotalCount: effectiveTotal,
       pastTotalEst: yesForKey,
     };
   }
@@ -413,7 +323,7 @@ export class LeadScoringService {
   /**
    * Calculate conversion rates and lead score for a single lead
    */
-  private calculateLeadConversionRatesAndScore(lead: any, conversionRatesMap: any): {
+  private calculateLeadScoreAndCR(lead: any, conversionRatesMap: any): {
     conversionRates: {
       service: number;
       adSetName: number;
@@ -456,9 +366,9 @@ export class LeadScoringService {
   }
 
   /**
-   * Build bulk operations for lead updates
+   * Build bulk operations for lead score and conversion rates updates
    */
-  private buildLeadUpdateBulkOps(leads: any[], conversionRatesMap: any): {
+  private prepareLeadScoreAndCRUpdates(leads: any[], conversionRatesMap: any): {
     bulkOps: any[];
     actuallyUpdatedLeads: number;
   } {
@@ -466,10 +376,10 @@ export class LeadScoringService {
     let actuallyUpdatedLeads = 0;
 
     for (const lead of leads) {
-      const { conversionRates, leadScore } = this.calculateLeadConversionRatesAndScore(lead, conversionRatesMap);
-      // Only update if leadScore or conversionRates have changed
+      const { conversionRates, leadScore } = this.calculateLeadScoreAndCR(lead, conversionRatesMap);
+      // Only update if leadScore or conversionRates have changed - performance optimization
       const leadScoreChanged = lead.leadScore !== leadScore;
-      const conversionRatesChanged = JSON.stringify(lead.conversionRates ?? {}) !== JSON.stringify(conversionRates);
+      const conversionRatesChanged = !_.isEqual(lead.conversionRates ?? {}, conversionRates);
       
       if (leadScoreChanged || conversionRatesChanged) {
         bulkOps.push({

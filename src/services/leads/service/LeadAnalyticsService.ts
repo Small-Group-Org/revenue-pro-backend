@@ -9,8 +9,6 @@ interface AnalyticsResult {
     totalLeads: number;
     estimateSetCount: number;
     unqualifiedCount: number;
-    estimateSetRate: string;
-    estimateSetPercent: string;
   };
   zipData: Array<{ zip: string; estimateSetCount: number; estimateSetRate: string; jobBookedAmount: number; proposalAmount: number }>;
   serviceData: Array<{ service: string; estimateSetCount: number; estimateSetRate: string }>;
@@ -133,11 +131,6 @@ export class LeadAnalyticsService {
     const totalLeads = leads.length;
     const estimateSetCount = leads.filter(lead => lead.status === 'estimate_set').length;
     const unqualifiedCount = leads.filter(lead => lead.status === 'unqualified').length;
-    let estimateSetRate = ((estimateSetCount / (unqualifiedCount + estimateSetCount)) * 100).toFixed(1);
-    if (isNaN(Number(estimateSetRate))) {
-      estimateSetRate = '0.0';
-    }
-    let estimateSetPercent = totalLeads > 0 ? ((estimateSetCount / totalLeads) * 100).toFixed(1) : '0.0';
 
     // Process each analytics section in parallel
     const [zipData, serviceData, dayOfWeekData, ulrData] = await Promise.all([
@@ -151,7 +144,7 @@ export class LeadAnalyticsService {
     ]);
 
     return {
-      overview: { totalLeads, estimateSetCount, unqualifiedCount, estimateSetRate, estimateSetPercent },
+      overview: { totalLeads, estimateSetCount, unqualifiedCount },
       zipData,
       serviceData,
       dayOfWeekData,
@@ -392,7 +385,7 @@ export class LeadAnalyticsService {
    */
   private getEmptyAnalyticsResult(): AnalyticsResult {
     return {
-      overview: { totalLeads: 0, estimateSetCount: 0, unqualifiedCount: 0, estimateSetRate: '0.0', estimateSetPercent: '0.0' },
+      overview: { totalLeads: 0, estimateSetCount: 0, unqualifiedCount: 0 },
       zipData: [],
       serviceData: [],
       dayOfWeekData: [],

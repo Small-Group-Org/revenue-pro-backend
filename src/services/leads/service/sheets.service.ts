@@ -407,7 +407,7 @@ export class SheetsService {
     clientId: string,
     uniquenessByPhoneEmail: boolean = false,
     bulkCreateLeadsFn: (leads: ILead[], uniquenessByPhoneEmail: boolean) => Promise<any>,
-    processLeads: (leads: ILead[], clientId: string) => any[],
+    computeConversionRatesForClient: (leads: ILead[], clientId: string) => any[],
     getAllLeadsForClientFn: (clientId: string) => Promise<ILead[]>
   ): Promise<{
     result: SheetProcessingResult;
@@ -470,7 +470,7 @@ export class SheetsService {
     const allClientLeads = await getAllLeadsForClientFn(clientId);
     
     // 4. Recalculate conversion rates using ALL leads (existing + updated)
-    const conversionData = processLeads(allClientLeads, clientId);
+    const conversionData = computeConversionRatesForClient(allClientLeads, clientId);
     
     // 5. Build comprehensive result
     const result: SheetProcessingResult = {
