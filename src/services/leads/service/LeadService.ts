@@ -116,7 +116,7 @@ export class LeadService {
    * Upsert a lead (update if exists, create if not)
    */
   async upsertLead(
-    query: Pick<ILeadDocument, "clientId" | "adSetName" | "email" | "phone" | "service" | "adName" | "zip">, 
+    query: Pick<ILeadDocument, "clientId" | "email" | "phone" | "service" | "zip">, 
     payload: Partial<ILeadDocument>
   ): Promise<ILeadDocument> {
     const existingLead: Partial<ILead> | null = (await this.leadRepo.findLeads(query))[0] || null;

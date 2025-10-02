@@ -98,9 +98,6 @@ export class TimezoneUtils {
         };
       }
 
-      // Log conversion for debugging
-      this.logConversion(dateValue, utcIsoString, rowIndex);
-
       return {
         success: true,
         utcIsoString: utcIsoString,
@@ -241,13 +238,6 @@ export class TimezoneUtils {
 
     return { isValid: true };
   }
-
-  //Log date conversion for debugging
-  private static logConversion(original: any, converted: string, rowIndex?: number): void {
-    const rowInfo = rowIndex !== undefined ? ` for row ${rowIndex}` : '';
-    console.log(`[TIMEZONE] Converted${rowInfo}: "${original}" → "${converted}" (UTC)`);
-  }
-
   
 }
 
