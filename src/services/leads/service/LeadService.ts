@@ -116,7 +116,7 @@ export class LeadService {
    * Upsert a lead (update if exists, create if not)
    */
   async upsertLead(
-    query: Pick<ILeadDocument, "clientId" | "adSetName" | "email" | "phone" | "service" | "adName" | "zip">, 
+    query: Pick<ILeadDocument, "clientId" | "email" | "phone" | "service" | "zip">, 
     payload: Partial<ILeadDocument>
   ): Promise<ILeadDocument> {
     const existingLead: Partial<ILead> | null = (await this.leadRepo.findLeads(query))[0] || null;
@@ -136,8 +136,8 @@ export class LeadService {
       if (!result) throw new Error("Failed to update lead");
       return this.normalizeLeadAmounts(result);
     } else {
-      if (!payload.clientId || !payload.service || !payload.zip || !payload.adSetName || !payload.adName || (!payload.phone && !payload.email)) {
-        throw new Error('Missing required fields: clientId, service, zip, adSetName, adName, and at least phone or email');
+      if (!payload.clientId || !payload.service || !payload.zip || (!payload.phone && !payload.email)) {
+        throw new Error('Missing required fields: clientId, service, zip, and at least phone or email');
       }
       
       const newLeadPayload = { ...payload };
@@ -392,8 +392,7 @@ export class LeadService {
   // ============= HELPER METHODS =============
 
   /**
-   * Normalize lead amounts for backward compatibility
-   * Returns 0 for proposalAmount and jobBookedAmount if they don't exist or are invalid
+   * Normalize lead amounts by returning 0 for proposalAmount and jobBookedAmount if they don't exist or are invalid
    */
   private normalizeLeadAmounts(lead: any): any {
     const normalizeAmount = (value: any): number => {

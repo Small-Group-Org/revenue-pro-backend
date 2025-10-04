@@ -16,15 +16,59 @@ import utils from "../../../utils/utils.js";
 // We'll use dependency injection instead
 
 /**
- * Google Sheets Service
- * Handles all Google Sheets related operations for lead processing
+ * Normalize leads for sheet processing - handle status, unqualified reasons, and preserve existing data
  */
+const normalizeLeadsFromSheet = (leads: ILead[], existingLeads: Map<string, ILead>): ILead[] => {
+  return leads.map((lead) => {
+    const isEstimateSet = lead.status === "estimate_set";
+    const hasUnqualifiedReason =
+      lead.unqualifiedLeadReason && lead.unqualifiedLeadReason.trim() !== "";
+
+    // Check if this lead already exists in DB
+    const key = generateLeadLookupKey(lead);
+    const existing = existingLeads.get(key);
+
+    // For existing leads, preserve the original leadDate
+    if (existing) {
+      lead.leadDate = existing.leadDate;
+    }
+
+    if (!isEstimateSet && !hasUnqualifiedReason) {
+      // For existing leads, preserve the original status
+      if (existing) {
+        return { 
+          ...lead, 
+          status: existing.status
+        };
+      }
+      return {
+        ...lead,
+        status: "new",
+        unqualifiedLeadReason: ""
+      };
+    }
+
+    // For handling client specific edge cases of ULRs in their lead sheets
+    if(hasUnqualifiedReason && lead.unqualifiedLeadReason === "in_progress"){
+        lead.status = "in_progress";
+        lead.unqualifiedLeadReason="";
+    }
+    else if(hasUnqualifiedReason && lead.unqualifiedLeadReason === "estimate_set"){
+      lead.status = "estimate_set";
+      lead.unqualifiedLeadReason="";
+    }
+    else if(hasUnqualifiedReason && lead.unqualifiedLeadReason === "new"){
+      lead.status = "new";
+      lead.unqualifiedLeadReason="";
+    }
+
+    return lead;
+  });
+};
 
 export interface SkipReasons {
   missingName: number;
   missingService: number;
-  missingAdSetName: number;
-  missingAdName: number;
   missingZip: number;
   invalidRowStructure: number;
   processingErrors: number;
@@ -196,8 +240,6 @@ export class SheetsService {
     const skipReasons: SkipReasons = {
       missingName: 0,
       missingService: 0,
-      missingAdSetName: 0,
-      missingAdName: 0,
       missingZip: 0,
       invalidRowStructure: 0,
       processingErrors: 0,
@@ -225,8 +267,6 @@ export class SheetsService {
       
       const hasName = nameValue && String(nameValue).trim();
       const hasService = serviceValue && String(serviceValue).trim();
-      const hasAdSetName = adSetNameValue && String(adSetNameValue).trim();
-      const hasAdName = adNameValue && String(adNameValue).trim();
       const hasZip = zipValue && String(zipValue).trim();
       
       // Track specific missing fields
@@ -245,17 +285,7 @@ export class SheetsService {
         shouldSkip = true;
       }
       
-      if (!hasAdSetName) {
-        skipReasons.missingAdSetName++;
-        if (!shouldSkip) skipReasons.total++;
-        shouldSkip = true;
-      }
-      
-      if (!hasAdName) {
-        skipReasons.missingAdName++;
-        if (!shouldSkip) skipReasons.total++;
-        shouldSkip = true;
-      }
+      // Ad names can be empty - no validation needed
       
       if (!hasZip) {
         skipReasons.missingZip++;
@@ -304,8 +334,6 @@ export class SheetsService {
     const skipReasonsBreakdown: string[] = [
       ...(skipReasons.missingName > 0 ? [`${skipReasons.missingName} rows missing Name`] : []),
       ...(skipReasons.missingService > 0 ? [`${skipReasons.missingService} rows missing Service`] : []),
-      ...(skipReasons.missingAdSetName > 0 ? [`${skipReasons.missingAdSetName} rows missing Ad Set Name`] : []),
-      ...(skipReasons.missingAdName > 0 ? [`${skipReasons.missingAdName} rows missing Ad Name`] : []),
       ...(skipReasons.missingZip > 0 ? [`${skipReasons.missingZip} rows missing Zip`] : []),
       ...(skipReasons.invalidRowStructure > 0 ? [`${skipReasons.invalidRowStructure} rows with invalid structure`] : []),
       ...(skipReasons.processingErrors > 0 ? [`${skipReasons.processingErrors} rows with processing errors`] : [])
@@ -395,20 +423,21 @@ export class SheetsService {
 
   /**
    * Process complete sheet workflow:
-   * 1. Fetch and parse leads from sheet
-   * 2. Normalize lead status
-   * 3. Bulk upsert leads to database
-   * 4. Fetch ALL leads for client from database
-   * 5. Recalculate conversion rates using ALL leads
-   * 6. Return comprehensive results
+   * 1. Process sheet data (fetch, parse, extract insights)
+   * 2. Fetch all existing leads for the client and create lookup map
+   * 3. Normalize leads for sheet processing (status, unqualified reasons, preserve existing data)
+   * 4. Bulk upsert leads to database with optional uniqueness
+   * 5. Fetch ALL leads for this client from database (including updated ones)
+   * 6. Recalculate conversion rates using ALL leads (existing + updated)
+   * 7. Return comprehensive results
    */
   public async processCompleteSheet(
     sheetUrl: string,
     clientId: string,
     uniquenessByPhoneEmail: boolean = false,
-    bulkCreateLeadsFn: (leads: ILead[], uniquenessByPhoneEmail: boolean) => Promise<any>,
+    bulkCreateLeads: (leads: ILead[], uniquenessByPhoneEmail: boolean) => Promise<any>,
     computeConversionRatesForClient: (leads: ILead[], clientId: string) => any[],
-    getAllLeadsForClientFn: (clientId: string) => Promise<ILead[]>
+    getAllLeadsForClient: (clientId: string) => Promise<ILead[]>
   ): Promise<{
     result: SheetProcessingResult;
     conversionData: any[];
@@ -417,72 +446,27 @@ export class SheetsService {
     const sheetData = await this.processSheetData(sheetUrl, clientId);
     let { leads, stats: sheetStats, conversionRateInsights } = sheetData;
 
-    // Fetch all existing leads for the client
-    const existingLeads = await getAllLeadsForClientFn(clientId);
-    // Create a lookup for quick access
+    // 2. Fetch all existing leads for the client and create lookup map
+    const existingLeads = await getAllLeadsForClient(clientId);
     const leadLookup = new Map();
     existingLeads.forEach(lead => {
       const key = generateLeadLookupKey(lead);
       leadLookup.set(key, lead);
     });
 
-    // Normalize status + unqualifiedLeadReason only for sheet processing
-    leads = leads.map((lead) => {
-      const isEstimateSet = lead.status === "estimate_set";
-      const hasUnqualifiedReason =
-        lead.unqualifiedLeadReason && lead.unqualifiedLeadReason.trim() !== "";
-
-      // Check if this lead already exists in DB
-      const key = generateLeadLookupKey(lead);
-      const existing = leadLookup.get(key);
-
-      // For existing leads, preserve the original leadDate
-      if (existing) {
-        lead.leadDate = existing.leadDate;
-      }
-
-      if (!isEstimateSet && !hasUnqualifiedReason) {
-        // For existing leads, preserve the original status
-        if (existing) {
-          return { 
-            ...lead, 
-            status: existing.status
-          };
-        }
-        return {
-          ...lead,
-          status: "new",
-          unqualifiedLeadReason: ""
-        };
-      }
-
-      // For handling client specific edge cases of ULRs in their lead sheets
-      if(hasUnqualifiedReason && lead.unqualifiedLeadReason === "in_progress"){
-          lead.status = "in_progress";
-          lead.unqualifiedLeadReason="";
-      }
-      else if(hasUnqualifiedReason && lead.unqualifiedLeadReason === "estimate_set"){
-        lead.status = "estimate_set";
-        lead.unqualifiedLeadReason="";
-      }
-      else if(hasUnqualifiedReason && lead.unqualifiedLeadReason === "new"){
-        lead.status = "new";
-        lead.unqualifiedLeadReason="";
-      }
-
-      return lead;
-    });
+    // 3. Normalise leads from sheet (status, unqualified reasons, preserve existing data)
+    leads = normalizeLeadsFromSheet(leads, leadLookup);
     
-    // 2. Bulk upsert leads to database with optional uniqueness
-    const bulkResult = await bulkCreateLeadsFn(leads, uniquenessByPhoneEmail);
+    // 4. Bulk upsert leads to database with optional uniqueness
+    const bulkResult = await bulkCreateLeads(leads, uniquenessByPhoneEmail);
     
-    // 3. Fetch ALL leads for this client from database (including updated ones)
-    const allClientLeads = await getAllLeadsForClientFn(clientId);
+    // 5. Fetch ALL leads for this client from database (including updated ones)
+    const allClientLeads = await getAllLeadsForClient(clientId);
     
-    // 4. Recalculate conversion rates using ALL leads (existing + updated)
+    // 6. Recalculate conversion rates using ALL leads (existing + updated)
     const conversionData = computeConversionRatesForClient(allClientLeads, clientId);
     
-    // 5. Build comprehensive result
+    // 7. Build comprehensive result
     const result: SheetProcessingResult = {
       totalRowsInSheet: sheetStats.totalRowsInSheet,
       validLeadsProcessed: sheetStats.validLeadsProcessed,

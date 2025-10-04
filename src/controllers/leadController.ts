@@ -396,12 +396,9 @@ if (req.query.clientId) {
       // 🔑 Strict uniqueness filter
       const query = {
         clientId: payload.clientId,
-        adSetName: payload.adSetName,
-        name: payload.name,
         email: payload.email,
         phone: payload.phone,
         service: payload.service,
-        adName: payload.adName,
         zip: payload.zip,
       };
 
