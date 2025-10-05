@@ -134,6 +134,7 @@ if (req.query.clientId) {
     this.processLeadScoresAndCRs =
       this.processLeadScoresAndCRs.bind(this);
     this.getLeadsPaginated = this.getLeadsPaginated.bind(this);
+    this.hubspotSubscription = this.hubspotSubscription.bind(this);
   }
   /**
    * Endpoint to fetch paginated, sortable, and filterable leads
@@ -579,6 +580,57 @@ if (req.query.clientId) {
         success: false,
         message: error.message || "Failed to fetch conversion rates",
       });
+    }
+  }
+
+  async hubspotSubscription(req: Request, res: Response): Promise<void> {
+    try {
+      console.log("HubSpot Subscription Request:", req.body);
+      const { propertyValue, propertyName, objectId } = req.body;
+
+      // Validate required fields
+      if (!propertyValue || !propertyName || !objectId) {
+        utils.sendErrorResponse(res, {
+          message: "propertyValue, propertyName, and objectId are required",
+          statusCode: 400
+        });
+        return;
+      }
+
+      // HubSpot API token
+      const token = "pat-na2-8d304536-4f6f-4d43-8e1d-6dd124fe6d77";
+      
+      // Make HubSpot API call to get contact details
+      const hubspotResponse = await fetch(`https://api.hubapi.com/crm/v3/objects/contacts/${objectId}`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (!hubspotResponse.ok) {
+        throw new Error(`HubSpot API error: ${hubspotResponse.status} ${hubspotResponse.statusText}`);
+      }
+
+      const contactData = await hubspotResponse.json();
+      
+      // Console log the response as requested
+      console.log("HubSpot API Response:", JSON.stringify(contactData, null, 2));
+
+      utils.sendSuccessResponse(res, 200, {
+        success: true,
+        message: "Property data processed successfully",
+        data: {
+          propertyValue,
+          propertyName,
+          objectId,
+          contactDetails: contactData
+        }
+      });
+    } catch (error: any) {
+      console.error("Error in processPropertyData:", error);
+      utils.sendErrorResponse(res, error);
     }
   }
 }
