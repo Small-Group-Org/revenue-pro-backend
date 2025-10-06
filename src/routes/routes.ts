@@ -9,6 +9,7 @@ import createLeadRouter from "./createLead.route.js"
 import sheetRouter from "./sheet.routes.js"
 import { ipTrackingRoutes } from "./ipTracking.routes.js"
 import cronLogsRouter from "./cronLogs.routes.js"
+import webhooksRouter from "./webhooks.routes.js"
 
 
 import {
@@ -39,6 +40,7 @@ const otherRoutes: Route[] = [
   { path: "/api/v1", router: createLeadRouter },
   { path: "/api/v1/process-lead-sheet", router: sheetRouter },
   { path: "/api/v1/cron-logs", router: cronLogsRouter },
+  { path: "/api/v1/webhooks", router: webhooksRouter },
 ];
 
 const configureRoutes = (app: Express): void => {

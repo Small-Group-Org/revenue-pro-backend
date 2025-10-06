@@ -26,36 +26,36 @@ export class TargetRepository {
   }
 
   async debugAllTargetsForUser(userId: string): Promise<IWeeklyTargetDocument[]> {
-    console.log(`=== Repository: debugAllTargetsForUser ===`);
-    console.log(`Getting ALL targets for userId: ${userId}`);
+    // console.log(`=== Repository: debugAllTargetsForUser ===`);
+    // console.log(`Getting ALL targets for userId: ${userId}`);
     
     const allTargets = await this.model.find({ userId }).sort({ startDate: 1 });
     
-    console.log(`Total targets found for userId ${userId}: ${allTargets.length}`);
+    // console.log(`Total targets found for userId ${userId}: ${allTargets.length}`);
     if (allTargets.length > 0) {
-      console.log(`All targets:`, allTargets.map(t => ({
-        startDate: t.startDate,
-        endDate: t.endDate,
-        queryType: t.queryType,
-        userId: t.userId,
-        year: t.year,
-        weekNumber: t.weekNumber
-      })));
+      // console.log(`All targets:`, allTargets.map(t => ({
+      //   startDate: t.startDate,
+      //   endDate: t.endDate,
+      //   queryType: t.queryType,
+      //   userId: t.userId,
+      //   year: t.year,
+      //   weekNumber: t.weekNumber
+      // })));
     }
     
     return allTargets;
   }
 
   async getTargetsByDateRange(startDate: Date, endDate: Date, userId: string): Promise<IWeeklyTargetDocument[]> {
-    console.log(`=== Repository: getTargetsByDateRange ===`);
-    console.log(`Querying for userId: ${userId}`);
-    console.log(`Date range: ${startDate.toISOString()} to ${endDate.toISOString()}`);
+    // console.log(`=== Repository: getTargetsByDateRange ===`);
+    // console.log(`Querying for userId: ${userId}`);
+    // console.log(`Date range: ${startDate.toISOString()} to ${endDate.toISOString()}`);
     
     // Convert Date objects to string format (YYYY-MM-DD) for string comparison
     const startDateStr = startDate.toISOString().split('T')[0];
     const endDateStr = endDate.toISOString().split('T')[0];
     
-    console.log(`String date range: ${startDateStr} to ${endDateStr}`);
+    // console.log(`String date range: ${startDateStr} to ${endDateStr}`);
     
     const query = {
       userId,
@@ -65,18 +65,18 @@ export class TargetRepository {
       }
     };
     
-    console.log(`MongoDB query:`, JSON.stringify(query, null, 2));
+    // console.log(`MongoDB query:`, JSON.stringify(query, null, 2));
     
     const results = await this.model.find(query).sort({ startDate: 1 });
     
-    console.log(`Found ${results.length} targets in database`);
+    // console.log(`Found ${results.length} targets in database`);
     if (results.length > 0) {
-      console.log(`Sample results:`, results.slice(0, 3).map(t => ({
-        startDate: t.startDate,
-        endDate: t.endDate,
-        queryType: t.queryType,
-        userId: t.userId
-      })));
+      // console.log(`Sample results:`, results.slice(0, 3).map(t => ({
+      //   startDate: t.startDate,
+      //   endDate: t.endDate,
+      //   queryType: t.queryType,
+      //   userId: t.userId
+      // })));
     }
     
     return results;
@@ -95,7 +95,7 @@ export class TargetRepository {
       weekNumber: weekData.weekNumber 
     };
     
-    console.log(`Repository findTargetByStartDate query:`, query);
+    // console.log(`Repository findTargetByStartDate query:`, query);
     
     // Use the unique index fields: userId, year, weekNumber
     return this.model.findOne(query);

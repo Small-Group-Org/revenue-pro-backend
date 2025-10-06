@@ -12,6 +12,5 @@ router.get("/conversion-rates", (req, res) =>
 );
 router.get("/analytics/summary",(req, res)=> leadController.getAnalytics(req, res))
 router.get("/analytics/ad-table",(req, res)=> leadController.getAnalyticsTable(req, res))
-router.post("/hubspot-subscription",(req, res)=> leadController.hubspotSubscription(req, res))
 
 export default router;
