@@ -585,19 +585,67 @@ if (req.query.clientId) {
 
   async hubspotSubscription(req: Request, res: Response): Promise<void> {
     try {
-      console.log("HubSpot Subscription Request:",  req.body);
-      const { propertyValue, propertyName, objectId } = req.body;
+      // Log everything about the incoming request
+      console.log("=== HUBSPOT WEBHOOK REQUEST ===");
+      console.log("Headers:", JSON.stringify(req.headers, null, 2));
+      console.log("Body:", JSON.stringify(req.body, null, 2));
+      console.log("Method:", req.method);
+      console.log("URL:", req.url);
+      console.log("================================");
+
+      // HubSpot webhook payload structure
+      const webhookData = req.body;
+      
+      // Extract data from HubSpot webhook format
+      let propertyValue, propertyName, objectId;
+      
+      if (webhookData.subscriptionId && webhookData.eventId) {
+        // This is a HubSpot webhook format
+        console.log("Processing HubSpot webhook format");
+        
+        // Extract contact ID from the webhook
+        if (webhookData.contactId) {
+          objectId = webhookData.contactId;
+        } else if (webhookData.objectId) {
+          objectId = webhookData.objectId;
+        } else if (webhookData.properties && webhookData.properties.hs_object_id) {
+          objectId = webhookData.properties.hs_object_id;
+        }
+        
+        // Extract property information
+        if (webhookData.propertyName) {
+          propertyName = webhookData.propertyName;
+        }
+        
+        if (webhookData.propertyValue !== undefined) {
+          propertyValue = webhookData.propertyValue;
+        } else if (webhookData.properties) {
+          // Try to get property value from properties object
+          const propKeys = Object.keys(webhookData.properties);
+          if (propKeys.length > 0) {
+            propertyName = propKeys[0];
+            propertyValue = webhookData.properties[propKeys[0]];
+          }
+        }
+      } else {
+        // Fallback to direct format (for testing)
+        console.log("Processing direct format");
+        propertyValue = webhookData.propertyValue;
+        propertyName = webhookData.propertyName;
+        objectId = webhookData.objectId;
+      }
+
+      console.log("Extracted values:", { propertyValue, propertyName, objectId });
 
       // Validate required fields
       if (!propertyValue || !propertyName || !objectId) {
+        console.error("Missing required fields:", { propertyValue, propertyName, objectId });
         utils.sendErrorResponse(res, {
           message: "propertyValue, propertyName, and objectId are required",
           statusCode: 400
         });
         return;
       }
-
-      console.log("HubSpot Subscription Request: objectId: ",  objectId);
 
       // Validate objectId format (HubSpot contact IDs are typically numeric)
       if (!/^\d+$/.test(objectId)) {
@@ -656,8 +704,18 @@ if (req.query.clientId) {
         }
       });
     } catch (error: any) {
-      console.error("Error in processPropertyData:", error);
-      utils.sendErrorResponse(res, error);
+      console.error("=== HUBSPOT WEBHOOK ERROR ===");
+      console.error("Error in hubspotSubscription:", error);
+      console.error("Error message:", error.message);
+      console.error("Error stack:", error.stack);
+      console.error("Request body was:", JSON.stringify(req.body, null, 2));
+      console.error("=============================");
+      
+      // Send a proper error response
+      utils.sendErrorResponse(res, {
+        message: error.message || "Internal server error processing webhook",
+        statusCode: 500
+      });
     }
   }
 }
