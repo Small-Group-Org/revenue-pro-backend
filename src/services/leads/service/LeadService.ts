@@ -354,6 +354,64 @@ export class LeadService {
   // ============= UTILITY METHODS =============
 
   /**
+   * Find and update a lead by email and clientId, using leadDate to disambiguate if needed
+   */
+  async findAndUpdateLeadByEmail(
+    email: string,
+    clientId: string,
+    status: string,
+    unqualifiedLeadReason?: string,
+    leadDate?: string
+  ): Promise<ILeadDocument> {
+    // Find leads matching email and clientId
+    const leads = await this.leadRepo.findLeads({ email, clientId });    
+    if (!leads || leads.length === 0) {
+      throw new Error("No lead found with the provided email and clientId");
+    }
+
+    let targetLead;
+    if (leads.length > 1) {
+      if (!leadDate) {
+        throw new Error("Multiple leads found. Please provide leadDate to disambiguate");
+      }
+
+      // Find exact UTC string match
+      targetLead = leads.find((lead: any) => lead.leadDate?.toString() === leadDate);
+      if (!targetLead) {
+        throw new Error("No lead found matching the provided leadDate");
+      }
+    } else {
+      targetLead = leads[0];
+    }
+
+    let leadId: string;
+    if (targetLead && "_id" in targetLead && targetLead._id) {
+      leadId = targetLead._id.toString();
+    } else {
+      leadId = ""
+    }
+
+    // Prepare update data - only status and unqualifiedLeadReason
+    const updateData: any = {
+      status,
+      // Clear unqualifiedLeadReason if status is not "unqualified"
+      unqualifiedLeadReason: status === "unqualified" ? (unqualifiedLeadReason || "") : ""
+    };
+
+    // Update directly in database
+    const updated = await this.leadRepo.updateLead(
+      leadId,
+      updateData
+    );
+    
+    if (!updated) {
+      throw new Error("Failed to update lead");
+    }
+    
+    return updated;
+  }
+
+  /**
    * Check if user exists
    */
   async doesUserExist(clientId: string): Promise<boolean> {

@@ -135,6 +135,59 @@ if (req.query.clientId) {
       this.processLeadScoresAndCRs.bind(this);
     this.getLeadsPaginated = this.getLeadsPaginated.bind(this);
     this.hubspotSubscription = this.hubspotSubscription.bind(this);
+    this.updateLeadByEmail = this.updateLeadByEmail.bind(this);
+  }
+
+  /**
+   * Update a lead's status by email and clientId, using leadDate to disambiguate if multiple matches
+   * PATCH /hooks/update-lead
+   */
+  async updateLeadByEmail(req: Request, res: Response): Promise<void> {
+    const { leadDate, email, clientId, status, unqualifiedLeadReason } = req.body;
+
+    // Validate required fields
+    if (!email || !clientId || !status) {
+      utils.sendErrorResponse(res, {
+        message: "email, clientId, and status are required",
+        statusCode: 400
+      });
+      return;
+    }
+
+    // Validate status
+    if (!["new", "in_progress", "estimate_set", "unqualified"].includes(status)) {
+      utils.sendErrorResponse(res, {
+        message: "Invalid status. Must be one of: new, in_progress, estimate_set, unqualified",
+        statusCode: 400
+      });
+      return;
+    }
+
+    try {
+      const updatedLead = await this.service.findAndUpdateLeadByEmail(
+        email,
+        clientId,
+        status,
+        unqualifiedLeadReason,
+        leadDate
+      );
+
+      utils.sendSuccessResponse(res, 200, {
+        success: true,
+        data: updatedLead
+      });
+    } catch (error: any) {
+      console.error("Error in updateLeadByEmail:", error);
+      
+      // Map service errors to appropriate HTTP responses
+      if (error.message.includes("No lead found")) {
+        utils.sendErrorResponse(res, { message: error.message, statusCode: 404 });
+      } else if (error.message.includes("Multiple leads found")) {
+        utils.sendErrorResponse(res, { message: error.message, statusCode: 409 });
+      } else {
+        utils.sendErrorResponse(res, error);
+      }
+    }
   }
   /**
    * Endpoint to fetch paginated, sortable, and filterable leads
