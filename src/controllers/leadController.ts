@@ -585,7 +585,6 @@ if (req.query.clientId) {
 
   async hubspotSubscription(req: Request, res: Response): Promise<void> {
     try {
-      console.log("HubSpot Subscription Request:",  req.body);
       const { propertyValue, propertyName, objectId } = req.body[0];
 
       // Validate required fields
@@ -596,8 +595,6 @@ if (req.query.clientId) {
         });
         return;
       }
-
-      console.log("HubSpot Subscription Request: objectId: ",  objectId);
 
       // Validate objectId format (HubSpot contact IDs are typically numeric)
       if (!/^\d+$/.test(objectId)) {
@@ -632,12 +629,6 @@ if (req.query.clientId) {
           objectId,
           responseBody: errorText
         });
-        
-        if (hubspotResponse.status === 404) {
-          throw new Error(`Contact with ID ${objectId} not found in HubSpot. Please verify the objectId is correct.`);
-        }
-        
-        throw new Error(`HubSpot API error: ${hubspotResponse.status} ${hubspotResponse.statusText} - ${errorText}`);
       }
 
       const contactData = await hubspotResponse.json();
