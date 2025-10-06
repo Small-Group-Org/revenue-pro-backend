@@ -585,7 +585,6 @@ if (req.query.clientId) {
 
   async hubspotSubscription(req: Request, res: Response): Promise<void> {
     try {
-      console.log("HubSpot Subscription Request:", req.body);
       const { propertyValue, propertyName, objectId } = req.body;
 
       // Validate required fields
@@ -596,6 +595,8 @@ if (req.query.clientId) {
         });
         return;
       }
+
+      console.log("HubSpot Subscription Request:",  { propertyValue, propertyName, objectId });
 
       // Validate objectId format (HubSpot contact IDs are typically numeric)
       if (!/^\d+$/.test(objectId)) {
