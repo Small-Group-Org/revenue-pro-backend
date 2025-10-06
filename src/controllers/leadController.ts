@@ -584,81 +584,80 @@ if (req.query.clientId) {
   }
 
   async hubspotSubscription(req: Request, res: Response): Promise<void> {
-    console.log("HubSpot Subscription Request:", req.body);
-    // try {
-    //   const { propertyValue, propertyName, objectId } = req.body;
+    try {
+      const { propertyValue, propertyName, objectId } = req.body;
 
-    //   // Validate required fields
-    //   if (!propertyValue || !propertyName || !objectId) {
-    //     utils.sendErrorResponse(res, {
-    //       message: "propertyValue, propertyName, and objectId are required",
-    //       statusCode: 400
-    //     });
-    //     return;
-    //   }
+      // Validate required fields
+      if (!propertyValue || !propertyName || !objectId) {
+        utils.sendErrorResponse(res, {
+          message: "propertyValue, propertyName, and objectId are required",
+          statusCode: 400
+        });
+        return;
+      }
 
-    //   console.log("HubSpot Subscription Request:",  req.body);
-    //   console.log("HubSpot Subscription Request: objectId: ",  objectId);
+      console.log("HubSpot Subscription Request:",  req.body);
+      console.log("HubSpot Subscription Request: objectId: ",  objectId);
 
-    //   // Validate objectId format (HubSpot contact IDs are typically numeric)
-    //   if (!/^\d+$/.test(objectId)) {
-    //     utils.sendErrorResponse(res, {
-    //       message: "objectId must be a numeric value (HubSpot contact ID)",
-    //       statusCode: 400
-    //     });
-    //     return;
-    //   }
+      // Validate objectId format (HubSpot contact IDs are typically numeric)
+      if (!/^\d+$/.test(objectId)) {
+        utils.sendErrorResponse(res, {
+          message: "objectId must be a numeric value (HubSpot contact ID)",
+          statusCode: 400
+        });
+        return;
+      }
 
-    //   // HubSpot API token
-    //   const token = "pat-na2-8d304536-4f6f-4d43-8e1d-6dd124fe6d77";
+      // HubSpot API token
+      const token = "pat-na2-8d304536-4f6f-4d43-8e1d-6dd124fe6d77";
       
-    //   // Make HubSpot API call to get contact details
-    //   const hubspotUrl = `https://api.hubapi.com/crm/v3/objects/contacts/${objectId}`;
-    //   console.log("Making HubSpot API call to:", hubspotUrl);
+      // Make HubSpot API call to get contact details
+      const hubspotUrl = `https://api.hubapi.com/crm/v3/objects/contacts/${objectId}`;
+      console.log("Making HubSpot API call to:", hubspotUrl);
       
-    //   const hubspotResponse = await fetch(hubspotUrl, {
-    //     method: 'GET',
-    //     headers: {
-    //       'Authorization': `Bearer ${token}`,
-    //       'Content-Type': 'application/json'
-    //     }
-    //   });
+      const hubspotResponse = await fetch(hubspotUrl, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
 
-    //   if (!hubspotResponse.ok) {
-    //     const errorText = await hubspotResponse.text();
-    //     console.error("HubSpot API Error Details:", {
-    //       status: hubspotResponse.status,
-    //       statusText: hubspotResponse.statusText,
-    //       url: hubspotUrl,
-    //       objectId,
-    //       responseBody: errorText
-    //     });
+      if (!hubspotResponse.ok) {
+        const errorText = await hubspotResponse.text();
+        console.error("HubSpot API Error Details:", {
+          status: hubspotResponse.status,
+          statusText: hubspotResponse.statusText,
+          url: hubspotUrl,
+          objectId,
+          responseBody: errorText
+        });
         
-    //     if (hubspotResponse.status === 404) {
-    //       throw new Error(`Contact with ID ${objectId} not found in HubSpot. Please verify the objectId is correct.`);
-    //     }
+        if (hubspotResponse.status === 404) {
+          throw new Error(`Contact with ID ${objectId} not found in HubSpot. Please verify the objectId is correct.`);
+        }
         
-    //     throw new Error(`HubSpot API error: ${hubspotResponse.status} ${hubspotResponse.statusText} - ${errorText}`);
-    //   }
+        throw new Error(`HubSpot API error: ${hubspotResponse.status} ${hubspotResponse.statusText} - ${errorText}`);
+      }
 
-    //   const contactData = await hubspotResponse.json();
+      const contactData = await hubspotResponse.json();
       
-    //   // Console log the response as requested
-    //   console.log("HubSpot API Response:", JSON.stringify(contactData, null, 2));
+      // Console log the response as requested
+      console.log("HubSpot API Response:", JSON.stringify(contactData, null, 2));
 
-    //   utils.sendSuccessResponse(res, 200, {
-    //     success: true,
-    //     message: "Property data processed successfully",
-    //     data: {
-    //       propertyValue,
-    //       propertyName,
-    //       objectId,
-    //       contactDetails: contactData
-    //     }
-    //   });
-    // } catch (error: any) {
-    //   console.error("Error in processPropertyData:", error);
-    //   utils.sendErrorResponse(res, error);
-    // }
+      utils.sendSuccessResponse(res, 200, {
+        success: true,
+        message: "Property data processed successfully",
+        data: {
+          propertyValue,
+          propertyName,
+          objectId,
+          contactDetails: contactData
+        }
+      });
+    } catch (error: any) {
+      console.error("Error in processPropertyData:", error);
+      utils.sendErrorResponse(res, error);
+    }
   }
 }
