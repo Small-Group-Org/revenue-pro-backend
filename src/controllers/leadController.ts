@@ -585,8 +585,7 @@ if (req.query.clientId) {
 
   async hubspotSubscription(req: Request, res: Response): Promise<void> {
     try {
-      console.log("HubSpot Subscription Request:", req.body);
-      const { propertyValue, propertyName, objectId } = req.body;
+      const { propertyValue, propertyName, objectId } = req.body[0];
 
       // Validate required fields
       if (!propertyValue || !propertyName || !objectId) {
@@ -597,11 +596,23 @@ if (req.query.clientId) {
         return;
       }
 
+      // Validate objectId format (HubSpot contact IDs are typically numeric)
+      if (!/^\d+$/.test(objectId)) {
+        utils.sendErrorResponse(res, {
+          message: "objectId must be a numeric value (HubSpot contact ID)",
+          statusCode: 400
+        });
+        return;
+      }
+
       // HubSpot API token
       const token = "pat-na2-8d304536-4f6f-4d43-8e1d-6dd124fe6d77";
       
       // Make HubSpot API call to get contact details
-      const hubspotResponse = await fetch(`https://api.hubapi.com/crm/v3/objects/contacts/${objectId}`, {
+      const hubspotUrl = `https://api.hubapi.com/crm/v3/objects/contacts/${objectId}`;
+      console.log("Making HubSpot API call to:", hubspotUrl);
+      
+      const hubspotResponse = await fetch(hubspotUrl, {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -610,7 +621,14 @@ if (req.query.clientId) {
       });
 
       if (!hubspotResponse.ok) {
-        throw new Error(`HubSpot API error: ${hubspotResponse.status} ${hubspotResponse.statusText}`);
+        const errorText = await hubspotResponse.text();
+        console.error("HubSpot API Error Details:", {
+          status: hubspotResponse.status,
+          statusText: hubspotResponse.statusText,
+          url: hubspotUrl,
+          objectId,
+          responseBody: errorText
+        });
       }
 
       const contactData = await hubspotResponse.json();
