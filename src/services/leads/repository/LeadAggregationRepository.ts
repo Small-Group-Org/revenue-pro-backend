@@ -132,7 +132,9 @@ export class LeadAggregationRepository implements ILeadAggregationRepository {
     } else if (sortOptions?.adSetSortField) {
       const sortField = sortOptions.adSetSortField === 'percentage'
         ? 'percentage'
-        : sortOptions.adSetSortField;
+        : sortOptions.adSetSortField === 'total'
+          ? 'totalLeads'
+          : sortOptions.adSetSortField;
 
       const sortOrder: 1 | -1 = sortOptions.adSetSortOrder === 'asc' ? 1 : -1;
       pipeline.push({ $sort: { [sortField]: sortOrder } });
@@ -226,7 +228,10 @@ export class LeadAggregationRepository implements ILeadAggregationRepository {
     if (sortOptions?.showTopRanked) {
       pipeline.push({ $sort: { percentage: -1, estimateSet: -1 } });
     } else if (sortOptions?.adNameSortField) {
-      const sortField = sortOptions.adNameSortField === 'percentage' ? 'percentage' : sortOptions.adNameSortField;
+      const sortField = sortOptions.adNameSortField === 'percentage' ? 'percentage'
+        : sortOptions.adNameSortField === 'total'
+          ? 'totalLeads'
+          : sortOptions.adNameSortField;
       const sortOrder: 1 | -1 = sortOptions.adNameSortOrder === 'asc' ? 1 : -1;
       pipeline.push({ $sort: { [sortField]: sortOrder } });
     }
