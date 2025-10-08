@@ -101,6 +101,27 @@ class AdminController {
     }
   };
 
+  public setUserInactive = async (req: Request, res: Response): Promise<void> => {
+    try {
+      const { userId } = req.params;
+
+      if (!userId) {
+        utils.sendErrorResponse(res, "User ID is required");
+        return;
+      }
+
+      const updatedUser = await this.userService.setUserInactive(userId);
+
+      utils.sendSuccessResponse(res, 200, {
+        success: true,
+        message: "User status updated to inactive",
+        data: this.formatUser(updatedUser),
+      });
+    } catch (error) {
+      utils.sendErrorResponse(res, error);
+    }
+  };
+
   public deleteUser = async (req: Request, res: Response): Promise<void> => {
     try {
       const { userId } = req.params;

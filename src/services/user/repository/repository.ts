@@ -78,7 +78,7 @@ export class UserRepositoryService {
 
   async getAllUsers(role?: string): Promise<IUser[]> {
     try {
-  let query: any = {};
+  const query: any = { status: { $in: ['active', 'inactive'] } };
       if (role) query.role = role;
       return await User.find(query);
     } catch (error) {
@@ -93,6 +93,7 @@ export class UserRepositoryService {
     role?: string;
     isEmailVerified?: boolean;
     hasLoggedIn?: boolean;
+    status?: 'active' | 'inactive' | 'deleted';
   }): Promise<IUser | null> {
     try {
       if (!userId) {
