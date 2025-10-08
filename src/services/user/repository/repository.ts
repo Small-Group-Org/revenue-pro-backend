@@ -55,6 +55,23 @@ export class UserRepositoryService {
     }
   }
 
+  async getUserByIdIncludeInactive(id: string): Promise<IUser | null> {
+    try {
+      if (!id) {
+        return null;
+      }
+      // Find by id and include both active and inactive users, but not deleted
+      const user = await User.findOne({ 
+        _id: id, 
+        status: { $in: ['active', 'inactive'] } 
+      });
+      return user;
+    } catch (error) {
+      throw utils.ThrowableError(error);
+    }
+  }
+
+
   async updateUserPassword(id: string, password: string): Promise<void> {
     try {
       if (!id || !password) {
