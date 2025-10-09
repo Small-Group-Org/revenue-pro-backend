@@ -7,6 +7,14 @@ import mongoose from "mongoose";
 import User from "../../user/repository/models/user.model.js";
 
 // Types for service operations
+interface UpdateLeadByEmailParams {
+  email: string;
+  clientId: string;
+  status: string;
+  unqualifiedLeadReason?: string;
+  leadDate?: string;
+}
+
 interface PaginationOptions {
   page: number;
   limit: number;
@@ -357,12 +365,9 @@ export class LeadService {
    * Find and update a lead by email and clientId, using leadDate to disambiguate if needed
    */
   async findAndUpdateLeadByEmail(
-    email: string,
-    clientId: string,
-    status: string,
-    unqualifiedLeadReason?: string,
-    leadDate?: string
+    params: UpdateLeadByEmailParams
   ): Promise<ILeadDocument> {
+    const { email, clientId, status, unqualifiedLeadReason, leadDate } = params;
     // Find leads matching email and clientId
     const leads = await this.leadRepo.findLeads({ email, clientId });    
     if (!leads || leads.length === 0) {
@@ -375,8 +380,19 @@ export class LeadService {
         throw new Error("Multiple leads found. Please provide leadDate to disambiguate");
       }
 
-      // Find exact UTC string match
-      targetLead = leads.find((lead: any) => lead.leadDate?.toString() === leadDate);
+      // Match only the date part, ignoring time
+      targetLead = leads.find((lead: any) => {
+        // Convert lead's date to YYYY-MM-DD format
+        const leadDateOnly = new Date(lead.leadDate).toISOString().split('T')[0];
+        // Handle provided date: could be either YYYY-MM-DD or full datetime
+        let providedDateOnly;
+        try {
+          providedDateOnly = new Date(leadDate).toISOString().split('T')[0];
+        } catch (error) {
+          throw new Error("Invalid date format. Please provide date in YYYY-MM-DD format");
+        }
+        return leadDateOnly === providedDateOnly;
+      });
       if (!targetLead) {
         throw new Error("No lead found matching the provided leadDate");
       }

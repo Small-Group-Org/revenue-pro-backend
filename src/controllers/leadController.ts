@@ -164,13 +164,13 @@ if (req.query.clientId) {
     }
 
     try {
-      const updatedLead = await this.service.findAndUpdateLeadByEmail(
+      const updatedLead = await this.service.findAndUpdateLeadByEmail({
         email,
         clientId,
         status,
         unqualifiedLeadReason,
         leadDate
-      );
+      });
 
       utils.sendSuccessResponse(res, 200, {
         success: true,

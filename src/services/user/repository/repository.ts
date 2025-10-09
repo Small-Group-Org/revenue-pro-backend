@@ -55,6 +55,23 @@ export class UserRepositoryService {
     }
   }
 
+  async getUserByIdIncludeInactive(id: string): Promise<IUser | null> {
+    try {
+      if (!id) {
+        return null;
+      }
+      // Find by id and include both active and inactive users, but not deleted
+      const user = await User.findOne({ 
+        _id: id, 
+        status: { $in: ['active', 'inactive'] } 
+      });
+      return user;
+    } catch (error) {
+      throw utils.ThrowableError(error);
+    }
+  }
+
+
   async updateUserPassword(id: string, password: string): Promise<void> {
     try {
       if (!id || !password) {
@@ -78,7 +95,7 @@ export class UserRepositoryService {
 
   async getAllUsers(role?: string): Promise<IUser[]> {
     try {
-  const query: any = { status: 'active' };
+  const query: any = { status: { $in: ['active', 'inactive'] } };
       if (role) query.role = role;
       return await User.find(query);
     } catch (error) {
@@ -93,6 +110,7 @@ export class UserRepositoryService {
     role?: string;
     isEmailVerified?: boolean;
     hasLoggedIn?: boolean;
+    status?: 'active' | 'inactive' | 'deleted';
   }): Promise<IUser | null> {
     try {
       if (!userId) {

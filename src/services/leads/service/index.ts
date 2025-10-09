@@ -37,8 +37,8 @@ export class CombinedLeadService {
   async updateLead(id: string, data: any) { return this.leadService.updateLead(id, data); }
   async deleteLeads(ids: string[]) { return this.leadService.deleteLeads(ids); }
   async upsertLead(query: any, payload: any) { return this.leadService.upsertLead(query, payload); }
-  async findAndUpdateLeadByEmail(email: string, clientId: string, status: string, unqualifiedLeadReason?: string, leadDate?: string) {
-    return this.leadService.findAndUpdateLeadByEmail(email, clientId, status, unqualifiedLeadReason, leadDate);
+  async findAndUpdateLeadByEmail(params: any) {
+    return this.leadService.findAndUpdateLeadByEmail(params);
   }
   async bulkCreateLeads(payloads: any[], uniquenessByPhoneEmail?: boolean) { 
     return this.leadService.bulkCreateLeads(payloads, uniquenessByPhoneEmail); 

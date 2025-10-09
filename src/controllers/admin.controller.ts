@@ -13,7 +13,7 @@ class AdminController {
 
   public upsertUser = async (req: Request, res: Response): Promise<void> => {
     try {
-      const { email, password, name, role = UserRole.USER, userId } = req.body;
+      const { email, password, name, role = UserRole.USER, userId, status } = req.body;
 
       if (!email || !name) {
         utils.sendErrorResponse(res, "Email and name are required");
@@ -25,6 +25,14 @@ class AdminController {
         utils.sendErrorResponse(res, "Password is required for new users");
         return;
       }
+      // Validate status
+      if (status !== undefined && !['active', 'inactive'].includes(status)) {
+        utils.sendErrorResponse(res, {
+          message: "Status must be either 'active' or 'inactive'",
+          statusCode: 400
+        });
+        return;
+      }
 
       const user = await this.userService.upsertUser({
         userId,
@@ -32,6 +40,7 @@ class AdminController {
         password,
         name,
         role,
+        status,
         isEmailVerified: false,
       });
 
@@ -43,6 +52,7 @@ class AdminController {
           email: user.email,
           name: user.name,
           role: user.role,
+          status: user.status
         },
       });
     } catch (error) {
@@ -59,6 +69,7 @@ class AdminController {
       leadSheetUrl: user.leadSheetUrl || "",
       isEmailVerified: user.isEmailVerified,
       created_at: user.created_at,
+      status: user.status
     };
   }
 
@@ -84,7 +95,7 @@ class AdminController {
         return;
       }
 
-      const user = await this.userService.getUserById(userId);
+      const user = await this.userService.getUserByIdIncludeInactive(userId);
 
       if (!user) {
         utils.sendErrorResponse(res, "User not found");

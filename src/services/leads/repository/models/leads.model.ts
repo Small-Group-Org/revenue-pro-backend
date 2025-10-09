@@ -3,7 +3,7 @@ import { ILeadDocument } from '../../domain/leads.domain.js';
 
 const leadSchema = new Schema<ILeadDocument>(
   {
-    leadDate: { type: String, required: true },
+    leadDate: { type: String, required: true, default: new Date().toISOString() },
     name: { type: String, required: true },
     email: { type: String, required: false, default: '' },
     phone: { type: String, required: false, default: '' },
