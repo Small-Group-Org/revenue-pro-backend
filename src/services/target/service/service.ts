@@ -148,7 +148,7 @@ export class TargetService {
 
         // Filter out 0 values from data to avoid overwriting existing values with 0
         const filteredData = Object.fromEntries(
-          Object.entries(data).filter(([key, value]) => value !== 0 && value !== null && value !== undefined)
+          Object.entries(data).filter(([key, value]) =>value !== null && value !== undefined)
         );
 
         const updatedData = {
