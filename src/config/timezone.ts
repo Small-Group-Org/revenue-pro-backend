@@ -4,7 +4,7 @@
  */
 
 // Source timezone for all incoming lead dates
-export const LEAD_TIMEZONE = "America/Chicago"; // CST/CDT depending on DST
+export const LEAD_TIMEZONE = "America/Chicago";
 
 // Target timezone for database storage (always UTC)
 export const STORAGE_TIMEZONE = "UTC";
