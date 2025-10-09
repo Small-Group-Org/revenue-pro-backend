@@ -61,6 +61,17 @@ export default class UserService {
     }
   }
 
+  async getUserByIdIncludeInactive(id: string): Promise<IUser | null> {
+    try {
+      if (!id) {
+        throw new CustomError(ErrorCode.INVALID_INPUT, "empty id");
+      }
+      return await this.repository.getUserByIdIncludeInactive(id);
+    } catch (error) {
+      throw utils.ThrowableError(error);
+    }
+  }
+
   async updateUserPassword(id: string, password: string): Promise<void> {
     try {
       if (!id || !password) {
@@ -87,6 +98,7 @@ export default class UserService {
     name: string;
     email: string;
     role: string;
+    status?: 'active' | 'inactive';
     isEmailVerified: boolean;
     hasLoggedIn?: boolean;
   }): Promise<IUser> {
@@ -105,14 +117,15 @@ export default class UserService {
     password?: string;
     name: string;
     role: string;
+    status?: 'active' | 'inactive';
     isEmailVerified: boolean;
   }): Promise<IUser> {
     try {
-      const { userId, email, password, name, role, isEmailVerified } = userData;
+      const { userId, email, password, name, role, status, isEmailVerified } = userData;
 
       // If userId is provided, update the user
       if (userId) {
-        return await this.updateUserDetails(userId, { name, email, role, isEmailVerified });
+        return await this.updateUserDetails(userId, { name, email, role, status, isEmailVerified });
       }
 
       // If no userId is provided, create a new user
@@ -153,24 +166,6 @@ export default class UserService {
       throw utils.ThrowableError(error);
     }
   }
-  async setUserInactive(userId: string): Promise<IUser> {
-    try {
-      if (!userId) {
-        throw new CustomError(ErrorCode.INVALID_INPUT, "User ID is required");
-      }
-
-      const updatedUser = await this.repository.updateUser(userId, { status: 'inactive' });
-
-      if (!updatedUser) {
-        throw new CustomError(ErrorCode.NOT_FOUND, "User not found");
-      }
-      
-      return updatedUser;
-    } catch (error) {
-      throw utils.ThrowableError(error);
-    }
-  }
-
   async deleteUser(userId: string): Promise<void> {
     await this.repository.deleteUser(userId);
   }

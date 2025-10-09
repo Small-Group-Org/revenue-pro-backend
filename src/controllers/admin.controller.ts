@@ -13,7 +13,7 @@ class AdminController {
 
   public upsertUser = async (req: Request, res: Response): Promise<void> => {
     try {
-      const { email, password, name, role = UserRole.USER, userId } = req.body;
+      const { email, password, name, role = UserRole.USER, userId, status } = req.body;
 
       if (!email || !name) {
         utils.sendErrorResponse(res, "Email and name are required");
@@ -25,6 +25,14 @@ class AdminController {
         utils.sendErrorResponse(res, "Password is required for new users");
         return;
       }
+      // Validate status
+      if (status !== undefined && !['active', 'inactive'].includes(status)) {
+        utils.sendErrorResponse(res, {
+          message: "Status must be either 'active' or 'inactive'",
+          statusCode: 400
+        });
+        return;
+      }
 
       const user = await this.userService.upsertUser({
         userId,
@@ -32,6 +40,7 @@ class AdminController {
         password,
         name,
         role,
+        status,
         isEmailVerified: false,
       });
 
@@ -43,6 +52,7 @@ class AdminController {
           email: user.email,
           name: user.name,
           role: user.role,
+          status: user.status
         },
       });
     } catch (error) {
@@ -85,7 +95,7 @@ class AdminController {
         return;
       }
 
-      const user = await this.userService.getUserById(userId);
+      const user = await this.userService.getUserByIdIncludeInactive(userId);
 
       if (!user) {
         utils.sendErrorResponse(res, "User not found");
@@ -95,27 +105,6 @@ class AdminController {
       utils.sendSuccessResponse(res, 200, {
         success: true,
         data: this.formatUser(user),
-      });
-    } catch (error) {
-      utils.sendErrorResponse(res, error);
-    }
-  };
-
-  public setUserInactive = async (req: Request, res: Response): Promise<void> => {
-    try {
-      const { userId } = req.params;
-
-      if (!userId) {
-        utils.sendErrorResponse(res, "User ID is required");
-        return;
-      }
-
-      const updatedUser = await this.userService.setUserInactive(userId);
-
-      utils.sendSuccessResponse(res, 200, {
-        success: true,
-        message: "User status updated to inactive",
-        data: this.formatUser(updatedUser),
       });
     } catch (error) {
       utils.sendErrorResponse(res, error);
