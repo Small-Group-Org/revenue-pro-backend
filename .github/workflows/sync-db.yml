@@ -1,0 +1,31 @@
+name: Sync DB   # This shows as the button in Actions
+
+on:
+  workflow_dispatch:   # Manual trigger
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+
+    steps:
+      # Step 1: Checkout your repository (needed for mounting the folder)
+      - name: Checkout repo
+        uses: actions/checkout@v3
+
+      # Step 2: Create a temporary folder for the Mongo dump
+      - name: Create dump folder
+        run: mkdir -p $PWD/mongodump
+
+      # Step 3: Dump and restore using MongoDB Docker
+      - name: Dump & Restore MongoDB
+        run: |
+          docker run --rm -v $PWD/mongodump:/dump mongo:7 bash -c "
+            echo 'Dumping production database...'
+            mongodump --uri='${{ secrets.MONGO_PROD_URI }}' --archive=/dump/dump.gz --gzip &&
+            echo 'Restoring to development database...'
+            mongorestore --uri='${{ secrets.MONGO_DEV_URI }}' --archive=/dump/dump.gz --gzip --drop
+          "
+
+      # Step 4: Clean up temporary dump folder (optional)
+      - name: Clean up dump folder
+        run: rm -rf $PWD/mongodump
