@@ -53,6 +53,7 @@ export class CombinedLeadService {
   async hasLeadData(clientId: string) { return this.leadService.hasLeadData(clientId); }
   async getAllClientIds() { return this.leadService.getAllClientIds(); }
   async getAllLeadsForClient(clientId: string) { return this.leadService.getAllLeadsForClient(clientId); }
+  async getClientActivityData() { return this.leadService.getClientActivityData(); }
 
   // Delegate analytics operations to LeadAnalyticsService
   async getLeadAnalytics(clientId: string, startDate?: string, endDate?: string, sort?: string) { 

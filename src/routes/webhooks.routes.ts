@@ -6,5 +6,6 @@ const leadController = new LeadController();
 
 // HubSpot subscription webhook - no authentication required
 router.post("/hubspot-subscription", (req, res) => leadController.hubspotSubscription(req, res));
+router.get("/get-disengaged-clients", (req, res) => leadController.syncClientActivity(req, res));
 
 export default router;

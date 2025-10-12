@@ -136,6 +136,7 @@ if (req.query.clientId) {
     this.getLeadsPaginated = this.getLeadsPaginated.bind(this);
     this.hubspotSubscription = this.hubspotSubscription.bind(this);
     this.updateLeadByEmail = this.updateLeadByEmail.bind(this);
+    this.syncClientActivity = this.syncClientActivity.bind(this);
   }
 
   /**
@@ -704,4 +705,25 @@ if (req.query.clientId) {
       utils.sendErrorResponse(res, error);
     }
   }
+  async syncClientActivity(req: Request, res: Response): Promise<void> {
+    try {
+
+      // Get categorized inactive client activity data
+      const categorizedClients = await this.service.getClientActivityData();
+
+
+      utils.sendSuccessResponse(res, 200, {
+        success: true,
+        data: {
+          disengagedUsersByLeads: categorizedClients.disengagedUsersByLeads,
+          disengagedUsersByWeeklyReports: categorizedClients.disengagedUsersByWeeklyReports,
+          disengagedUsersByBoth: categorizedClients.disengagedUsersByBoth,
+        }
+      });
+    } catch (error: any) {
+      console.error("Error in syncClientActivity:", error);
+      utils.sendErrorResponse(res, error);
+    }
+  }
+
 }

@@ -25,6 +25,7 @@ export interface ILead {
     zip?: number;
     [key: string]: number | undefined;
   };
+  lastManualUpdate?: Date | null;
   isDeleted?: boolean;
   deletedAt?: Date | null;
 }

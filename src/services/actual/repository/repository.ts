@@ -66,4 +66,22 @@ export class ActualRepository {
       )
     );
   }
+
+  /**
+   * Aggregate latest weekly report updates per client (userId)
+   * Returns data sorted by latest update first (most recent to oldest/never updated)
+   */
+  async aggregateWeeklyActivity(): Promise<{ _id: string; weeklyReportLastActiveAt: Date | null }[]> {
+    return await this.model.aggregate([
+      {
+        $group: {
+          _id: "$userId",
+          weeklyReportLastActiveAt: { $max: "$updatedAt" }
+        }
+      },
+      {
+        $sort: { weeklyReportLastActiveAt: -1 } // Sort by latest update first
+      }
+    ]);
+  }
 }

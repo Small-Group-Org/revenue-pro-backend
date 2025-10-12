@@ -2,6 +2,7 @@ import { ILead, ILeadDocument } from "../domain/leads.domain.js";
 import { ILeadRepository, ILeadAggregationRepository } from "../repository/interfaces.js";
 import { leadRepository } from "../repository/LeadRepository.js";
 import { leadAggregationRepository } from "../repository/LeadAggregationRepository.js";
+import { ActualRepository } from "../../actual/repository/repository.js";
 import { TimezoneUtils } from "../../../utils/timezoneUtils.js";
 import mongoose from "mongoose";
 import User from "../../user/repository/models/user.model.js";
@@ -52,11 +53,28 @@ interface BulkCreateResult {
   };
 }
 
+interface ClientActivityData {
+  clientId: string;
+  email: string;
+  name: string;
+  role: string;
+  leadLastActiveAt: Date | null;
+  weeklyReportLastActiveAt: Date | null;
+}
+
+interface CategorizedInactiveClients {
+  disengagedUsersByLeads: ClientActivityData[];
+  disengagedUsersByWeeklyReports: ClientActivityData[];
+  disengagedUsersByBoth: ClientActivityData[];
+}
+
+
 export class LeadService {
   
   constructor(
     private leadRepo: ILeadRepository = leadRepository,
-    private aggregationRepo: ILeadAggregationRepository = leadAggregationRepository
+    private aggregationRepo: ILeadAggregationRepository = leadAggregationRepository,
+    private actualRepo: ActualRepository = new ActualRepository()
   ) {}
 
   // ============= BASIC CRUD OPERATIONS =============
@@ -107,6 +125,9 @@ export class LeadService {
         throw new Error("proposalAmount and jobBookedAmount can only be set when status is 'estimate_set'");
       }
     }
+
+    // Set lastManualUpdate timestamp for manual operations
+    existing.lastManualUpdate = new Date();
 
     await existing.save();
     return existing;
@@ -461,6 +482,123 @@ export class LeadService {
   async getAllLeadsForClient(clientId: string): Promise<ILead[]> {
     const leads = await this.leadRepo.getLeadsByClientId(clientId);
     return leads.map(lead => this.normalizeLeadAmounts(lead)) as ILead[];
+  }
+
+  /**
+   * Get client activity data combining lead manual updates and weekly report updates
+   * Returns categorized inactive clients based on fixed thresholds (most recent to never updated)
+   */
+  async getClientActivityData(): Promise<CategorizedInactiveClients> {
+    try {
+      const now = new Date();
+      const wrDays = 7; // Fixed: Weekly report inactivity threshold (7 days)
+      const ldDays = 14; // Fixed: Lead inactivity threshold (14 days)
+      const wrThreshold = new Date(now.getTime() - (wrDays * 24 * 60 * 60 * 1000)); // Weekly report threshold
+      const ldThreshold = new Date(now.getTime() - (ldDays * 24 * 60 * 60 * 1000)); // Lead threshold
+
+      // 1 GET ALL ACTIVE USERS (potential candidates for disengagement check)
+      const allUsers = await User.find(
+        { status: { $eq: 'active' } },
+        { _id: 1, email: 1, name: 1, role: 1 }
+      ).lean();
+
+      // 2️ Aggregate latest manual lead updates per client (already sorted by latest first)
+      const leadActivity = await this.leadRepo.aggregateLeadActivity();
+
+      // 3️ Aggregate latest weekly report updates per client (sorted by latest first)
+      const weeklyActivity = await this.actualRepo.aggregateWeeklyActivity();
+
+      // 4️ CREATE LOOKUP MAPS (for fast user activity lookups)
+      const leadActivityMap = new Map();
+      leadActivity.forEach(item => {
+        leadActivityMap.set(item._id.toString(), item.leadLastActiveAt);
+      });
+
+      // 5️ Create activity map for weekly data
+      const weeklyActivityMap = new Map();
+      weeklyActivity.forEach(item => {
+        weeklyActivityMap.set(item._id.toString(), item.weeklyReportLastActiveAt);
+      });
+
+      // 6️ Categorize disengaged users based on inactivity type
+      const disengagedUsersByLeads: ClientActivityData[] = [];
+      const disengagedUsersByWeeklyReports: ClientActivityData[] = [];
+      const disengagedUsersByBoth: ClientActivityData[] = [];
+      
+      allUsers.forEach(user => {
+        const clientId = user._id.toString();
+        
+        // Get last activity dates for this user
+        const leadLastActiveAt = leadActivityMap.get(clientId) || null;
+        const weeklyReportLastActiveAt = weeklyActivityMap.get(clientId) || null;
+        
+        const clientData: ClientActivityData = {
+          clientId: clientId,
+          email: user.email || '',
+          name: user.name || '',
+          role: user.role || '',
+          leadLastActiveAt: leadLastActiveAt,
+          weeklyReportLastActiveAt: weeklyReportLastActiveAt
+        };
+
+        // 7. CHECK DISENGAGEMENT STATUS
+        // User is lead-disengaged if: no lead activity OR activity older than 7 days
+        const isLeadInactive = !leadLastActiveAt || leadLastActiveAt < ldThreshold;
+        // User is weekly-disengaged if: no weekly reports OR reports older than 14 days
+        const isWeeklyInactive = !weeklyReportLastActiveAt || weeklyReportLastActiveAt < wrThreshold;
+
+        // CATEGORIZE USER BASED ON DISENGAGEMENT PATTERN
+        if (isLeadInactive && isWeeklyInactive) {
+          // User is disengaged in BOTH areas - most critical
+          disengagedUsersByBoth.push(clientData);
+        }
+        if (isLeadInactive) {
+          // User hasn't managed leads recently (includes 'both' users)
+          disengagedUsersByLeads.push(clientData);
+        }
+        if (isWeeklyInactive) {
+          // User hasn't submitted weekly reports recently (includes 'both' users)
+          disengagedUsersByWeeklyReports.push(clientData);
+        }
+      });
+
+      // 8️ Sort all categories by latest activity (most recent disengagement first)
+      const sortByLatestActivity = (a: ClientActivityData, b: ClientActivityData) => {
+        const aLatest = this.getLatestActivityDate(a.leadLastActiveAt, a.weeklyReportLastActiveAt);
+        const bLatest = this.getLatestActivityDate(b.leadLastActiveAt, b.weeklyReportLastActiveAt);
+        
+        // Handle users with no activity (put them last)
+        if (!aLatest && !bLatest) return 0;
+        if (!aLatest) return 1;
+        if (!bLatest) return -1;
+        
+        // Sort by most recent activity first
+        return bLatest.getTime() - aLatest.getTime();
+      };
+
+      disengagedUsersByLeads.sort(sortByLatestActivity);
+      disengagedUsersByWeeklyReports.sort(sortByLatestActivity);
+      disengagedUsersByBoth.sort(sortByLatestActivity);
+
+      return {
+        disengagedUsersByLeads,
+        disengagedUsersByWeeklyReports,
+        disengagedUsersByBoth
+      };
+    } catch (error) {
+      console.error('Error fetching client activity data:', error);
+      throw new Error('Failed to fetch client activity data');
+    }
+  }
+
+  /**
+   * Helper method to get the latest activity date between lead and weekly report activities
+   */
+  private getLatestActivityDate(leadDate: Date | null, weeklyDate: Date | null): Date | null {
+    if (!leadDate && !weeklyDate) return null;
+    if (!leadDate) return weeklyDate;
+    if (!weeklyDate) return leadDate;
+    return leadDate > weeklyDate ? leadDate : weeklyDate;
   }
 
   // ============= HELPER METHODS =============
