@@ -11,6 +11,7 @@ import logger, {
   createRequestLogger,
 } from "./utils/logger.js";
 import conversionRateUpdateService from "./services/cron/conversionRateUpdateService.js";
+import opportunitySyncCron from "./services/opportunities/cron/opportunitySync.cron.js";
 
 // Initialize express app
 const app: Express = express();
@@ -72,4 +73,8 @@ app.listen(PORT, () => {
   // Start the weekly conversion rate update cron job
   conversionRateUpdateService.startWeeklyCronJob();
   logger.info("Weekly conversion rate update cron job initialized");
+
+  // Start the daily opportunity sync cron job
+  opportunitySyncCron.start();
+  logger.info("Opportunity sync cron job initialized");
 });
