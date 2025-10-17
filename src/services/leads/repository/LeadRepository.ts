@@ -96,22 +96,27 @@ export class LeadRepository implements ILeadRepository {
   }
 
   async aggregateLeadActivity(): Promise<{ _id: string; leadLastActiveAt: Date | null }[]> {
-    return await LeadModel.aggregate([
+    return LeadModel.aggregate([
       {
-        $match: { 
-          isDeleted: false
-        }
+        $match: { isDeleted: false }
+      },
+      {
+        $project: { clientId: 1, lastManualUpdate: 1 } // use only needed fields
+      },
+      {
+        $sort: { clientId: 1, lastManualUpdate: -1 } // sort using the index
       },
       {
         $group: {
           _id: "$clientId",
-          leadLastActiveAt: { $max: "$lastManualUpdate" }
+          leadLastActiveAt: { $first: "$lastManualUpdate" } // first entry per client after sort
         }
       },
       {
-        $sort: { leadLastActiveAt: -1 } // Sort by latest update first
+        $sort: { leadLastActiveAt: -1 } // final sorting by last active time
       }
     ]).exec();
+
   }
 
   // Upsert operation

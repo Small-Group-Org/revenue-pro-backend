@@ -75,13 +75,19 @@ export class ActualRepository {
   async aggregateWeeklyActivity(): Promise<{ _id: string; weeklyReportLastActiveAt: Date | null }[]> {
     return await this.model.aggregate([
       {
+        $project: { userId: 1, updatedAt: 1 } // keep only what’s needed
+      },
+      {
+        $sort: { userId: 1, updatedAt: -1 } // uses the index
+      },
+      {
         $group: {
           _id: "$userId",
-          weeklyReportLastActiveAt: { $max: "$updatedAt" }
+          weeklyReportLastActiveAt: { $first: "$updatedAt" }
         }
       },
       {
-        $sort: { weeklyReportLastActiveAt: -1 } // Sort by latest update first
+        $sort: { weeklyReportLastActiveAt: -1 }
       }
     ]);
   }
