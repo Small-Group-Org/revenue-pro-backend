@@ -19,9 +19,10 @@ export class ActualRepository {
     data: IWeeklyActual
   ): Promise<IWeeklyActualDocument | null> {
     const res = await this.model.findOneAndUpdate(
-      { userId: data.userId, startDate: data.startDate },
+        { userId: data.userId, startDate: data.startDate },
       data,
-      { new: true }
+     
+      { new: true, upsert: true, setDefaultsOnInsert: true }
     );
     return res;
   }
