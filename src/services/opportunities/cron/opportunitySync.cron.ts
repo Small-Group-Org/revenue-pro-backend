@@ -9,7 +9,7 @@ class OpportunitySyncCronService {
   private isRunning = false;
 
   public start(): void {
-    const schedule = config.OPPORTUNITY_SYNC_CRON || '0 3 * * *';
+    const schedule = config.OPPORTUNITY_SYNC_CRON;
     cron.schedule(schedule, async () => {
       if (this.isRunning) {
         logger.warn('Opportunity sync already running; skipping this tick');

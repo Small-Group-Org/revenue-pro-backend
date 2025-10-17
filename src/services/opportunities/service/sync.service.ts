@@ -37,7 +37,7 @@ export class OpportunitySyncService {
   private client: http;
 
   constructor() {
-    this.client = new http(config.GHL_BASE_URL || 'https://services.leadconnectorhq.com', 15000);
+    this.client = new http(config.GHL_BASE_URL, 15000);
   }
 
   public async fetchOpportunities(locationId: string): Promise<GhlResponse> {
