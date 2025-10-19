@@ -85,7 +85,7 @@ export class LeadService {
    */
   async updateLead(
     id: string,
-    data: Partial<Pick<ILead, "status" | "unqualifiedLeadReason" | "proposalAmount" | "jobBookedAmount">>
+    data: Partial<Pick<ILead, "status" | "unqualifiedLeadReason" | "proposalAmount" | "jobBookedAmount" | "notes">>
   ): Promise<ILeadDocument> {
     const existing = await this.leadRepo.getLeadById(id);
     if (!existing) throw new Error("Lead not found");
@@ -107,6 +107,11 @@ export class LeadService {
 
     if (data.unqualifiedLeadReason) {
       existing.unqualifiedLeadReason = data.unqualifiedLeadReason;
+    }
+
+    // Handle notes field - can be updated regardless of status
+    if (data.notes !== undefined) {
+      existing.notes = data.notes.trim();
     }
 
     // Only allow proposalAmount and jobBookedAmount to be set when status is "estimate_set"
