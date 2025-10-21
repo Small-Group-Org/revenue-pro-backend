@@ -21,12 +21,14 @@ const leadSchema = new Schema<ILeadDocument>(
     unqualifiedLeadReason: { type: String, default: '' },
     proposalAmount: { type: Number, required: false, default: 0 },
     jobBookedAmount: { type: Number, required: false, default: 0 },
+    notes: { type: String, default: '', maxlength: 2000 }, // New notes field with max length
     leadScore: { type: Number, required: false },
     conversionRates: {
       type: Object,
       default: {},
       required: false // stores per-lead conversion rates for service, adSetName, adName, leadDate, zip
     },
+    lastManualUpdate: { type: Date, default: null },
     isDeleted: { type: Boolean, default: false },
     deletedAt: { type: Date, default: null },
   },

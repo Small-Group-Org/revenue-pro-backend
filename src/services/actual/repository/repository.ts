@@ -19,9 +19,10 @@ export class ActualRepository {
     data: IWeeklyActual
   ): Promise<IWeeklyActualDocument | null> {
     const res = await this.model.findOneAndUpdate(
-      { userId: data.userId, startDate: data.startDate },
+        { userId: data.userId, startDate: data.startDate },
       data,
-      { new: true }
+     
+      { new: true, upsert: true, setDefaultsOnInsert: true }
     );
     return res;
   }
@@ -65,5 +66,29 @@ export class ActualRepository {
         this.model.findOne({ userId, startDate: week.startDate })
       )
     );
+  }
+
+  /**
+   * Aggregate latest weekly report updates per client (userId)
+   * Returns data sorted by latest update first (most recent to oldest/never updated)
+   */
+  async aggregateWeeklyActivity(): Promise<{ _id: string; weeklyReportLastActiveAt: Date | null }[]> {
+    return await this.model.aggregate([
+      {
+        $project: { userId: 1, updatedAt: 1 } // keep only what’s needed
+      },
+      {
+        $sort: { userId: 1, updatedAt: -1 } // uses the index
+      },
+      {
+        $group: {
+          _id: "$userId",
+          weeklyReportLastActiveAt: { $first: "$updatedAt" }
+        }
+      },
+      {
+        $sort: { weeklyReportLastActiveAt: -1 }
+      }
+    ]);
   }
 }

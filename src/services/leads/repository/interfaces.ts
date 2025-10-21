@@ -29,6 +29,7 @@ export interface ILeadRepository {
   // Utility operations
   existsByClientId(clientId: string): Promise<boolean>;
   getDistinctClientIds(): Promise<string[]>;
+  aggregateLeadActivity(): Promise<{ _id: string; leadLastActiveAt: Date | null }[]>;
   
   // Upsert operation
   upsertLead(

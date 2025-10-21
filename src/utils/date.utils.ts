@@ -1,13 +1,11 @@
 import {
-  startOfWeek,
-  endOfWeek,
-  getISOWeek,
   startOfMonth,
   endOfMonth,
   eachWeekOfInterval,
   isSameMonth,
   addDays,
 } from "date-fns";
+// Reverted timezone dependencies
 
 export interface IWeekInfo {
   year: number;
@@ -26,14 +24,10 @@ type WeekRange = {
 export class DateUtils {
   static getWeekDetails(dateStr: string): WeekRange {
     const inputDate = new Date(dateStr);
-
-    // Move to Monday of that week
     const monday = new Date(inputDate);
-    const day = inputDate.getDay(); // 0 = Sunday, 1 = Monday, ..., 6 = Saturday
+    const day = inputDate.getDay();
     const diffToMonday = (day + 6) % 7;
     monday.setDate(inputDate.getDate() - diffToMonday);
-
-    // Calculate week start and end
     const weekStart = new Date(monday);
     const weekEnd = new Date(monday);
     weekEnd.setDate(weekStart.getDate() + 6);

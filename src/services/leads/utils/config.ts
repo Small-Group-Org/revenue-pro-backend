@@ -18,6 +18,12 @@ export const LEAD_CONFIG = {
     MIN: 0,
     MAX: 100
   } as const,
+
+  // Disengagement thresholds for user activity tracking
+  DISENGAGEMENT: {
+    WEEKLY_REPORT_DAYS: 7,  // Weekly report inactivity threshold (7 days)
+    LEAD_ACTIVITY_DAYS: 14  // Lead manual update inactivity threshold (14 days)
+  } as const, 
   
   // Month mapping for date processing
   MONTH_MAP: {
@@ -80,4 +86,4 @@ export const LEAD_CONFIG = {
 } as const;
 
 // Export individual configs for convenience
-export const { FIELD_WEIGHTS, SCORE_BOUNDS, MONTH_MAP, ANALYTICS, SHEET, VALIDATION, PERFORMANCE } = LEAD_CONFIG;
+export const { FIELD_WEIGHTS, SCORE_BOUNDS, DISENGAGEMENT, MONTH_MAP, ANALYTICS, SHEET, VALIDATION, PERFORMANCE } = LEAD_CONFIG;

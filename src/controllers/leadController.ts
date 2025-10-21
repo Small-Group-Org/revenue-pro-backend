@@ -136,6 +136,7 @@ if (req.query.clientId) {
     this.getLeadsPaginated = this.getLeadsPaginated.bind(this);
     this.hubspotSubscription = this.hubspotSubscription.bind(this);
     this.updateLeadByEmail = this.updateLeadByEmail.bind(this);
+    this.syncClientActivity = this.syncClientActivity.bind(this);
   }
 
   /**
@@ -475,7 +476,7 @@ if (req.query.clientId) {
 
   async updateLead(req: Request, res: Response): Promise<void> {
     try {
-      const { _id, status, unqualifiedLeadReason, proposalAmount, jobBookedAmount } = req.body;
+      const { _id, status, unqualifiedLeadReason, proposalAmount, jobBookedAmount, notes } = req.body;
 
       if (!_id) {
         utils.sendErrorResponse(res, "_id is required for update");
@@ -494,11 +495,23 @@ if (req.query.clientId) {
         return;
       }
 
+      // Validate notes if provided
+      if (notes !== undefined && typeof notes !== 'string') {
+        utils.sendErrorResponse(res, "Notes must be a string");
+        return;
+      }
+
+      if (notes !== undefined && notes.length > 2000) {
+        utils.sendErrorResponse(res, "Notes cannot exceed 2000 characters");
+        return;
+      }
+
       const updateData = {
         status,
         unqualifiedLeadReason,
         proposalAmount,
-        jobBookedAmount
+        jobBookedAmount,
+        notes
       };
 
       const updatedLead = await this.service.updateLead(_id, updateData);
@@ -704,4 +717,25 @@ if (req.query.clientId) {
       utils.sendErrorResponse(res, error);
     }
   }
+  async syncClientActivity(req: Request, res: Response): Promise<void> {
+    try {
+
+      // Get categorized inactive client activity data
+      const categorizedClients = await this.service.getClientActivityData();
+
+
+      utils.sendSuccessResponse(res, 200, {
+        success: true,
+        data: {
+          disengagedUsersByLeads: categorizedClients.disengagedUsersByLeads,
+          disengagedUsersByWeeklyReports: categorizedClients.disengagedUsersByWeeklyReports,
+          disengagedUsersByBoth: categorizedClients.disengagedUsersByBoth,
+        }
+      });
+    } catch (error: any) {
+      console.error("Error in syncClientActivity:", error);
+      utils.sendErrorResponse(res, error);
+    }
+  }
+
 }

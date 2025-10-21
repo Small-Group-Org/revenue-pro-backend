@@ -16,6 +16,7 @@ export interface ILead {
   unqualifiedLeadReason?: string;
   proposalAmount?: number; // only when status is 'estimate_set'
   jobBookedAmount?: number; // only when status is 'estimate_set'
+  notes?: string; // New field for notes
   leadScore?: number; // calculated lead score
   conversionRates?: {
     service?: number;
@@ -25,6 +26,7 @@ export interface ILead {
     zip?: number;
     [key: string]: number | undefined;
   };
+  lastManualUpdate?: Date | null;
   isDeleted?: boolean;
   deletedAt?: Date | null;
 }

@@ -14,4 +14,9 @@ export const config = {
   SESSION_SECRET: process.env.SESSION_SECRET,
   FRONTEND_URL: process.env.FRONTEND_URL,
   NAME: process.env.NAME,
+  GHL_BASE_URL: "https://services.leadconnectorhq.com",
+  GHL_API_TOKEN: process.env.GHL_API_TOKEN, // GHL Private Integration Token
+  GHL_LOCATION_ID: process.env.GHL_LOCATION_ID || "X9eKcomDAR6qsdUNTvhv", // GHL Location ID 
+  OPPORTUNITY_SYNC_CRON: process.env.OPPORTUNITY_SYNC_CRON || "0 3 * * *", // daily 03:00 UTC
+ 
 };

@@ -25,7 +25,7 @@ export class LeadRepository implements ILeadRepository {
   async deleteLead(id: string): Promise<ILeadDocument | null> {
     return await LeadModel.findByIdAndUpdate(
       id,
-      { $set: { isDeleted: true, deletedAt: new Date() } },
+      { $set: { isDeleted: true, deletedAt: new Date(), lastManualUpdate: new Date() } },
       { new: true }
     ).exec();
   }
@@ -72,7 +72,8 @@ export class LeadRepository implements ILeadRepository {
     const update = { 
       $set: { 
         isDeleted: true, 
-        deletedAt: new Date() 
+        deletedAt: new Date(),
+        lastManualUpdate: new Date()
       } 
     };
     const result = await LeadModel.updateMany(query, update).exec();
@@ -92,6 +93,30 @@ export class LeadRepository implements ILeadRepository {
 
   async getDistinctClientIds(): Promise<string[]> {
     return await LeadModel.distinct("clientId", { isDeleted: false }).exec();
+  }
+
+  async aggregateLeadActivity(): Promise<{ _id: string; leadLastActiveAt: Date | null }[]> {
+    return LeadModel.aggregate([
+      {
+        $match: { isDeleted: false }
+      },
+      {
+        $project: { clientId: 1, lastManualUpdate: 1 } // use only needed fields
+      },
+      {
+        $sort: { clientId: 1, lastManualUpdate: -1 } // sort using the index
+      },
+      {
+        $group: {
+          _id: "$clientId",
+          leadLastActiveAt: { $first: "$lastManualUpdate" } // first entry per client after sort
+        }
+      },
+      {
+        $sort: { leadLastActiveAt: -1 } // final sorting by last active time
+      }
+    ]).exec();
+
   }
 
   // Upsert operation
