@@ -89,6 +89,25 @@ class UserController {
       utils.sendErrorResponse(res, error);
     }
   };
+
+  public updateLastAccess = async (req: Request, res: Response): Promise<void> => {
+    try {
+      const userId = req.context.getUserId();
+      
+      const updatedUser = await this.userService.updateLastAccessAt(userId);
+
+      utils.sendSuccessResponse(res, 200, {
+        success: true,
+        message: "Last access time updated successfully",
+        data: {
+          id: updatedUser._id,
+          lastAccessAt: updatedUser.lastAccessAt,
+        },
+      });
+    } catch (error) {
+      utils.sendErrorResponse(res, error);
+    }
+  };
 }
 
 export default new UserController();

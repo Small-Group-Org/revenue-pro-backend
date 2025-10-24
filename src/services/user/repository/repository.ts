@@ -138,6 +138,28 @@ export class UserRepositoryService {
     }
   }
 
+  public async updateLastAccessAt(userId: string): Promise<IUser | null> {
+    try {
+      if (!userId) {
+        throw new CustomError(ErrorCode.INVALID_INPUT, "User ID is required");
+      }
+
+      const updatedUser = await User.findByIdAndUpdate(
+        userId,
+        { $set: { lastAccessAt: new Date() } }, // UTC
+        { new: true }
+      );
+
+      if (!updatedUser) {
+        throw new CustomError(ErrorCode.NOT_FOUND, "User not found");
+      }
+
+      return updatedUser;
+    } catch (error) {
+      throw utils.ThrowableError(error);
+    }
+  }
+
   public async deleteUser(userId: string): Promise<void> {
   // Soft delete: set status to 'deleted' and deletedAt to current date
   await User.findByIdAndUpdate(userId, { $set: { status: 'deleted', deletedAt: Date.now() } });

@@ -40,6 +40,10 @@ const userSchema = new Schema<IUser, IUserModel>(
       type: Date,
       default: null,
     },
+    lastAccessAt: {
+      type: Date,
+      default: null
+    }
   },
   {
     timestamps: { createdAt: "created_at", updatedAt: "updated_at" },
