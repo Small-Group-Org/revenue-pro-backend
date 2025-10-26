@@ -14,5 +14,6 @@ export interface IUser extends Document {
   deletedAt?: Date;
   created_at: Date;
   updated_at: Date;
+  lastAccessAt: Date;
   comparePassword(candidatePassword: string): Promise<boolean>;
 }
