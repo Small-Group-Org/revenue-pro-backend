@@ -111,6 +111,7 @@ export class UserRepositoryService {
     isEmailVerified?: boolean;
     hasLoggedIn?: boolean;
     status?: 'active' | 'inactive' | 'deleted';
+    hasSeenLatestUpdate?: boolean;
   }): Promise<IUser | null> {
     try {
       if (!userId) {
