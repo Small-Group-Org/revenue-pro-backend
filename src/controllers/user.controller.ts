@@ -29,6 +29,7 @@ class UserController {
           imageURL: user.imageURL,
           isEmailVerified: user.isEmailVerified,
           hasLoggedIn: user.hasLoggedIn,
+          hasSeenLatestUpdate: user.hasSeenLatestUpdate,
         },
       });
     } catch (error) {
@@ -102,6 +103,28 @@ class UserController {
         data: {
           id: updatedUser._id,
           lastAccessAt: updatedUser.lastAccessAt,
+        },
+      });
+    } catch (error) {
+      utils.sendErrorResponse(res, error);
+    }
+  };
+
+  public markUpdateAsSeen = async (
+    req: Request,
+    res: Response
+  ): Promise<void> => {
+    try {
+      const userId = req.context.getUserId();
+
+      const updatedUser = await this.userService.markUpdateAsSeen(userId);
+
+      utils.sendSuccessResponse(res, 200, {
+        success: true,
+        message: "Update marked as seen successfully",
+        data: {
+          id: updatedUser._id,
+          hasSeenLatestUpdate: updatedUser.hasSeenLatestUpdate,
         },
       });
     } catch (error) {

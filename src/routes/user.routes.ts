@@ -8,5 +8,6 @@ router.get("/get/:id/", userController.getProfile);
 router.put("/update", userController.updateProfile);
 router.put("/update-password", userController.updatePassword);
 router.put('/last-access', userController.updateLastAccess);
+router.put('/mark-update-seen', userController.markUpdateAsSeen);
 
 export default router;
