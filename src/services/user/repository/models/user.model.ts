@@ -43,6 +43,10 @@ const userSchema = new Schema<IUser, IUserModel>(
     lastAccessAt: {
       type: Date,
       default: null
+    },
+    hasSeenLatestUpdate: {
+      type: Boolean,
+      default: false
     }
   },
   {
