@@ -185,6 +185,26 @@ export default class UserService {
     }
   }
 
+  async markUpdateAsSeen(userId: string): Promise<IUser> {
+    try {
+      if (!userId) {
+        throw new CustomError(ErrorCode.INVALID_INPUT, "User ID is required");
+      }
+
+      const updatedUser = await this.repository.updateUser(userId, { 
+        hasSeenLatestUpdate: true 
+      });
+
+      if (!updatedUser) {
+        throw new CustomError(ErrorCode.NOT_FOUND, "User not found");
+      }
+
+      return updatedUser;
+    } catch (error) {
+      throw utils.ThrowableError(error);
+    }
+  }
+
   async deleteUser(userId: string): Promise<void> {
     await this.repository.deleteUser(userId);
   }
