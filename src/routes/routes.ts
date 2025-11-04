@@ -40,7 +40,8 @@ const authenticatedRoutes: Route[] = [
 const otherRoutes: Route[] = [
   { path: "/api/v1/auth", router: authRouter },
   { path: "/api/v1", router: createLeadRouter },
-  { path: "/api/v1/process-lead-sheet", router: sheetRouter },
+  // Feature deprecated
+  // { path: "/api/v1/process-lead-sheet", router: sheetRouter },
   { path: "/api/v1/cron-logs", router: cronLogsRouter },
   { path: "/api/v1/webhooks", router: webhooksRouter },
 ];

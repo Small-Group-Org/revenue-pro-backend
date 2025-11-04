@@ -506,7 +506,7 @@ export class LeadService {
 
       // 1 GET ALL ACTIVE USERS (potential candidates for disengagement check)
       const allUsers = await User.find(
-        { status: { $eq: 'active' } },
+        { status: { $eq: 'active' }, role: { $eq: 'USER' } },
         { _id: 1, email: 1, name: 1, role: 1 }
       ).lean();
 
