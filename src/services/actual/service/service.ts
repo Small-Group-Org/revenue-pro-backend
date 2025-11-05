@@ -74,6 +74,7 @@ export class ActualService {
       leads: 0,
       estimatesRan: 0,
       estimatesSet: 0,
+      adNamesAmount: [],
     };
   }
 
@@ -97,6 +98,7 @@ export class ActualService {
       leads: data.leads ?? 0,
       estimatesRan: data.estimatesRan ?? 0,
       estimatesSet: data.estimatesSet ?? 0,
+      adNamesAmount: data.adNamesAmount ?? [],
     };
 
     const existing = await this.actualRepository.findActualByStartDate(

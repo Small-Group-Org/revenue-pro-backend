@@ -1,5 +1,10 @@
 import { Schema, model, Document } from 'mongoose';
 
+export interface IAdNamesAmount {
+  adName: string;
+  budget: number;
+}
+
 export interface IWeeklyActual {
   userId: string;
   startDate: string;
@@ -12,6 +17,7 @@ export interface IWeeklyActual {
   leads: number;        // new field
   estimatesRan: number;
   estimatesSet: number;
+  adNamesAmount: IAdNamesAmount[]; // new field: array of ad names with their budgets
 }
 
 export interface IWeeklyActualDocument extends IWeeklyActual, Document {}
@@ -28,6 +34,16 @@ const weeklyActualSchema = new Schema<IWeeklyActualDocument>({
   leads: { type: Number, required: true },            // new field
   estimatesRan: { type: Number, required: true },
   estimatesSet: { type: Number, required: true },
+  adNamesAmount: {
+    type: [
+      {
+        adName: { type: String, required: true },
+        budget: { type: Number, required: true, default: 0 },
+        _id: false, // Disable automatic _id generation for subdocuments
+      },
+    ],
+    default: [],
+    },
 }, { timestamps: true });
 
 // Enforce uniqueness on (userId + startDate)
