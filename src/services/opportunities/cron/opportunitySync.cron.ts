@@ -4,6 +4,7 @@ import logger from '../../../utils/logger.js';
 import { MongoCronLogger } from '../../../utils/mongoCronLogger.js';
 import opportunitySyncService from '../service/sync.service.js';
 import { ActualService } from '../../actual/service/service.js';
+import http from '../../../pkg/http/client.js';
 
 class OpportunitySyncCronService {
   private isRunning = false;
@@ -51,55 +52,246 @@ class OpportunitySyncCronService {
 
       logger.info('Opportunity fetch completed', { count: opportunities.length });
 
-      // Aggregate in-memory by stage
-      const byStage: Record<string, { pipelineId: string; ticketCount: number; totalAmount: number }> = {};
+      // NOTE: Original stage aggregation and upsert are temporarily disabled per request.
+      //       Keeping code for reference without deletion.
+      //
+      // // Aggregate in-memory by stage
+      // const byStage: Record<string, { pipelineId: string; ticketCount: number; totalAmount: number }> = {};
+      // for (const opp of opportunities) {
+      //   const stageId = opp.pipelineStageId;
+      //   if (!stageId) continue;
+      //   if (!byStage[stageId]) {
+      //     byStage[stageId] = { pipelineId: opp.pipelineId, ticketCount: 0, totalAmount: 0 };
+      //   }
+      //   byStage[stageId].ticketCount += 1;
+      //   byStage[stageId].totalAmount += Number(opp.monetaryValue || 0);
+      // }
+      // const formatted = Object.entries(byStage).map(([pipelineStageId, v]) => ({
+      //   pipelineId: v.pipelineId,
+      //   pipelineStageId,
+      //   ticketCount: v.ticketCount,
+      //   totalAmount: v.totalAmount,
+      //   averageAmount: v.ticketCount ? Math.round((v.totalAmount / v.ticketCount) * 100) / 100 : 0,
+      // }));
+      //  // Call upsert api
+      //  try {
+      //   const actualService = new ActualService();
+      //   const userId = '68bc48591d96640540bef437';
+      //   const startDate = new Date().toISOString().slice(0, 10);
+      //   const endDate = startDate;
+      //   const stageIndex: Record<string, { ticketCount: number; totalAmount: number }> = {};
+      //   for (const s of formatted) {
+      //     stageIndex[s.pipelineStageId] = {
+      //       ticketCount: Number(s.ticketCount || 0),
+      //       totalAmount: Number(s.totalAmount || 0),
+      //     };
+      //   }
+      //   const STAGE_LEADS = '255d36cf-8bef-4b9d-abc9-39044948cfc1';
+      //   const STAGES_ESTIMATES_RAN = [
+      //     '88626513-fbe6-4af4-a974-10759b5f77f8',
+      //     '2e5b1367-ede3-4fe5-806b-9e900f164c6e',
+      //     '5f44b126-f4f1-4aed-8348-ebadd5209d0a',
+      //   ];
+      //   const STAGE_SALES = '2e5b1367-ede3-4fe5-806b-9e900f164c6e';
+      //   const leads = stageIndex[STAGE_LEADS]?.ticketCount || 0;
+      //   const estimatesRan = STAGES_ESTIMATES_RAN.reduce((sum, id) => sum + (stageIndex[id]?.ticketCount || 0), 0);
+      //   const sales = stageIndex[STAGE_SALES]?.ticketCount || 0;
+      //   const revenue = stageIndex[STAGE_SALES]?.totalAmount || 0;
+      //   await actualService.upsertActualWeekly(
+      //     userId,
+      //     startDate,
+      //     endDate,
+      //     {
+      //       leads,
+      //       estimatesRan,
+      //       sales,
+      //       revenue,
+      //       testingBudgetSpent: 0,
+      //       awarenessBrandingBudgetSpent: 0,
+      //       leadGenerationBudgetSpent: 0,
+      //       estimatesSet: 0,
+      //     }
+      //   );
+      //  } catch (upsertErr: any) {
+      //   logger.error('Failed to upsert actuals after opportunity sync', upsertErr);
+      //  }
+
+      // New requirement: count specified tags for a specific pipeline and log the counts
+      const TARGET_PIPELINE_ID = 'FWfjcNV1hNqg3YBfHDHi';
+      const TARGET_TAGS = ['facebook lead', 'new_lead', 'appt_completed', 'job_won', 'job_lost', "appt_completed_unresponsive", "color_consultation_booked", "appt_booked"];
+      const counts: Record<string, number> = Object.fromEntries(TARGET_TAGS.map(t => [t, 0]));
+
       for (const opp of opportunities) {
-        const stageId = opp.pipelineStageId;
-        if (!stageId) continue;
-        if (!byStage[stageId]) {
-          byStage[stageId] = { pipelineId: opp.pipelineId, ticketCount: 0, totalAmount: 0 };
+        if (!opp?.pipelineId || opp.pipelineId !== TARGET_PIPELINE_ID) continue;
+
+        const collected: string[] = [];
+        const contactTags = (opp as any)?.contact?.tags;
+        if (Array.isArray(contactTags)) collected.push(...contactTags);
+        const relations = (opp as any)?.relations;
+        if (Array.isArray(relations)) {
+          for (const rel of relations) {
+            if (Array.isArray(rel?.tags)) collected.push(...rel.tags);
+          }
         }
-        byStage[stageId].ticketCount += 1;
-        byStage[stageId].totalAmount += Number(opp.monetaryValue || 0);
+
+        if (collected.length === 0) continue;
+        const lower = new Set(collected.map((t: string) => String(t).toLowerCase()));
+        
+        // Check which target tags are present (excluding 'new_lead' for facebook lead special case)
+        const presentTargetTags = TARGET_TAGS.filter(tag => lower.has(tag) && tag !== 'new_lead');
+        
+        for (const tag of TARGET_TAGS) {
+          // Special case: 'facebook lead' should only be counted if no other TARGET_TAG (except 'new_lead') is present
+          if (tag === 'facebook lead') {
+            if (presentTargetTags.length === 1 && presentTargetTags[0] === 'facebook lead') {
+              counts[tag] += 1;
+            }
+          } else {
+            // For all other tags (including 'new_lead'), count if present
+            if (lower.has(tag)) counts[tag] += 1;
+          }
+        }
       }
-      const formatted = Object.entries(byStage).map(([pipelineStageId, v]) => ({
-        pipelineId: v.pipelineId,
-        pipelineStageId,
-        ticketCount: v.ticketCount,
-        totalAmount: v.totalAmount,
-        averageAmount: v.ticketCount ? Math.round((v.totalAmount / v.ticketCount) * 100) / 100 : 0,
-      }));
-       // Call upsert api
+
+      // eslint-disable-next-line no-console
+      console.log('[GHL Tag Counts]', {
+        pipelineId: TARGET_PIPELINE_ID,
+        counts,
+      });
+
+      // New: For 'job_won' tagged contacts in target pipeline, fetch contacts and sum custom field values
+      const JOB_WON_TAG = 'job_won';
+      const CUSTOM_FIELD_ID_TO_SUM = '12W7drbsCQgxp0IFqWu0';
+      const jobWonContactIds: string[] = [];
+
+      for (const opp of opportunities) {
+        if (!opp?.pipelineId || opp.pipelineId !== TARGET_PIPELINE_ID) continue;
+        const collected: string[] = [];
+        const contactTags = (opp as any)?.contact?.tags;
+        if (Array.isArray(contactTags)) collected.push(...contactTags);
+        const relations = (opp as any)?.relations;
+        if (Array.isArray(relations)) {
+          for (const rel of relations) {
+            if (Array.isArray(rel?.tags)) collected.push(...rel.tags);
+          }
+        }
+        const lower = new Set(collected.map((t: string) => String(t).toLowerCase()));
+        if (lower.has(JOB_WON_TAG) && opp?.contactId) {
+          jobWonContactIds.push(opp.contactId);
+        }
+      }
+
+      // De-duplicate contact ids
+      const uniqueJobWonContactIds = Array.from(new Set(jobWonContactIds));
+
+      let sumCustomField = 0;
+      if (uniqueJobWonContactIds.length > 0) {
+        const client = new http(config.GHL_BASE_URL, 15000);
+        const token = config.GHL_API_TOKEN;
+        for (const contactId of uniqueJobWonContactIds) {
+          try {
+            const resp = await client.get<any>(`/contacts/${encodeURIComponent(contactId)}`, {
+              headers: {
+                Authorization: `Bearer ${token}`,
+                Version: '2021-07-28',
+              },
+            });
+            const customFields = resp?.contact?.customFields;
+            if (Array.isArray(customFields)) {
+              const field = customFields.find((f: any) => f?.id === CUSTOM_FIELD_ID_TO_SUM);
+              if (field && field.value !== undefined && field.value !== null && field.value !== '') {
+                const val = Number(field.value);
+                if (!Number.isNaN(val)) sumCustomField += val;
+              }
+            }
+          } catch (e) {
+            logger.warn('Failed to fetch contact for job_won sum', { contactId, error: (e as any)?.message || String(e) });
+          }
+        }
+      }
+
+      // eslint-disable-next-line no-console
+      console.log('[GHL job_won custom field sum]', {
+        pipelineId: TARGET_PIPELINE_ID,
+        contactCount: uniqueJobWonContactIds.length,
+        customFieldId: CUSTOM_FIELD_ID_TO_SUM,
+        sum: sumCustomField,
+      });
+
+      // Calculate derived values for actuals (similar to previous logic)
+      // Leads: count unique opportunities that have EITHER 'facebook lead' OR 'new_lead' (or both)
+      let leadsCount = 0;
+      for (const opp of opportunities) {
+        if (!opp?.pipelineId || opp.pipelineId !== TARGET_PIPELINE_ID) continue;
+        
+        const collected: string[] = [];
+        const contactTags = (opp as any)?.contact?.tags;
+        if (Array.isArray(contactTags)) collected.push(...contactTags);
+        const relations = (opp as any)?.relations;
+        if (Array.isArray(relations)) {
+          for (const rel of relations) {
+            if (Array.isArray(rel?.tags)) collected.push(...rel.tags);
+          }
+        }
+        
+        if (collected.length === 0) continue;
+        const lower = new Set(collected.map((t: string) => String(t).toLowerCase()));
+        
+        // Count if either 'facebook lead' OR 'new_lead' is present
+        if (lower.has('facebook lead') || lower.has('new_lead')) {
+          leadsCount += 1;
+        }
+      }
+      const leads = leadsCount;
+      // Estimates Set: count unique opportunities that have BOTH 'new_lead' AND 'appt_booked'
+      let estimatesSetCount = 0;
+      for (const opp of opportunities) {
+        if (!opp?.pipelineId || opp.pipelineId !== TARGET_PIPELINE_ID) continue;
+        
+        const collected: string[] = [];
+        const contactTags = (opp as any)?.contact?.tags;
+        if (Array.isArray(contactTags)) collected.push(...contactTags);
+        const relations = (opp as any)?.relations;
+        if (Array.isArray(relations)) {
+          for (const rel of relations) {
+            if (Array.isArray(rel?.tags)) collected.push(...rel.tags);
+          }
+        }
+        
+        if (collected.length === 0) continue;
+        const lower = new Set(collected.map((t: string) => String(t).toLowerCase()));
+        
+        // Count if BOTH 'new_lead' AND 'appt_booked' are present
+        if ((lower.has('new_lead') ||lower.has('facebook lead')) && lower.has('appt_booked')) {
+          estimatesSetCount += 1;
+        }
+      }
+      const estimatesSet = estimatesSetCount;
+      // Keep the calculation logic but send 0 to database
+      const estimatesRanCalculated = (counts['job_won'] || 0) - (counts['job_lost'] || 0) - (counts['appt_completed_unresponsive'] || 0) - (counts['appt_completed'] || 0) - (counts['color_consultation_booked'] || 0);
+      const estimatesRan = 0; // Send 0 to database as requested
+      const jobBooked = counts['job_won'] || 0;
+      const revenue = sumCustomField;
+
+      // eslint-disable-next-line no-console
+      console.log('[GHL Actuals Values]', {
+        pipelineId: TARGET_PIPELINE_ID,
+        leads,
+        estimatesSet,
+        estimatesRanCalculated, // Calculated value (for reference)
+        estimatesRan, // Value sent to database (0)
+        jobBooked,
+        revenue,
+      });
+
+      // Call upsert api to store actuals in database
        try {
         const actualService = new ActualService();
-        const userId = '68bc48591d96640540bef437';
+        const userId = '68c82dfdac1491efe19d5df0';
 
         // Use ISO date string; service will compute week in its helper
         const startDate = new Date().toISOString().slice(0, 10);
         const endDate = startDate;
-
-        // Build index by stage id for quick lookup (from formatted)
-        const stageIndex: Record<string, { ticketCount: number; totalAmount: number }> = {};
-        for (const s of formatted) {
-          stageIndex[s.pipelineStageId] = {
-            ticketCount: Number(s.ticketCount || 0),
-            totalAmount: Number(s.totalAmount || 0),
-          };
-        }
-
-        // Mappings per requirements
-        const STAGE_LEADS = '255d36cf-8bef-4b9d-abc9-39044948cfc1';
-        const STAGES_ESTIMATES_RAN = [
-          '88626513-fbe6-4af4-a974-10759b5f77f8',
-          '2e5b1367-ede3-4fe5-806b-9e900f164c6e',
-          '5f44b126-f4f1-4aed-8348-ebadd5209d0a',
-        ];
-        const STAGE_SALES = '2e5b1367-ede3-4fe5-806b-9e900f164c6e';
-
-        const leads = stageIndex[STAGE_LEADS]?.ticketCount || 0;
-        const estimatesRan = STAGES_ESTIMATES_RAN.reduce((sum, id) => sum + (stageIndex[id]?.ticketCount || 0), 0);
-        const sales = stageIndex[STAGE_SALES]?.ticketCount || 0;
-        const revenue = stageIndex[STAGE_SALES]?.totalAmount || 0;
 
         await actualService.upsertActualWeekly(
           userId,
@@ -108,25 +300,55 @@ class OpportunitySyncCronService {
           {
             leads,
             estimatesRan,
-            sales,
+            estimatesSet,
+            sales: jobBooked,
             revenue,
             testingBudgetSpent: 0,
             awarenessBrandingBudgetSpent: 0,
             leadGenerationBudgetSpent: 0,
-            estimatesSet: 0,
           }
         );
-       } catch (upsertErr: any) {
-        logger.error('Failed to upsert actuals after opportunity sync', upsertErr);
-       }
 
-      // Console log the final aggregated result
-      // Keeping it concise but informative
+        logger.info('[GHL Actuals Upsert] Success', {
+          pipelineId: TARGET_PIPELINE_ID,
+          userId,
+          startDate,
+          endDate,
+          leads,
+          estimatesSet,
+          estimatesRanCalculated, // Calculated value (for reference)
+          estimatesRan, // Value sent to database (0)
+          sales: jobBooked,
+          revenue,
+        });
+
+        // eslint-disable-next-line no-console
+        console.log('[GHL Actuals Upsert] Success', {
+          pipelineId: TARGET_PIPELINE_ID,
+          userId,
+          startDate,
+          endDate,
+          leads,
+          estimatesSet,
+          estimatesRanCalculated, // Calculated value (for reference)
+          estimatesRan, // Value sent to database (0)
+          sales: jobBooked,
+          revenue,
+        });
+       } catch (upsertErr: any) {
+        logger.error('[GHL Actuals Upsert] Failed', {
+          pipelineId: TARGET_PIPELINE_ID,
+          error: upsertErr.message || String(upsertErr),
+          stack: upsertErr.stack,
+        });
+
       // eslint-disable-next-line no-console
-      // console.log('[OpportunitySync Aggregation]', {
-      //   count: formatted.length,
-      //   stages: formatted
-      // });
+        console.error('[GHL Actuals Upsert] Failed', {
+          pipelineId: TARGET_PIPELINE_ID,
+          error: upsertErr.message || String(upsertErr),
+          stack: upsertErr.stack,
+        });
+      }
     } catch (error: any) {
       logger.error('Opportunity sync failed', error);
       if (logId) {
