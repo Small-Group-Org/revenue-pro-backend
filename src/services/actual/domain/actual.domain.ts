@@ -1,3 +1,5 @@
+import { IAdNamesAmount } from "../repository/models/actual.model.js";
+
 export interface IMonthlyActual {
   month: number;
   testingBudgetSpent: number;
@@ -8,6 +10,7 @@ export interface IMonthlyActual {
   leads: number; // new field
   estimatesRan: number;
   estimatesSet: number;
+  adNamesAmount: IAdNamesAmount[]; // new field: array of ad names with their budgets
 }
 
 export interface IActual {
@@ -34,6 +37,7 @@ export interface IWeeklyActual {
   leads: number; // new field
   estimatesRan: number;
   estimatesSet: number;
+  adNamesAmount: IAdNamesAmount[]; // new field: array of ad names with their budgets
 }
 
 export interface IActualQuery {
