@@ -1,0 +1,50 @@
+import mongoose, { Document, Model, Schema } from "mongoose";
+import { IGhlClient } from "../../domain/ghlClient.domain.js";
+
+export interface IGhlClientModel extends Model<IGhlClient> {
+  // Add any static methods here if needed
+}
+
+const ghlClientSchema = new Schema<IGhlClient, IGhlClientModel>(
+  {
+    locationId: {
+      type: String,
+      required: true,
+      unique: true,
+      index: true,
+    },
+    encryptedApiToken: {
+      type: String,
+      required: true,
+    },
+    queryValue: {
+      type: String,
+      required: true,
+    },
+    customFieldId: {
+      type: String,
+      required: false,
+    },
+    revenueProClientId: {
+      type: String,
+      required: true,
+      index: true,
+    },
+    status: {
+      type: String,
+      enum: ['active', 'deleted', 'inactive'],
+      default: 'active',
+    },
+    deletedAt: {
+      type: Date,
+      default: null,
+    },
+  },
+  {
+    timestamps: { createdAt: "created_at", updatedAt: "updated_at" },
+  }
+);
+
+const GhlClient = mongoose.model<IGhlClient, IGhlClientModel>("GhlClient", ghlClientSchema);
+export default GhlClient;
+
