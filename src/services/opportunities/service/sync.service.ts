@@ -41,7 +41,7 @@ export class OpportunitySyncService {
   }
 
   public async fetchOpportunities(locationId: string, tokenOverride?: string): Promise<GhlResponse> {
-    const token = tokenOverride || config.GHL_API_TOKEN;
+    const token = tokenOverride;
     if (!token) throw new Error('GHL_API_TOKEN not configured');
 
     // Paginate through the search endpoint

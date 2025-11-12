@@ -8,6 +8,7 @@ const router = Router();
 router.post("/", isAdmin, ghlClientController.createGhlClient);
 router.get("/", isAdmin, ghlClientController.getAllGhlClients);
 router.get("/:locationId", isAdmin, ghlClientController.getGhlClientById);
+router.put("/:locationId", isAdmin, ghlClientController.updateGhlClient);
 
 export default router;
 

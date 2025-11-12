@@ -9,16 +9,20 @@ export class GhlClientRepository {
     encryptedApiToken: string,
     queryValue: string,
     revenueProClientId: string,
-    customFieldId?: string
+    customFieldId?: string,
+    pipelineId?: string,
+    status: 'active' | 'inactive' | 'deleted' = 'active'
   ): Promise<IGhlClient> {
     try {
-      // Check if locationId already exists
-      const existing = await GhlClient.findOne({ locationId, status: 'active' });
-      if (existing) {
-        throw utils.ThrowableError(
-          `GHL client with locationId ${locationId} already exists`,
-          ErrorCode.BAD_REQUEST
-        );
+      // Check if locationId already exists (only check active clients)
+      if (status === 'active') {
+        const existing = await GhlClient.findOne({ locationId, status: 'active' });
+        if (existing) {
+          throw utils.ThrowableError(
+            `GHL client with locationId ${locationId} already exists`,
+            ErrorCode.BAD_REQUEST
+          );
+        }
       }
 
       const ghlClient = new GhlClient({
@@ -27,7 +31,8 @@ export class GhlClientRepository {
         queryValue,
         revenueProClientId,
         customFieldId,
-        status: 'active',
+        pipelineId,
+        status,
       });
       await ghlClient.save();
       return ghlClient;
@@ -77,17 +82,20 @@ export class GhlClientRepository {
     }
   }
 
-  async updateGhlClient(
-    id: string,
+  async updateGhlClientByLocationId(
+    locationId: string,
     updates: {
       encryptedApiToken?: string;
       queryValue?: string;
       customFieldId?: string;
+      pipelineId?: string;
+      revenueProClientId?: string;
+      status?: 'active' | 'inactive' | 'deleted';
     }
   ): Promise<IGhlClient | null> {
     try {
       return await GhlClient.findOneAndUpdate(
-        { _id: id, status: 'active' },
+        { locationId, status: 'active' },
         { $set: updates },
         { new: true }
       );
