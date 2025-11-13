@@ -11,6 +11,7 @@ import { ipTrackingRoutes } from "./ipTracking.routes.js"
 import cronLogsRouter from "./cronLogs.routes.js"
 import webhooksRouter from "./webhooks.routes.js"
 import ticketRouter from "./tickets.routes.js"
+import aggregateRouter from "./aggregate.routes.js"
 
 
 import {
@@ -33,7 +34,8 @@ const authenticatedRoutes: Route[] = [
   { path: "/api/v1/users", router: userRoutes },
   { path: "/api/v1/leads", router: leadRouter },
   { path: "/api/v1/ip-tracking", router: ipTrackingRoutes },
-  { path: "/api/v1/tickets", router: ticketRouter }
+  { path: "/api/v1/tickets", router: ticketRouter },
+  { path: "/api/v1/aggregate", router: aggregateRouter }
 ];
 
 // Public routes or Protected by api key
