@@ -11,6 +11,7 @@ import { ipTrackingRoutes } from "./ipTracking.routes.js"
 import cronLogsRouter from "./cronLogs.routes.js"
 import webhooksRouter from "./webhooks.routes.js"
 import ticketRouter from "./tickets.routes.js"
+import ghlClientRouter from "./ghlClient.routes.js"
 import aggregateRouter from "./aggregate.routes.js"
 
 
@@ -35,6 +36,7 @@ const authenticatedRoutes: Route[] = [
   { path: "/api/v1/leads", router: leadRouter },
   { path: "/api/v1/ip-tracking", router: ipTrackingRoutes },
   { path: "/api/v1/tickets", router: ticketRouter },
+  { path: "/api/v1/ghl-clients", router: ghlClientRouter },
   { path: "/api/v1/aggregate", router: aggregateRouter }
 ];
 

@@ -5,6 +5,7 @@ import { MongoCronLogger } from '../../../utils/mongoCronLogger.js';
 import opportunitySyncService from '../service/sync.service.js';
 import { ActualService } from '../../actual/service/service.js';
 import http from '../../../pkg/http/client.js';
+import { DateUtils } from '../../../utils/date.utils.js';
 
 class OpportunitySyncCronService {
   private isRunning = false;
@@ -262,14 +263,37 @@ class OpportunitySyncCronService {
         const lower = new Set(collected.map((t: string) => String(t).toLowerCase()));
         
         // Count if BOTH 'new_lead' AND 'appt_booked' are present
-        if ((lower.has('new_lead') ||lower.has('facebook lead')) && lower.has('appt_booked')) {
+        if ( lower.has('appt_booked')) {
           estimatesSetCount += 1;
         }
       }
       const estimatesSet = estimatesSetCount;
-      // Keep the calculation logic but send 0 to database
-      const estimatesRanCalculated = (counts['job_won'] || 0) - (counts['job_lost'] || 0) - (counts['appt_completed_unresponsive'] || 0) - (counts['appt_completed'] || 0) - (counts['color_consultation_booked'] || 0);
-      const estimatesRan = 0; // Send 0 to database as requested
+      // Estimates Ran: count unique opportunities that have ANY of these tags: job_won, job_lost, appt_completed, appt_completed_unresponsive, color_consultation_booked
+      const ESTIMATES_RAN_TAGS = ['job_won', 'job_lost', 'appt_completed', 'appt_completed_unresponsive', 'color_consultation_booked'];
+      let estimatesRanCount = 0;
+      for (const opp of opportunities) {
+        if (!opp?.pipelineId || opp.pipelineId !== TARGET_PIPELINE_ID) continue;
+        
+        const collected: string[] = [];
+        const contactTags = (opp as any)?.contact?.tags;
+        if (Array.isArray(contactTags)) collected.push(...contactTags);
+        const relations = (opp as any)?.relations;
+        if (Array.isArray(relations)) {
+          for (const rel of relations) {
+            if (Array.isArray(rel?.tags)) collected.push(...rel.tags);
+          }
+        }
+        
+        if (collected.length === 0) continue;
+        const lower = new Set(collected.map((t: string) => String(t).toLowerCase()));
+        
+        // Count if ANY of the estimates ran tags are present
+        const hasEstimatesRanTag = ESTIMATES_RAN_TAGS.some(tag => lower.has(tag));
+        if (hasEstimatesRanTag) {
+          estimatesRanCount += 1;
+        }
+      }
+      const estimatesRan = estimatesRanCount;
       const jobBooked = counts['job_won'] || 0;
       const revenue = sumCustomField;
 
@@ -278,8 +302,7 @@ class OpportunitySyncCronService {
         pipelineId: TARGET_PIPELINE_ID,
         leads,
         estimatesSet,
-        estimatesRanCalculated, // Calculated value (for reference)
-        estimatesRan, // Value sent to database (0)
+        estimatesRan, // Count of opportunities with any estimates ran tag
         jobBooked,
         revenue,
       });
@@ -289,11 +312,14 @@ class OpportunitySyncCronService {
         const actualService = new ActualService();
         const userId = '68c82dfdac1491efe19d5df0';
 
-        // Use ISO date string; service will compute week in its helper
-        const startDate = new Date().toISOString().slice(0, 10);
-        const endDate = startDate;
+        // Calculate the current week's start (Monday) and end (Sunday) dates
+        // Use DateUtils.getWeekDetails to ensure consistent week calculation
+        const todayStr = new Date().toISOString().slice(0, 10);
+        const weekDetails = DateUtils.getWeekDetails(todayStr);
+        const startDate = weekDetails.weekStart; // Monday of the current week
+        const endDate = weekDetails.weekEnd; // Sunday of the current week
 
-        await actualService.upsertActualWeekly(
+        const savedActual = await actualService.upsertActualWeekly(
           userId,
           startDate,
           endDate,
@@ -309,31 +335,32 @@ class OpportunitySyncCronService {
           }
         );
 
-        logger.info('[GHL Actuals Upsert] Success', {
+        logger.info('[GHL Actuals Upsert] Success - Data saved to database', {
           pipelineId: TARGET_PIPELINE_ID,
           userId,
-          startDate,
-          endDate,
-          leads,
-          estimatesSet,
-          estimatesRanCalculated, // Calculated value (for reference)
-          estimatesRan, // Value sent to database (0)
-          sales: jobBooked,
-          revenue,
+          startDate: savedActual.startDate,
+          endDate: savedActual.endDate,
+          leads: savedActual.leads,
+          estimatesSet: savedActual.estimatesSet,
+          estimatesRan: savedActual.estimatesRan,
+          sales: savedActual.sales,
+          revenue: savedActual.revenue,
+          documentId: String(savedActual._id),
         });
 
         // eslint-disable-next-line no-console
-        console.log('[GHL Actuals Upsert] Success', {
+        console.log('[GHL Actuals Upsert] Success - Data saved to database', {
           pipelineId: TARGET_PIPELINE_ID,
           userId,
-          startDate,
-          endDate,
-          leads,
-          estimatesSet,
-          estimatesRanCalculated, // Calculated value (for reference)
-          estimatesRan, // Value sent to database (0)
-          sales: jobBooked,
-          revenue,
+          startDate: savedActual.startDate,
+          endDate: savedActual.endDate,
+          leads: savedActual.leads,
+          estimatesSet: savedActual.estimatesSet,
+          estimatesRan: savedActual.estimatesRan,
+          sales: savedActual.sales,
+          revenue: savedActual.revenue,
+          documentId: String(savedActual._id),
+          collection: 'weeklyactuals',
         });
        } catch (upsertErr: any) {
         logger.error('[GHL Actuals Upsert] Failed', {
