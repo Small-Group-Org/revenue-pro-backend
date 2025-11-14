@@ -75,7 +75,7 @@ app.listen(PORT, () => {
   conversionRateUpdateService.startWeeklyCronJob();
   logger.info("Weekly conversion rate update cron job initialized");
 
-  // Start the daily opportunity sync cron job
+
   // opportunitySyncCron.start();
   logger.info("Opportunity sync cron job initialized");
 
