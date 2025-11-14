@@ -75,7 +75,7 @@ export class ActualRepository {
   async aggregateWeeklyActivity(): Promise<{ _id: string; weeklyReportLastActiveAt: Date | null }[]> {
     return await this.model.aggregate([
       {
-        $project: { userId: 1, updatedAt: 1 } // keep only what’s needed
+        $project: { userId: 1, updatedAt: 1 } // keep only what's needed
       },
       {
         $sort: { userId: 1, updatedAt: -1 } // uses the index
@@ -90,5 +90,12 @@ export class ActualRepository {
         $sort: { weeklyReportLastActiveAt: -1 }
       }
     ]);
+  }
+
+  /**
+   * Find actuals by query - for aggregation across all users
+   */
+  async findActualsByQuery(query: any): Promise<IWeeklyActualDocument[]> {
+    return await this.model.find(query).sort({ startDate: 1 });
   }
 }

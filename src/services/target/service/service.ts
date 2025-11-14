@@ -11,6 +11,10 @@ export class TargetService {
     this.targetRepository = new TargetRepository();
   }
 
+  /**
+   * Standard aggregation for single user's targets (weekly → monthly/yearly)
+   * Used for normal target queries for individual users
+   */
   private _aggregateTargets(
     targets: IWeeklyTargetDocument[],
     queryType: string,
@@ -61,6 +65,125 @@ export class TargetService {
     aggregated.showRate = targets[0].showRate || 0;
     aggregated.closeRate = targets[0].closeRate || 0;
     aggregated.com = targets[0].com || 0;
+
+    return aggregated as IWeeklyTargetDocument;
+  }
+
+  /**
+   * Multi-user aggregation with decode → average → re-encode logic
+   * ONLY used for /api/v1/aggregate/report endpoint
+   * 
+   * Steps:
+   * 1. Decode each user's targets (reverse calculate metrics from rates)
+   * 2. Average the decoded metrics across all users
+   * 3. Re-encode (calculate rates back from averaged metrics)
+   */
+  private _aggregateTargetsForAllUsers(
+    targets: IWeeklyTargetDocument[],
+    queryType: string,
+    startDate?: string,
+    endDate?: string
+  ): IWeeklyTargetDocument {
+    if (targets.length === 0) {
+      return {
+        userId: "ALL_USERS",
+        startDate: startDate || new Date().toISOString(),
+        endDate: endDate || new Date().toISOString(),
+        appointmentRate: 0,
+        avgJobSize: 0,
+        closeRate: 0,
+        com: 0,
+        revenue: 0,
+        showRate: 0,
+        managementCost: 0,
+        queryType: queryType,
+        year: new Date().getFullYear(),
+        weekNumber: 0,
+      } as unknown as IWeeklyTargetDocument;
+    }
+
+    // STEP 1: DECODE - Reverse calculate metrics for each user
+    interface DecodedMetrics {
+      sales: number;
+      estimatesRan: number;
+      estimatesSet: number;
+      leads: number;
+      revenue: number;
+      managementCost: number;
+      com: number;
+    }
+
+    const decodedTargets: DecodedMetrics[] = targets.map(target => {
+      const revenue = target.revenue || 0;
+      const avgJobSize = target.avgJobSize || 0;
+      const closeRate = target.closeRate || 0;
+      const showRate = target.showRate || 0;
+      const appointmentRate = target.appointmentRate || 0;
+      const managementCost = target.managementCost || 0;
+      const com = target.com || 0;
+
+      // Reverse calculate from rates
+      // Sales = Revenue ÷ Avg Job Size
+      const sales = avgJobSize > 0 ? revenue / avgJobSize : 0;
+      
+      // Estimates Ran = Sales ÷ (Close Rate / 100)
+      const estimatesRan = closeRate > 0 ? sales / (closeRate / 100) : 0;
+      
+      // Estimates Set = Estimates Ran ÷ (Show Rate / 100)
+      const estimatesSet = showRate > 0 ? estimatesRan / (showRate / 100) : 0;
+      
+      // Leads = Estimates Set ÷ (Appointment Rate / 100)
+      const leads = appointmentRate > 0 ? estimatesSet / (appointmentRate / 100) : 0;
+
+      return {
+        sales,
+        estimatesRan,
+        estimatesSet,
+        leads,
+        revenue,
+        managementCost,
+        com,
+      };
+    });
+
+    // STEP 2: AVERAGE - Calculate average of decoded metrics
+    const totalRevenue = decodedTargets.reduce((sum, d) => sum + d.revenue, 0);
+    const totalManagementCost = decodedTargets.reduce((sum, d) => sum + d.managementCost, 0);
+    const avgCom = decodedTargets.reduce((sum, d) => sum + d.com, 0) / targets.length;
+    
+    const avgSales = decodedTargets.reduce((sum, d) => sum + d.sales, 0) / targets.length;
+    const avgEstimatesRan = decodedTargets.reduce((sum, d) => sum + d.estimatesRan, 0) / targets.length;
+    const avgEstimatesSet = decodedTargets.reduce((sum, d) => sum + d.estimatesSet, 0) / targets.length;
+    const avgLeads = decodedTargets.reduce((sum, d) => sum + d.leads, 0) / targets.length;
+
+    // STEP 3: RE-ENCODE - Calculate rates back from averaged metrics
+    // Avg Job Size = Total Revenue ÷ Avg Sales
+    const avgJobSize = avgSales > 0 ? totalRevenue / avgSales : 0;
+    
+    // Close Rate = (Avg Sales ÷ Avg Estimates Ran) × 100
+    const closeRate = avgEstimatesRan > 0 ? (avgSales / avgEstimatesRan) * 100 : 0;
+    
+    // Show Rate = (Avg Estimates Ran ÷ Avg Estimates Set) × 100
+    const showRate = avgEstimatesSet > 0 ? (avgEstimatesRan / avgEstimatesSet) * 100 : 0;
+    
+    // Appointment Rate = (Avg Estimates Set ÷ Avg Leads) × 100
+    const appointmentRate = avgLeads > 0 ? (avgEstimatesSet / avgLeads) * 100 : 0;
+
+    const aggregated: IWeeklyTarget = {
+      userId: "ALL_USERS",
+      startDate: startDate || targets[0].startDate,
+      endDate: endDate || targets[targets.length - 1].endDate,
+      year: targets[0].year,
+      weekNumber: targets[0].weekNumber,
+      appointmentRate: Math.round(appointmentRate * 100) / 100,
+      avgJobSize: Math.round(avgJobSize * 100) / 100,
+      closeRate: Math.round(closeRate * 100) / 100,
+      com: Math.round(avgCom * 100) / 100,
+      revenue: Math.round(totalRevenue * 100) / 100,
+      showRate: Math.round(showRate * 100) / 100,
+      managementCost: Math.round(totalManagementCost * 100) / 100,
+      queryType: queryType,
+    };
 
     return aggregated as IWeeklyTargetDocument;
   }
@@ -830,5 +953,177 @@ export class TargetService {
 
     return monthlyTargets;
     console.log(monthlyTargets);
+  }
+
+  /**
+   * MASTER AGGREGATE: Get target data for ALL users
+   * Same structure as individual queries but aggregated across all users
+   */
+  public async getAggregatedTargetsForAllUsers(
+    startDateStr: string,
+    endDateStr: string,
+    queryType: "weekly" | "monthly" | "yearly"
+  ): Promise<IWeeklyTargetDocument | IWeeklyTargetDocument[]> {
+    switch (queryType) {
+      case "weekly":
+        return this.getWeeklyTargetForAllUsers(startDateStr);
+      case "monthly":
+        return this.getAggregatedMonthlyTargetForAllUsers(startDateStr, endDateStr);
+      case "yearly":
+        return this.getAggregatedYearlyTargetForAllUsers(startDateStr, endDateStr);
+      default:
+        throw new Error(`Invalid queryType: ${queryType}`);
+    }
+  }
+
+  /**
+   * Get weekly target for ALL users (aggregated)
+   * Uses decode-average-reencode logic
+   */
+  private async getWeeklyTargetForAllUsers(startDate: string): Promise<IWeeklyTargetDocument> {
+    const weekInfo = DateUtils.getWeekDetails(startDate);
+    
+    // Get all targets for this week across all users
+    const targets = await this.targetRepository.findTargetsByQuery({
+      year: weekInfo.year,
+      weekNumber: weekInfo.weekNumber,
+    });
+    
+    if (targets.length === 0) {
+      return {
+        userId: "ALL_USERS",
+        startDate: weekInfo.weekStart,
+        endDate: weekInfo.weekEnd,
+        appointmentRate: 0,
+        avgJobSize: 0,
+        closeRate: 0,
+        com: 0,
+        revenue: 0,
+        showRate: 0,
+        managementCost: 0,
+        queryType: "weekly",
+        year: weekInfo.year,
+        weekNumber: weekInfo.weekNumber,
+      } as unknown as IWeeklyTargetDocument;
+    }
+    
+    // Use multi-user aggregation logic
+    return this._aggregateTargetsForAllUsers(targets, "weekly", weekInfo.weekStart, weekInfo.weekEnd);
+  }
+
+  /**
+   * Get monthly target for ALL users (aggregated)
+   * Returns array of weekly targets (aggregated across all users)
+   * Uses decode-average-reencode logic
+   */
+  private async getAggregatedMonthlyTargetForAllUsers(
+    startDate: string,
+    endDate: string
+  ): Promise<IWeeklyTargetDocument[]> {
+    const weeksInMonth = DateUtils.getMonthWeeks(startDate, endDate);
+    
+    if (weeksInMonth.length === 0) {
+      return [];
+    }
+
+    // For each week, get all users' targets and aggregate
+    const weeklyTargets = await Promise.all(
+      weeksInMonth.map(async (week) => {
+        const weekInfo = DateUtils.getWeekDetails(week.weekStart);
+        
+        const targets = await this.targetRepository.findTargetsByQuery({
+          year: weekInfo.year,
+          weekNumber: weekInfo.weekNumber,
+        });
+        
+        if (targets.length === 0) {
+          return {
+            userId: "ALL_USERS",
+            startDate: week.weekStart,
+            endDate: week.weekEnd,
+            appointmentRate: 0,
+            avgJobSize: 0,
+            closeRate: 0,
+            com: 0,
+            revenue: 0,
+            showRate: 0,
+            managementCost: 0,
+            queryType: "monthly",
+            year: weekInfo.year,
+            weekNumber: weekInfo.weekNumber,
+          } as unknown as IWeeklyTargetDocument;
+        }
+        
+        // Use multi-user aggregation logic
+        return this._aggregateTargetsForAllUsers(targets, "monthly", week.weekStart, week.weekEnd);
+      })
+    );
+    
+    return weeklyTargets;
+  }
+
+  /**
+   * Get yearly target for ALL users (aggregated)
+   * Returns 12 monthly aggregates
+   * Uses decode-average-reencode logic
+   */
+  private async getAggregatedYearlyTargetForAllUsers(
+    startDate: string,
+    endDate: string
+  ): Promise<IWeeklyTargetDocument[]> {
+    const year = new Date(startDate).getFullYear();
+    const results: IWeeklyTargetDocument[] = [];
+
+    for (let month = 0; month < 12; month++) {
+      const monthStart = new Date(year, month, 1);
+      const monthEnd = new Date(year, month + 1, 0);
+      const monthStartStr = monthStart.toISOString().slice(0, 10);
+      const monthEndStr = monthEnd.toISOString().slice(0, 10);
+      
+      // Get all weeks in this month
+      const weeksInMonth = DateUtils.getMonthWeeks(monthStartStr, monthEndStr);
+  
+        // Collect all individual user targets for all weeks in this month
+      const allMonthTargets: IWeeklyTargetDocument[] = [];
+      
+      for (const week of weeksInMonth) {
+        const weekInfo = DateUtils.getWeekDetails(week.weekStart);
+        const weekTargets = await this.targetRepository.findTargetsByQuery({
+          year: weekInfo.year,
+          weekNumber: weekInfo.weekNumber,
+        });
+        allMonthTargets.push(...weekTargets);
+      }
+      
+      let aggregated;
+      if (weeksInMonth.length === 0) {
+        aggregated = {
+          userId: "ALL_USERS",
+          startDate: monthStartStr,
+          endDate: monthEndStr,
+          appointmentRate: 0,
+          avgJobSize: 0,
+          closeRate: 0,
+          com: 0,
+          revenue: 0,
+          showRate: 0,
+          managementCost: 0,
+          queryType: "monthly",
+          year,
+          weekNumber: 0,
+        } as unknown as IWeeklyTargetDocument;
+      } else {
+        // Use multi-user aggregation logic for monthly summaries
+        aggregated = this._aggregateTargetsForAllUsers(allMonthTargets, "monthly", monthStartStr, monthEndStr);
+        aggregated.year = year;
+        aggregated.startDate = monthStartStr;
+        aggregated.endDate = monthEndStr;
+        aggregated.queryType = "monthly";
+        aggregated.userId = "ALL_USERS";
+      }
+      results.push(aggregated);
+    }
+    
+    return results;
   }
 }
