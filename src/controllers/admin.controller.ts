@@ -3,6 +3,7 @@ import UserService from "../services/user/service/service.js";
 import { UserRole } from "../middlewares/auth.middleware.js";
 import { IUser } from "../services/user/domain/user.domain.js";
 import utils from "../utils/utils.js";
+import opportunitySyncCron from "../services/opportunities/cron/opportunitySync.cron.js";
 
 class AdminController {
   private userService: UserService;
@@ -184,6 +185,35 @@ class AdminController {
           errorCount,
           results,
           errors: errorCount > 0 ? errors : undefined
+        }
+      });
+    } catch (error) {
+      utils.sendErrorResponse(res, error);
+    }
+  };
+
+  public triggerOpportunitySync = async (req: Request, res: Response): Promise<void> => {
+    try {
+      const userId = req.context.getUserId();
+
+      // Check if cron is already running
+      if (opportunitySyncCron.isRunningCheck()) {
+        utils.sendErrorResponse(res, {
+          message: "Opportunity sync cron is already running",
+          statusCode: 409
+        });
+        return;
+      }
+
+      // Trigger the cron job and wait for completion
+      await opportunitySyncCron.runOnce();
+
+      utils.sendSuccessResponse(res, 200, {
+        success: true,
+        message: "Opportunity sync cron job completed successfully",
+        data: {
+          userId,
+          status: "completed"
         }
       });
     } catch (error) {

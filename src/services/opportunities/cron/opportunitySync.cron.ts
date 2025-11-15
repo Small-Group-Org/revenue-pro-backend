@@ -23,10 +23,19 @@ class OpportunitySyncCronService {
     logger.info(`Opportunity sync cron scheduled with '${schedule}'`);
   }
 
+  public isRunningCheck(): boolean {
+    return this.isRunning;
+  }
+
   public async runOnce(): Promise<void> {
     const locationId = config.GHL_LOCATION_ID;
     if (!locationId) {
       logger.error('GHL_LOCATION_ID not configured; skipping opportunity sync');
+      return;
+    }
+
+    if (this.isRunning) {
+      logger.warn('Opportunity sync already running; skipping manual trigger');
       return;
     }
 

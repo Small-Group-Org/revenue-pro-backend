@@ -10,4 +10,7 @@ router.get("/users/list/all", isAdmin, adminController.getAllUsers);
 router.get("/get/users/:userId", isAdmin, adminController.getUserById);
 router.delete("/users/:userId", isAdmin, adminController.deleteUser);
 
+// Opportunity sync cron trigger
+router.post("/opportunity-sync/trigger", adminController.triggerOpportunitySync);
+
 export default router; 
