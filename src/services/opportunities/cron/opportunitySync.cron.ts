@@ -127,8 +127,9 @@ class OpportunitySyncCronService {
       //  }
 
       // New requirement: count specified tags for a specific pipeline and log the counts
+      // Only opportunities with 'facebook lead' tag are considered (mandatory requirement)
       const TARGET_PIPELINE_ID = 'FWfjcNV1hNqg3YBfHDHi';
-      const TARGET_TAGS = ['facebook lead', 'new_lead', 'appt_completed', 'job_won', 'job_lost', "appt_completed_unresponsive", "color_consultation_booked", "appt_booked"];
+      const TARGET_TAGS = ['facebook lead', 'appt_completed', 'job_won', 'job_lost', "appt_completed_unresponsive", "color_consultation_booked", "appt_booked"];
       const counts: Record<string, number> = Object.fromEntries(TARGET_TAGS.map(t => [t, 0]));
 
       for (const opp of opportunities) {
@@ -147,17 +148,20 @@ class OpportunitySyncCronService {
         if (collected.length === 0) continue;
         const lower = new Set(collected.map((t: string) => String(t).toLowerCase()));
         
-        // Check which target tags are present (excluding 'new_lead' for facebook lead special case)
-        const presentTargetTags = TARGET_TAGS.filter(tag => lower.has(tag) && tag !== 'new_lead');
+        // Mandatory: Only process opportunities with 'facebook lead' tag
+        if (!lower.has('facebook lead')) continue;
+        
+        // Check which target tags are present
+        const presentTargetTags = TARGET_TAGS.filter(tag => lower.has(tag));
         
         for (const tag of TARGET_TAGS) {
-          // Special case: 'facebook lead' should only be counted if no other TARGET_TAG (except 'new_lead') is present
+          // Special case: 'facebook lead' should only be counted if no other TARGET_TAG is present
           if (tag === 'facebook lead') {
             if (presentTargetTags.length === 1 && presentTargetTags[0] === 'facebook lead') {
               counts[tag] += 1;
             }
           } else {
-            // For all other tags (including 'new_lead'), count if present
+            // For all other tags, count if present
             if (lower.has(tag)) counts[tag] += 1;
           }
         }
@@ -186,7 +190,8 @@ class OpportunitySyncCronService {
           }
         }
         const lower = new Set(collected.map((t: string) => String(t).toLowerCase()));
-        if (lower.has(JOB_WON_TAG) && opp?.contactId) {
+        // Only process opportunities with 'facebook lead' tag (mandatory requirement)
+        if (lower.has('facebook lead') && lower.has(JOB_WON_TAG) && opp?.contactId) {
           jobWonContactIds.push(opp.contactId);
         }
       }
@@ -228,8 +233,8 @@ class OpportunitySyncCronService {
         sum: sumCustomField,
       });
 
-      // Calculate derived values for actuals (similar to previous logic)
-      // Leads: count unique opportunities that have EITHER 'facebook lead' OR 'new_lead' (or both)
+      // Calculate derived values for actuals
+      // Leads: count unique opportunities that have 'facebook lead' tag (mandatory - only facebook leads are targeted)
       let leadsCount = 0;
       for (const opp of opportunities) {
         if (!opp?.pipelineId || opp.pipelineId !== TARGET_PIPELINE_ID) continue;
@@ -247,13 +252,13 @@ class OpportunitySyncCronService {
         if (collected.length === 0) continue;
         const lower = new Set(collected.map((t: string) => String(t).toLowerCase()));
         
-        // Count if either 'facebook lead' OR 'new_lead' is present
-        if (lower.has('facebook lead') || lower.has('new_lead')) {
+        // Count only if 'facebook lead' is present (mandatory requirement)
+        if (lower.has('facebook lead')) {
           leadsCount += 1;
         }
       }
       const leads = leadsCount;
-      // Estimates Set: count unique opportunities that have BOTH 'new_lead' AND 'appt_booked'
+      // Estimates Set: count unique opportunities that have BOTH 'facebook lead' (mandatory) AND 'appt_booked'
       let estimatesSetCount = 0;
       for (const opp of opportunities) {
         if (!opp?.pipelineId || opp.pipelineId !== TARGET_PIPELINE_ID) continue;
@@ -271,13 +276,13 @@ class OpportunitySyncCronService {
         if (collected.length === 0) continue;
         const lower = new Set(collected.map((t: string) => String(t).toLowerCase()));
         
-        // Count if BOTH 'new_lead' AND 'appt_booked' are present
-        if ( lower.has('appt_booked')) {
+        // Count if BOTH 'facebook lead' (mandatory) AND 'appt_booked' are present
+        if (lower.has('facebook lead') && lower.has('appt_booked')) {
           estimatesSetCount += 1;
         }
       }
       const estimatesSet = estimatesSetCount;
-      // Estimates Ran: count unique opportunities that have ANY of these tags: job_won, job_lost, appt_completed, appt_completed_unresponsive, color_consultation_booked
+      // Estimates Ran: count unique opportunities that have 'facebook lead' (mandatory) AND ANY of these tags: job_won, job_lost, appt_completed, appt_completed_unresponsive, color_consultation_booked
       const ESTIMATES_RAN_TAGS = ['job_won', 'job_lost', 'appt_completed', 'appt_completed_unresponsive', 'color_consultation_booked'];
       let estimatesRanCount = 0;
       for (const opp of opportunities) {
@@ -296,10 +301,12 @@ class OpportunitySyncCronService {
         if (collected.length === 0) continue;
         const lower = new Set(collected.map((t: string) => String(t).toLowerCase()));
         
-        // Count if ANY of the estimates ran tags are present
-        const hasEstimatesRanTag = ESTIMATES_RAN_TAGS.some(tag => lower.has(tag));
-        if (hasEstimatesRanTag) {
-          estimatesRanCount += 1;
+        // Count if 'facebook lead' (mandatory) is present AND ANY of the estimates ran tags are present
+        if (lower.has('facebook lead')) {
+          const hasEstimatesRanTag = ESTIMATES_RAN_TAGS.some(tag => lower.has(tag));
+          if (hasEstimatesRanTag) {
+            estimatesRanCount += 1;
+          }
         }
       }
       const estimatesRan = estimatesRanCount;
