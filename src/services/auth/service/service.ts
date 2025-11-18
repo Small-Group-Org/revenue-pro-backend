@@ -37,7 +37,7 @@ class AuthService {
         throw new CustomError(ErrorCode.BAD_REQUEST, "Invalid credentials");
       }      
 
-      const token = createToken({ id: user._id as string, email: user.email });
+      const token = createToken({ id: String(user._id), email: user.email });
       return {
         token: token,
         user: user,
@@ -62,7 +62,7 @@ class AuthService {
 
       const user = await this.userService.addUser(name, email, email, password, "", false);
 
-      const token = createToken({ id: user._id as string, email: user.email });
+      const token = createToken({ id: String(user._id), email: user.email });
       return {
         token: token,
         user: user,
@@ -154,7 +154,7 @@ class AuthService {
         throw new CustomError(ErrorCode.NOT_FOUND, "User not found");
       }
 
-      await this.userService.updateUserPassword(user._id as string, password);
+      await this.userService.updateUserPassword(String(user._id), password);
 
       return {
         message: "Password reset successful",

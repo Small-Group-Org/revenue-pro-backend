@@ -3,13 +3,13 @@ import { LeadScoringService, LeadService } from "../leads/service/index.js";
 import logger from "../../utils/logger.js";
 import CronLogger from "../../utils/cronLogger.js";
 import { MongoCronLogger } from "../../utils/mongoCronLogger.js";
-import { ObjectId } from "mongoose";
+import { Types } from "mongoose";
 
 export class ConversionRateUpdateService {
   private leadScoringService: LeadScoringService;
   private leadService: LeadService;
   private isRunning: boolean = false;
-  private currentLogId: ObjectId | null = null;
+  private currentLogId: Types.ObjectId | null = null;
 
   constructor() {
     this.leadScoringService = new LeadScoringService();

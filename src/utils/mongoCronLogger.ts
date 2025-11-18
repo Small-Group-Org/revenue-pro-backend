@@ -1,4 +1,4 @@
-import { ObjectId } from 'mongoose';
+import { Types } from 'mongoose';
 import CronLogModel, { ICronLogDocument } from '../services/leads/repository/models/cronLog.model.js';
 import logger from './logger.js';
 
@@ -9,13 +9,13 @@ export interface CronJobStartParams {
 }
 
 export interface CronJobSuccessParams {
-  logId: ObjectId;
+  logId: Types.ObjectId;
   details: string | object;
   processedCount?: number;
 }
 
 export interface CronJobFailureParams {
-  logId: ObjectId;
+  logId: Types.ObjectId;
   error: string;
   details: string | object;
   processedCount?: number;
@@ -30,7 +30,7 @@ export class MongoCronLogger {
    * Log the start of a cron job
    * Creates a new log entry with status 'started'
    */
-  public static async logCronJobStart(params: CronJobStartParams): Promise<ObjectId> {
+  public static async logCronJobStart(params: CronJobStartParams): Promise<Types.ObjectId> {
     try {
       const executionId = params.executionId || this.generateExecutionId();
       
@@ -50,7 +50,7 @@ export class MongoCronLogger {
         details: params.details
       });
 
-      return savedLog._id as ObjectId;
+      return savedLog._id as Types.ObjectId;
     } catch (error: any) {
       logger.error('Failed to log cron job start:', error);
       throw error;
@@ -238,12 +238,12 @@ export async function logCronJob(
   status: 'started' | 'success' | 'failure', 
   details: string | object,
   options?: {
-    logId?: ObjectId;
+    logId?: Types.ObjectId;
     error?: string;
     processedCount?: number;
     executionId?: string;
   }
-): Promise<ObjectId | void> {
+): Promise<Types.ObjectId | void> {
   try {
     switch (status) {
       case 'started':

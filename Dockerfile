@@ -10,7 +10,8 @@ RUN npm install
 COPY tsconfig.json ./
 COPY src/ ./src/
 
-# Build TypeScript (uses local version from node_modules)
+# Build TypeScript
+RUN npm install -g typescript
 RUN npm run build
 
 # Start the application
