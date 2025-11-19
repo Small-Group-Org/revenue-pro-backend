@@ -12,6 +12,7 @@ import logger, {
 } from "./utils/logger.js";
 import conversionRateUpdateService from "./services/cron/conversionRateUpdateService.js";
 import opportunitySyncCron from "./services/opportunities/cron/opportunitySync.cron.js";
+import leadSheetsSyncCron from "./services/leads/cron/leadSheetsSync.cron.js";
 
 // Initialize express app
 const app: Express = express();
@@ -77,4 +78,8 @@ app.listen(PORT, () => {
   // Start the daily opportunity sync cron job
   opportunitySyncCron.start();
   logger.info("Opportunity sync cron job initialized");
+
+  // Start the lead sheets sync cron job
+  leadSheetsSyncCron.start();
+  logger.info("Lead sheets sync cron job initialized");
 });
