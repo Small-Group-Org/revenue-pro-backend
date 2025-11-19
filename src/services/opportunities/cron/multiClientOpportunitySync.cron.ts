@@ -54,6 +54,10 @@ class MultiClientOpportunitySyncCron {
     logger.info(`Multi-client opportunity sync cron scheduled with '${schedule}'`);
   }
 
+  public isRunningCheck(): boolean {
+    return this.isRunning;
+  }
+
   public async runOnce(): Promise<void> {
     this.isRunning = true;
     const start = new Date();

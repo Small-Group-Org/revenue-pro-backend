@@ -24,6 +24,10 @@ class LeadSheetsSyncCron {
     logger.info(`[Lead Sheets Sync Cron] Scheduled with '${schedule}'`);
   }
 
+  public isRunningCheck(): boolean {
+    return this.isRunning;
+  }
+
   public async runOnce(): Promise<void> {
     this.isRunning = true;
     const start = new Date();
