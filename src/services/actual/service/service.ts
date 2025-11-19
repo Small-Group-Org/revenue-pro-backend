@@ -212,4 +212,156 @@ export class ActualService {
         throw new Error("Invalid type provided");
     }
   }
+
+  /**
+   * MASTER AGGREGATE: Get actual data for ALL users (aggregated)
+   * Returns the same structure as individual user queries
+   */
+  public async getAggregatedActualsForAllUsers(
+    startDateStr: string,
+    endDateStr: string
+  ): Promise<IWeeklyActual[]> {
+    const start = new Date(startDateStr);
+    const end = new Date(endDateStr);
+
+    // Check if it's a full year
+    const isFullYear =
+      start.getMonth() === 0 &&
+      start.getDate() === 1 &&
+      end.getMonth() === 11 &&
+      (end.getDate() === 31 || 
+        (end.getMonth() === 11 && 
+          new Date(end.getFullYear(), 11, 31).getDate() === end.getDate())) &&
+      start.getFullYear() === end.getFullYear();
+
+    if (isFullYear) {
+      // Return 12 monthly aggregates for all users
+      return await this.getActualYearlyMonthlyAggregateForAllUsers(start.getFullYear());
+    } else {
+      // Return date range aggregate for all users
+      return await this.getActualsByDateRangeForAllUsers(startDateStr, endDateStr);
+    }
+  }
+
+  /**
+   * Get actual data by date range for ALL users (aggregated)
+   * Same structure as getActualsByDateRange but summed across all users
+   */
+  private async getActualsByDateRangeForAllUsers(
+    startDateStr: string,
+    endDateStr: string
+  ): Promise<IWeeklyActual[]> {
+    const start = new Date(startDateStr);
+    const end = new Date(endDateStr);
+
+    // Get all weeks in the date range
+    const weeks = DateUtils.getMonthWeeks(startDateStr, endDateStr);
+
+    // For each week, aggregate data from all users
+    const aggregatedWeeks = await Promise.all(
+      weeks.map(async ({ weekStart, weekEnd }) => {
+        // Find all actuals for this week across all users
+        const actuals = await this.actualRepository.findActualsByQuery({
+          startDate: weekStart,
+          endDate: weekEnd,
+        });
+
+        // If no actuals found, return zero-filled
+        if (actuals.length === 0) {
+          return this._zeroFilledActual(weekStart, weekEnd, "ALL_USERS");
+        }
+        // Get unique user count
+        const uniqueUsers = new Set(actuals.map(a => a.userId.toString()));
+        // Aggregate all actuals for this week
+        const aggregated: IWeeklyActual = {
+          userId: "ALL_USERS",
+          startDate: weekStart,
+          endDate: weekEnd,
+          testingBudgetSpent: actuals.reduce((sum: number, a) => sum + (a.testingBudgetSpent || 0), 0),
+          awarenessBrandingBudgetSpent: actuals.reduce((sum: number, a) => sum + (a.awarenessBrandingBudgetSpent || 0), 0),
+          leadGenerationBudgetSpent: actuals.reduce((sum: number, a) => sum + (a.leadGenerationBudgetSpent || 0), 0),
+          revenue: actuals.reduce((sum: number, a) => sum + (a.revenue || 0), 0),
+          sales: actuals.reduce((sum: number, a) => sum + (a.sales || 0), 0),
+          leads: actuals.reduce((sum: number, a) => sum + (a.leads || 0), 0),
+          estimatesRan: actuals.reduce((sum: number, a) => sum + (a.estimatesRan || 0), 0),
+          estimatesSet: actuals.reduce((sum: number, a) => sum + (a.estimatesSet || 0), 0),
+          adNamesAmount: [], // Don't aggregate ad names for now
+        };
+
+        return aggregated;
+      })
+    );
+
+    return aggregatedWeeks;
+  }
+
+  /**
+   * Get yearly monthly aggregate for ALL users
+   * Returns 12 months of data (Jan-Dec) with all users aggregated
+   */
+  private async getActualYearlyMonthlyAggregateForAllUsers(year: number): Promise<IWeeklyActual[]> {
+    const results: IWeeklyActual[] = [];
+
+    for (let month = 0; month < 12; month++) {
+      const monthStart = new Date(year, month, 1);
+      const monthEnd = new Date(year, month + 1, 0);
+      const monthStartStr = monthStart.toISOString().slice(0, 10);
+      const monthEndStr = monthEnd.toISOString().slice(0, 10);
+      const weeks = DateUtils.getMonthWeeks(monthStartStr, monthEndStr);
+
+      // Get all actuals for all weeks in this month across all users
+      const weeklyActuals = await Promise.all(
+        weeks.map(async ({ weekStart, weekEnd }) => {
+          const actuals = await this.actualRepository.findActualsByQuery({
+            startDate: weekStart,
+            endDate: weekEnd,
+          });
+
+          if (actuals.length === 0) {
+            return this._zeroFilledActual(weekStart, weekEnd, "ALL_USERS");
+          }
+
+          // Aggregate this week's data
+          return {
+            userId: "ALL_USERS",
+            startDate: weekStart,
+            endDate: weekEnd,
+            testingBudgetSpent: actuals.reduce((sum: number, a) => sum + (a.testingBudgetSpent || 0), 0),
+            awarenessBrandingBudgetSpent: actuals.reduce((sum: number, a) => sum + (a.awarenessBrandingBudgetSpent || 0), 0),
+            leadGenerationBudgetSpent: actuals.reduce((sum: number, a) => sum + (a.leadGenerationBudgetSpent || 0), 0),
+            revenue: actuals.reduce((sum: number, a) => sum + (a.revenue || 0), 0),
+            sales: actuals.reduce((sum: number, a) => sum + (a.sales || 0), 0),
+            leads: actuals.reduce((sum: number, a) => sum + (a.leads || 0), 0),
+            estimatesRan: actuals.reduce((sum: number, a) => sum + (a.estimatesRan || 0), 0),
+            estimatesSet: actuals.reduce((sum: number, a) => sum + (a.estimatesSet || 0), 0),
+            adNamesAmount: [],
+          } as IWeeklyActual;
+        })
+      );
+
+      // Aggregate all weeks in this month
+      let aggregated: IWeeklyActual;
+      if (weeklyActuals.length === 0) {
+        aggregated = this._zeroFilledActual(monthStartStr, monthEndStr, "ALL_USERS");
+      } else {
+        aggregated = weeklyActuals.reduce((acc, curr) => {
+          acc.testingBudgetSpent += curr.testingBudgetSpent || 0;
+          acc.awarenessBrandingBudgetSpent += curr.awarenessBrandingBudgetSpent || 0;
+          acc.leadGenerationBudgetSpent += curr.leadGenerationBudgetSpent || 0;
+          acc.revenue += curr.revenue || 0;
+          acc.sales += curr.sales || 0;
+          acc.leads += curr.leads || 0;
+          acc.estimatesRan += curr.estimatesRan || 0;
+          acc.estimatesSet += curr.estimatesSet || 0;
+          return acc;
+        }, this._zeroFilledActual(monthStartStr, monthEndStr, "ALL_USERS"));
+      }
+
+      aggregated.startDate = monthStartStr;
+      aggregated.endDate = monthEndStr;
+      results.push(aggregated);
+    }
+
+    return results;
+  }
 }

@@ -489,7 +489,7 @@ if (req.query.clientId) {
         return;
       }
 
-      // Validate status if provided
+      // If Validate status is provided
       if (
         status &&
         !["new", "in_progress", "estimate_set", "unqualified"].includes(status)

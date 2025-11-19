@@ -92,4 +92,11 @@ export class TargetRepository {
     );
     return results;
   }
+
+  /**
+   * Find targets by query - for aggregation across all users
+   */
+  async findTargetsByQuery(query: any): Promise<IWeeklyTargetDocument[]> {
+    return await this.model.find(query).sort({ startDate: 1 });
+  }
 } 
