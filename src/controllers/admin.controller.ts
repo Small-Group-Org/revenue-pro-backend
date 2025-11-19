@@ -4,6 +4,7 @@ import { UserRole } from "../middlewares/auth.middleware.js";
 import { IUser } from "../services/user/domain/user.domain.js";
 import utils from "../utils/utils.js";
 import opportunitySyncCron from "../services/opportunities/cron/opportunitySync.cron.js";
+import leadSheetsSyncCron from "../services/leads/cron/leadSheetsSync.cron.js";
 
 class AdminController {
   private userService: UserService;
@@ -211,6 +212,35 @@ class AdminController {
       utils.sendSuccessResponse(res, 200, {
         success: true,
         message: "Opportunity sync cron job completed successfully",
+        data: {
+          userId,
+          status: "completed"
+        }
+      });
+    } catch (error) {
+      utils.sendErrorResponse(res, error);
+    }
+  };
+
+  public triggerLeadSheetsSync = async (req: Request, res: Response): Promise<void> => {
+    try {
+      const userId = req.context.getUserId();
+
+      // Check if cron is already running
+      if (leadSheetsSyncCron.isRunningCheck()) {
+        utils.sendErrorResponse(res, {
+          message: "Lead sheets sync cron is already running",
+          statusCode: 409
+        });
+        return;
+      }
+
+      // Trigger the cron job and wait for completion
+      await leadSheetsSyncCron.runOnce();
+
+      utils.sendSuccessResponse(res, 200, {
+        success: true,
+        message: "Lead sheets sync cron job completed successfully",
         data: {
           userId,
           status: "completed"
