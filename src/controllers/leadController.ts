@@ -144,7 +144,7 @@ if (req.query.clientId) {
    * PATCH /hooks/update-lead
    */
   async updateLeadByEmail(req: Request, res: Response): Promise<void> {
-    const { leadDate, email, clientId, status, unqualifiedLeadReason } = req.body;
+    const { leadDate, email, clientId, status, unqualifiedLeadReason, proposalAmount, jobBookedAmount } = req.body;
 
     // Validate required fields
     if (!email || !clientId || !status) {
@@ -163,6 +163,29 @@ if (req.query.clientId) {
       });
       return;
     }
+    // Validate proposalAmount if provided
+    if (proposalAmount !== undefined && proposalAmount !== null) {
+      const amount = Number(proposalAmount);
+      if (isNaN(amount) || amount < 0) {
+        utils.sendErrorResponse(res, {
+          message: "proposalAmount must be a valid non-negative number",
+          statusCode: 400
+        });
+        return;
+      }
+    }
+
+    // Validate jobBookedAmount if provided
+    if (jobBookedAmount !== undefined && jobBookedAmount !== null) {
+      const amount = Number(jobBookedAmount);
+      if (isNaN(amount) || amount < 0) {
+        utils.sendErrorResponse(res, {
+          message: "jobBookedAmount must be a valid non-negative number",
+          statusCode: 400
+        });
+        return;
+      }
+    }
 
     try {
       const updatedLead = await this.service.findAndUpdateLeadByEmail({
@@ -170,6 +193,8 @@ if (req.query.clientId) {
         clientId,
         status,
         unqualifiedLeadReason,
+        proposalAmount: proposalAmount !== undefined ? Number(proposalAmount) : undefined,
+        jobBookedAmount: jobBookedAmount !== undefined ? Number(jobBookedAmount) : undefined,
         leadDate
       });
 
