@@ -13,6 +13,7 @@ import webhooksRouter from "./webhooks.routes.js"
 import ticketRouter from "./tickets.routes.js"
 import ghlClientRouter from "./ghlClient.routes.js"
 import aggregateRouter from "./aggregate.routes.js"
+import featureRequestRoutes from './featureRequest.route.js';
 
 
 import {
@@ -37,7 +38,8 @@ const authenticatedRoutes: Route[] = [
   { path: "/api/v1/ip-tracking", router: ipTrackingRoutes },
   { path: "/api/v1/tickets", router: ticketRouter },
   { path: "/api/v1/ghl-clients", router: ghlClientRouter },
-  { path: "/api/v1/aggregate", router: aggregateRouter }
+  { path: "/api/v1/aggregate", router: aggregateRouter },
+  { path: "/api/v1/feature-requests", router: featureRequestRoutes }
 ];
 
 // Public routes or Protected by api key
