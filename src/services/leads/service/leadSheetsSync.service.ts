@@ -117,6 +117,7 @@ function collectTags(opportunity: GhlOpportunity): string[] {
  * 
  * Only processes tags that are in ALL_ALLOWED_TAGS (unknown tags are ignored)
  * Requires "facebook lead" tag to be present (returns null if missing)
+ * For 'new' status, requires BOTH 'new_lead' AND 'facebook lead' tags
  */
 function determineLeadStatus(tags: string[]): { status: 'new' | 'in_progress' | 'estimate_set' | 'unqualified'; unqualifiedReason?: string } | null {
   // Define all allowed tags (unknown tags will be filtered out)
@@ -163,8 +164,14 @@ function determineLeadStatus(tags: string[]): { status: 'new' | 'in_progress' | 
     }
   }
   
-  // Default to new if no matching tags found
-  return { status: 'new' };
+  // Check for new_lead status - requires BOTH 'new_lead' AND 'facebook lead' tags
+  if (tagSet.has('new_lead') && tagSet.has('facebook lead')) {
+    return { status: 'new' };
+  }
+  
+  // If we reach here, the opportunity has 'facebook lead' but doesn't match any status category
+  // This should not happen in normal flow, but return null to skip
+  return null;
 }
 
 export class LeadSheetsSyncService {
@@ -235,20 +242,15 @@ export class LeadSheetsSyncService {
         totalOpportunities: opportunities.length,
       });
 
-      // Filter opportunities by pipeline
-      const pipelineOpportunities = opportunities.filter(
-        (opp) => opp.pipelineId === pipelineId
-      );
-
-      logger.info('[Lead Sheets Sync] Filtered by pipeline', {
+      // Process all opportunities from all pipelines
+      logger.info('[Lead Sheets Sync] Processing all pipelines', {
         locationId,
         revenueProClientId,
-        pipelineId,
-        pipelineOpportunities: pipelineOpportunities.length,
+        totalOpportunities: opportunities.length,
       });
 
       // Process each opportunity
-      for (const opportunity of pipelineOpportunities) {
+      for (const opportunity of opportunities) {
         try {
           const email = opportunity.contact?.email;
           

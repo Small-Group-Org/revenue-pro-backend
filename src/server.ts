@@ -78,7 +78,7 @@ app.listen(PORT, () => {
 
 
   // opportunitySyncCron.start();
-  logger.info("Opportunity sync cron job initialized");
+ 
 
   // Start multi-client opportunity sync cron job
   multiClientOpportunitySyncCron.start();

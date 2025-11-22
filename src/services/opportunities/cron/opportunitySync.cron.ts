@@ -126,14 +126,13 @@ class OpportunitySyncCronService {
       //   logger.error('Failed to upsert actuals after opportunity sync', upsertErr);
       //  }
 
-      // New requirement: count specified tags for a specific pipeline and log the counts
+      // New requirement: count specified tags for all pipelines and log the counts
       // Only opportunities with 'facebook lead' tag are considered (mandatory requirement)
-      const TARGET_PIPELINE_ID = 'FWfjcNV1hNqg3YBfHDHi';
       const TARGET_TAGS = ['facebook lead', 'appt_completed', 'job_won', 'job_lost', "appt_completed_unresponsive", "color_consultation_booked", "appt_booked"];
       const counts: Record<string, number> = Object.fromEntries(TARGET_TAGS.map(t => [t, 0]));
 
       for (const opp of opportunities) {
-        if (!opp?.pipelineId || opp.pipelineId !== TARGET_PIPELINE_ID) continue;
+        if (!opp?.pipelineId) continue;
 
         const collected: string[] = [];
         const contactTags = (opp as any)?.contact?.tags;
@@ -169,17 +168,17 @@ class OpportunitySyncCronService {
 
       // eslint-disable-next-line no-console
       console.log('[GHL Tag Counts]', {
-        pipelineId: TARGET_PIPELINE_ID,
+        pipelineId: 'all_pipelines',
         counts,
       });
 
-      // New: For 'job_won' tagged contacts in target pipeline, fetch contacts and sum custom field values
+      // New: For 'job_won' tagged contacts in all pipelines, fetch contacts and sum custom field values
       const JOB_WON_TAG = 'job_won';
       const CUSTOM_FIELD_ID_TO_SUM = '12W7drbsCQgxp0IFqWu0';
       const jobWonContactIds: string[] = [];
 
       for (const opp of opportunities) {
-        if (!opp?.pipelineId || opp.pipelineId !== TARGET_PIPELINE_ID) continue;
+        if (!opp?.pipelineId) continue;
         const collected: string[] = [];
         const contactTags = (opp as any)?.contact?.tags;
         if (Array.isArray(contactTags)) collected.push(...contactTags);
@@ -227,7 +226,7 @@ class OpportunitySyncCronService {
 
       // eslint-disable-next-line no-console
       console.log('[GHL job_won custom field sum]', {
-        pipelineId: TARGET_PIPELINE_ID,
+        pipelineId: 'all_pipelines',
         contactCount: uniqueJobWonContactIds.length,
         customFieldId: CUSTOM_FIELD_ID_TO_SUM,
         sum: sumCustomField,
@@ -237,7 +236,7 @@ class OpportunitySyncCronService {
       // Leads: count unique opportunities that have 'facebook lead' tag
       let leadsCount = 0;
       for (const opp of opportunities) {
-        if (!opp?.pipelineId || opp.pipelineId !== TARGET_PIPELINE_ID) continue;
+        if (!opp?.pipelineId) continue;
         
         const collected: string[] = [];
         const contactTags = (opp as any)?.contact?.tags;
@@ -261,7 +260,7 @@ class OpportunitySyncCronService {
       // Estimates Set: count unique opportunities that have BOTH 'facebook lead' AND 'appt_booked'
       let estimatesSetCount = 0;
       for (const opp of opportunities) {
-        if (!opp?.pipelineId || opp.pipelineId !== TARGET_PIPELINE_ID) continue;
+        if (!opp?.pipelineId) continue;
         
         const collected: string[] = [];
         const contactTags = (opp as any)?.contact?.tags;
@@ -286,7 +285,7 @@ class OpportunitySyncCronService {
       const ESTIMATES_RAN_TAGS = ['job_won', 'job_lost', 'appt_completed', 'appt_completed_unresponsive', 'color_consultation_booked'];
       let estimatesRanCount = 0;
       for (const opp of opportunities) {
-        if (!opp?.pipelineId || opp.pipelineId !== TARGET_PIPELINE_ID) continue;
+        if (!opp?.pipelineId) continue;
         
         const collected: string[] = [];
         const contactTags = (opp as any)?.contact?.tags;
@@ -315,7 +314,7 @@ class OpportunitySyncCronService {
 
       // eslint-disable-next-line no-console
       console.log('[GHL Actuals Values]', {
-        pipelineId: TARGET_PIPELINE_ID,
+        pipelineId: 'all_pipelines',
         leads,
         estimatesSet,
         estimatesRan, // Count of opportunities with any estimates ran tag
@@ -352,7 +351,7 @@ class OpportunitySyncCronService {
         );
 
         logger.info('[GHL Actuals Upsert] Success - Data saved to database', {
-          pipelineId: TARGET_PIPELINE_ID,
+          pipelineId: 'all_pipelines',
           userId,
           startDate: savedActual.startDate,
           endDate: savedActual.endDate,
@@ -366,7 +365,7 @@ class OpportunitySyncCronService {
 
         // eslint-disable-next-line no-console
         console.log('[GHL Actuals Upsert] Success - Data saved to database', {
-          pipelineId: TARGET_PIPELINE_ID,
+          pipelineId: 'all_pipelines',
           userId,
           startDate: savedActual.startDate,
           endDate: savedActual.endDate,
@@ -380,14 +379,14 @@ class OpportunitySyncCronService {
         });
        } catch (upsertErr: any) {
         logger.error('[GHL Actuals Upsert] Failed', {
-          pipelineId: TARGET_PIPELINE_ID,
+          pipelineId: 'all_pipelines',
           error: upsertErr.message || String(upsertErr),
           stack: upsertErr.stack,
         });
 
       // eslint-disable-next-line no-console
         console.error('[GHL Actuals Upsert] Failed', {
-          pipelineId: TARGET_PIPELINE_ID,
+          pipelineId: 'all_pipelines',
           error: upsertErr.message || String(upsertErr),
           stack: upsertErr.stack,
         });

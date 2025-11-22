@@ -127,21 +127,9 @@ class MultiClientOpportunitySyncCron {
           continue;
         }
 
-        // Get pipeline ID from client configuration (each client has their own pipeline ID)
-        const TARGET_PIPELINE_ID = client.pipelineId;
-        if (!TARGET_PIPELINE_ID) {
-          logger.warn('Skipping client due to missing pipeline ID', {
-            locationId,
-            userId,
-          });
-          // eslint-disable-next-line no-console
-          console.log('[MultiClient GHL] Skipping client - missing pipeline ID:', { locationId, userId });
-          await delay(perClientDelayMs);
-          continue;
-        }
-
+        // Process opportunities from all pipelines
         // eslint-disable-next-line no-console
-        console.log('[MultiClient GHL] Using pipeline ID:', { locationId, userId, pipelineId: TARGET_PIPELINE_ID });
+        console.log('[MultiClient GHL] Processing all pipelines:', { locationId, userId });
 
         // Count target tags and sum revenue from custom field for job_won contacts
         const TARGET_TAGS = [
@@ -156,13 +144,13 @@ class MultiClientOpportunitySyncCron {
         const counts: Record<string, number> = Object.fromEntries(TARGET_TAGS.map((t) => [t, 0]));
 
         // Log opportunities analysis
-        let opportunitiesInTargetPipeline = 0;
+        let opportunitiesWithPipelineId = 0;
         let opportunitiesWithTags = 0;
         const tagDetails: Record<string, { count: number; opportunityIds: string[] }> = {};
 
         for (const opp of opportunities) {
-          if (!opp?.pipelineId || opp.pipelineId !== TARGET_PIPELINE_ID) continue;
-          opportunitiesInTargetPipeline++;
+          if (!opp?.pipelineId) continue;
+          opportunitiesWithPipelineId++;
 
           const collected: string[] = [];
           const contactTags = (opp as any)?.contact?.tags;
@@ -210,7 +198,7 @@ class MultiClientOpportunitySyncCron {
           locationId,
           userId,
           totalOpportunities: opportunities.length,
-          opportunitiesInTargetPipeline,
+          opportunitiesWithPipelineId,
           opportunitiesWithTags,
           tagCounts: counts,
           tagDetails: Object.fromEntries(
@@ -228,7 +216,7 @@ class MultiClientOpportunitySyncCron {
         const JOB_WON_TAG = 'job_won';
         const jobWonContactIds: string[] = [];
         for (const opp of opportunities) {
-          if (!opp?.pipelineId || opp.pipelineId !== TARGET_PIPELINE_ID) continue;
+          if (!opp?.pipelineId) continue;
           const collected: string[] = [];
           const contactTags = (opp as any)?.contact?.tags;
           if (Array.isArray(contactTags)) collected.push(...contactTags);
@@ -285,7 +273,7 @@ class MultiClientOpportunitySyncCron {
         let leadsCount = 0;
         const leadsDetails: { opportunityId: string; tags: string[] }[] = [];
         for (const opp of opportunities) {
-          if (!opp?.pipelineId || opp.pipelineId !== TARGET_PIPELINE_ID) continue;
+          if (!opp?.pipelineId) continue;
           const collected: string[] = [];
           const contactTags = (opp as any)?.contact?.tags;
           if (Array.isArray(contactTags)) collected.push(...contactTags);
@@ -317,7 +305,7 @@ class MultiClientOpportunitySyncCron {
 
         let estimatesSetCount = 0;
         for (const opp of opportunities) {
-          if (!opp?.pipelineId || opp.pipelineId !== TARGET_PIPELINE_ID) continue;
+          if (!opp?.pipelineId) continue;
           const collected: string[] = [];
           const contactTags = (opp as any)?.contact?.tags;
           if (Array.isArray(contactTags)) collected.push(...contactTags);
@@ -345,7 +333,7 @@ class MultiClientOpportunitySyncCron {
         ];
         let estimatesRanCount = 0;
         for (const opp of opportunities) {
-          if (!opp?.pipelineId || opp.pipelineId !== TARGET_PIPELINE_ID) continue;
+          if (!opp?.pipelineId) continue;
           const collected: string[] = [];
           const contactTags = (opp as any)?.contact?.tags;
           if (Array.isArray(contactTags)) collected.push(...contactTags);

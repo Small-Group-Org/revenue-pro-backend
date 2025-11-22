@@ -3,15 +3,22 @@
  * 
  * This script:
  * 1. Gets first 2 GHL clients
- * 2. Fetches opportunities from GHL for each client
+ * 2. Fetches opportunities from GHL for each client (from ALL pipelines)
  * 3. Extracts emails from opportunities
  * 4. Checks in DB if those emails exist and shows their current status
  * 5. Shows what status they would be updated to based on tags
  * 
  * Updated to match new formula requirements:
+ * - Processes opportunities from ALL pipelines (not filtered by pipelineId)
  * - Requires "facebook lead" tag (skips opportunities without it)
  * - Filters unknown tags (only processes tags in ALL_ALLOWED_TAGS)
- * - ESTIMATE_SET_TAGS now includes 'appt_booked' and 'appt_cancelled'
+ * - ESTIMATE_SET_TAGS includes: 'appt_completed', 'appt_cancelled', 'job_won', 'job_lost', 'appt_booked'
+ * 
+ * Status Determination Formula (priority order):
+ * 1. UNQUALIFIED (highest priority) - if any UNQUALIFIED_TAGS present
+ * 2. ESTIMATE_SET - if any ESTIMATE_SET_TAGS present
+ * 3. IN_PROGRESS - if any IN_PROGRESS_TAGS present
+ * 4. NEW - requires BOTH 'new_lead' AND 'facebook lead' tags present
  * 
  * Usage:
  *   - Ensure you have at least 2 active GHL clients configured
@@ -92,6 +99,7 @@ function collectTags(opportunity: GhlOpportunity): string[] {
  * 
  * Only processes tags that are in ALL_ALLOWED_TAGS (unknown tags are ignored)
  * Requires "facebook lead" tag to be present (returns null if missing)
+ * For 'new' status, requires BOTH 'new_lead' AND 'facebook lead' tags
  */
 function determineLeadStatus(tags: string[]): { status: 'new' | 'in_progress' | 'estimate_set' | 'unqualified'; unqualifiedReason?: string } | null {
   // Define all allowed tags (unknown tags will be filtered out)
@@ -138,11 +146,17 @@ function determineLeadStatus(tags: string[]): { status: 'new' | 'in_progress' | 
     }
   }
   
-  // Default to new if no matching tags found
-  return { status: 'new' };
+  // Check for new_lead status - requires BOTH 'new_lead' AND 'facebook lead' tags
+  if (tagSet.has('new_lead') && tagSet.has('facebook lead')) {
+    return { status: 'new' };
+  }
+  
+  // If we reach here, the opportunity has 'facebook lead' but doesn't match any status category
+  // This should not happen in normal flow, but return null to skip
+  return null;
 }
 
-async function fetchOpportunities(locationId: string, apiToken: string, pipelineId: string): Promise<GhlOpportunity[]> {
+async function fetchOpportunities(locationId: string, apiToken: string): Promise<GhlOpportunity[]> {
   const httpClient = new http(config.GHL_BASE_URL, 15000);
   let url: string | null = `/opportunities/search?location_id=${encodeURIComponent(locationId)}`;
   const aggregated: GhlOpportunity[] = [];
@@ -162,8 +176,8 @@ async function fetchOpportunities(locationId: string, apiToken: string, pipeline
     url = nextUrl && nextUrl.length > 0 ? nextUrl : null;
   }
 
-  // Filter by pipeline
-  return aggregated.filter(opp => opp.pipelineId === pipelineId);
+  // Process all opportunities from all pipelines
+  return aggregated;
 }
 
 async function testLeadSheetsSync() {
@@ -230,7 +244,7 @@ async function testLeadSheetsSync() {
 
       console.log(`\n[TEST] Processing Client ${i + 1}:`);
       console.log(`  Location ID: ${locationId}`);
-      console.log(`  Pipeline ID: ${pipelineId}`);
+      console.log(`  Pipeline ID: ${pipelineId} (all pipelines will be processed)`);
       console.log(`  RevenuePro Client ID: ${revenueProClientId}`);
       logger.info(`[Lead Sheets Sync Test] Processing Client ${i + 1}:`, {
         locationId,
@@ -239,13 +253,13 @@ async function testLeadSheetsSync() {
       });
 
       try {
-        // Fetch opportunities from GHL
-        console.log(`\n[TEST] Fetching opportunities from GHL for Client ${i + 1}...`);
-        logger.info(`[Lead Sheets Sync Test] Fetching opportunities for Client ${i + 1}...`);
-        const opportunities = await fetchOpportunities(locationId, decryptedToken, pipelineId);
+        // Fetch opportunities from GHL (all pipelines)
+        console.log(`\n[TEST] Fetching opportunities from GHL for Client ${i + 1} (all pipelines)...`);
+        logger.info(`[Lead Sheets Sync Test] Fetching opportunities for Client ${i + 1} (all pipelines)...`);
+        const opportunities = await fetchOpportunities(locationId, decryptedToken);
         
-        console.log(`[TEST] ✓ Found ${opportunities.length} opportunities in pipeline`);
-        logger.info(`[Lead Sheets Sync Test] Found ${opportunities.length} opportunities in pipeline for Client ${i + 1}`);
+        console.log(`[TEST] ✓ Found ${opportunities.length} opportunities from all pipelines`);
+        logger.info(`[Lead Sheets Sync Test] Found ${opportunities.length} opportunities from all pipelines for Client ${i + 1}`);
 
         // Extract emails and check in DB
         console.log(`[TEST] Extracting emails and checking in database...`);
