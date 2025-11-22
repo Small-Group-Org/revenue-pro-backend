@@ -15,4 +15,5 @@ router.post("/opportunity-sync/trigger", isAdmin, adminController.triggerOpportu
 router.post("/multi-client-opportunity-sync/trigger", isAdmin, adminController.triggerMultiClientOpportunitySync);
 router.post("/lead-sheets-sync/trigger", isAdmin, adminController.triggerLeadSheetsSync);
 
+
 export default router; 

@@ -13,6 +13,8 @@ interface UpdateLeadByEmailParams {
   clientId: string;
   status: string;
   unqualifiedLeadReason?: string;
+  proposalAmount?: number;
+  jobBookedAmount?: number;
   leadDate?: string;
 }
 
@@ -396,7 +398,7 @@ export class LeadService {
   async findAndUpdateLeadByEmail(
     params: UpdateLeadByEmailParams
   ): Promise<ILeadDocument> {
-    const { email, clientId, status, unqualifiedLeadReason, leadDate } = params;
+    const { email, clientId, status, unqualifiedLeadReason, proposalAmount, jobBookedAmount, leadDate } = params;
     // Find leads matching email and clientId
     const leads = await this.leadRepo.findLeads({ email, clientId });    
     if (!leads || leads.length === 0) {
@@ -436,12 +438,28 @@ export class LeadService {
       leadId = ""
     }
 
-    // Prepare update data - only status and unqualifiedLeadReason
+    // Prepare update data
     const updateData: any = {
       status,
       // Clear unqualifiedLeadReason if status is not "unqualified"
       unqualifiedLeadReason: status === "unqualified" ? (unqualifiedLeadReason || "") : ""
     };
+
+    // Only set proposalAmount and jobBookedAmount if status is "estimate_set"
+    if (status === "estimate_set") {
+      if (proposalAmount !== undefined) {
+        const parsedProposal = Number(proposalAmount);
+        updateData.proposalAmount = isFinite(parsedProposal) && parsedProposal >= 0 ? parsedProposal : 0;
+      }
+      if (jobBookedAmount !== undefined) {
+        const parsedBooked = Number(jobBookedAmount);
+        updateData.jobBookedAmount = isFinite(parsedBooked) && parsedBooked >= 0 ? parsedBooked : 0;
+      }
+    } else {
+      // Reset amounts if status is not "estimate_set"
+      updateData.proposalAmount = 0;
+      updateData.jobBookedAmount = 0;
+    }
 
     // Update directly in database
     const updated = await this.leadRepo.updateLead(

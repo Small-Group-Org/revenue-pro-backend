@@ -34,6 +34,11 @@ class OpportunitySyncCronService {
       return;
     }
 
+    if (this.isRunning) {
+      logger.warn('Opportunity sync already running; skipping manual trigger');
+      return;
+    }
+
     this.isRunning = true;
     const start = new Date();
     let logId: any = null;
@@ -122,6 +127,7 @@ class OpportunitySyncCronService {
       //  }
 
       // New requirement: count specified tags for a specific pipeline and log the counts
+      // Only opportunities with 'facebook lead' tag are considered (mandatory requirement)
       const TARGET_PIPELINE_ID = 'FWfjcNV1hNqg3YBfHDHi';
       const TARGET_TAGS = ['facebook lead', 'appt_completed', 'job_won', 'job_lost', "appt_completed_unresponsive", "color_consultation_booked", "appt_booked"];
       const counts: Record<string, number> = Object.fromEntries(TARGET_TAGS.map(t => [t, 0]));

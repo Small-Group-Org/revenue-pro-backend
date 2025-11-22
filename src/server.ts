@@ -85,6 +85,7 @@ app.listen(PORT, () => {
   logger.info("Multi-client opportunity sync cron job initialized");
 
   // Start lead sheets sync cron job
+  // Start the lead sheets sync cron job
   leadSheetsSyncCron.start();
   logger.info("Lead sheets sync cron job initialized");
 });
