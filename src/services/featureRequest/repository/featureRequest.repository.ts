@@ -39,19 +39,4 @@ export class FeatureRequestRepository {
       { new: true, runValidators: true }
     ).exec();
   }
-
-  /**
-   * Delete feature request
-   */
-  async delete(id: string): Promise<boolean> {
-    const result = await FeatureRequest.findByIdAndDelete(id).exec();
-    return result !== null;
-  }
-
-  /**
-   * Count feature requests
-   */
-  async count(filter: any = {}): Promise<number> {
-    return await FeatureRequest.countDocuments(filter).exec();
-  }
 }

@@ -55,13 +55,6 @@ export class FeatureRequestService {
   }
 
   /**
-   * Get feature request by ID
-   */
-  async getFeatureRequestById(id: string): Promise<IFeatureRequestDocument | null> {
-    return await this.repository.findById(id);
-  }
-
-  /**
    * Update feature request (Admin only)
    */
   async updateFeatureRequest(
@@ -71,34 +64,5 @@ export class FeatureRequestService {
     }
   ): Promise<IFeatureRequestDocument | null> {
     return await this.repository.update(id, data);
-  }
-
-  /**
-   * Delete feature request (Admin only)
-   */
-  async deleteFeatureRequest(id: string): Promise<boolean> {
-    return await this.repository.delete(id);
-  }
-
-  /**
-   * Get feature request statistics
-   */
-  async getStatistics(userId?: string): Promise<{
-    total: number;
-    byStatus: Record<string, number>;
-  }> {
-    const filter = userId ? { userId } : {};
-    const requests = await this.repository.find(filter);
-
-    const byStatus: Record<string, number> = {};
-
-    requests.forEach((req) => {
-      byStatus[req.status] = (byStatus[req.status] || 0) + 1;
-    });
-
-    return {
-      total: requests.length,
-      byStatus
-    };
   }
 }
