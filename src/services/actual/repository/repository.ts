@@ -108,7 +108,7 @@ export class ActualRepository {
   async getUsersRevenueByDateRange(
     startDate: string,
     endDate: string
-  ): Promise<Array<{ userId: string; userName: string; userEmail: string; totalRevenue: number }>> {
+  ): Promise<Array<{ userId: string; userName: string; userEmail: string; totalRevenue: number; testingBudgetSpent?: number; awarenessBrandingBudgetSpent?: number; leadGenerationBudgetSpent?: number; totalBudgetSpent?: number }>> {
     const result = await this.model.aggregate([
       {
         $match: {
@@ -122,6 +122,9 @@ export class ActualRepository {
         $group: {
           _id: "$userId",
           totalRevenue: { $sum: "$revenue" },
+          testingBudgetSpent: { $sum: "$testingBudgetSpent" },
+          awarenessBrandingBudgetSpent: { $sum: "$awarenessBrandingBudgetSpent" },
+          leadGenerationBudgetSpent: { $sum: "$leadGenerationBudgetSpent" },
         },
       },
       {
@@ -144,12 +147,23 @@ export class ActualRepository {
         },
       },
       {
+        $addFields: {
+          totalBudgetSpent: { 
+            $add: ["$testingBudgetSpent", "$awarenessBrandingBudgetSpent", "$leadGenerationBudgetSpent"] 
+          },
+        },
+      },
+      {
         $project: {
           _id: 0,
           userId: "$_id",
           userName: { $ifNull: ["$userDetails.name", "Unknown User"] },
           userEmail: { $ifNull: ["$userDetails.email", ""] },
           totalRevenue: 1,
+          testingBudgetSpent: 1,
+          awarenessBrandingBudgetSpent: 1,
+          leadGenerationBudgetSpent: 1,
+          totalBudgetSpent: 1,
         },
       },
       {
@@ -157,5 +171,31 @@ export class ActualRepository {
       },
     ]);
     return result;
+  }
+
+  /**
+   * Update weekly reporting data (revenue, leads, estimates, sales)
+   * @param userId - User ID
+   * @param startDate - Week start date
+   * @param updateData - Data to update
+   * @returns Updated weekly actual document
+   */
+  async updateWeeklyReporting(
+    userId: string,
+    startDate: string,
+    updateData: {
+      revenue?: number;
+      leads?: number;
+      estimatesRan?: number;
+      estimatesSet?: number;
+      sales?: number;
+    }
+  ): Promise<IWeeklyActualDocument | null> {
+    const res = await this.model.findOneAndUpdate(
+      { userId, startDate },
+      { $set: updateData },
+      { new: true, upsert: true, setDefaultsOnInsert: true }
+    );
+    return res;
   }
 }

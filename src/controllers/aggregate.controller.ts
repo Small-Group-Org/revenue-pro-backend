@@ -90,7 +90,7 @@ export class AggregateController {
       );
 
       // Get users revenue breakdown
-      const usersRevenue = await this.actualService.getUsersRevenueByDateRange(
+      const usersBudgetAndRevenue = await this.actualService.getUsersRevenueByDateRange(
         String(startDateStr),
         String(endDateStr)
       );
@@ -100,7 +100,7 @@ export class AggregateController {
         data: {
           actual: actualResults,
           target: Array.isArray(targetResults) ? targetResults : [targetResults],
-          usersRevenue: usersRevenue
+          usersBudgetAndRevenue: usersBudgetAndRevenue
         }
       });
     } catch (error: any) {
