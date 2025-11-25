@@ -364,4 +364,63 @@ export class ActualService {
 
     return results;
   }
+
+  /**
+   * Get users with their total revenue for a date range, including user details
+   * @param startDate - Start date in ISO format (YYYY-MM-DD)
+   * @param endDate - End date in ISO format (YYYY-MM-DD)
+   * @returns Array of objects with user details and total revenue
+   */
+  public async getUsersRevenueByDateRange(
+    startDate: string,
+    endDate: string
+  ): Promise<Array<{ userId: string; userName: string; userEmail: string; totalRevenue: number; testingBudgetSpent?: number; awarenessBrandingBudgetSpent?: number; leadGenerationBudgetSpent?: number; totalBudgetSpent?: number }>> {
+    const revenueData = await this.actualRepository.getUsersRevenueByDateRange(startDate, endDate);
+    return revenueData;
+  }
+
+  /**
+   * Update weekly reporting data
+   */
+  async updateWeeklyReporting(
+    userId: string,
+    startDate: string,
+    updateData: {
+      revenue?: number;
+      leads?: number;
+      estimatesRan?: number;
+      estimatesSet?: number;
+      sales?: number;
+    }
+  ): Promise<IWeeklyActualDocument> {
+    // Validate that at least one field is provided
+    if (
+      updateData.revenue === undefined &&
+      updateData.leads === undefined &&
+      updateData.estimatesRan === undefined &&
+      updateData.estimatesSet === undefined &&
+      updateData.sales === undefined
+    ) {
+      throw new Error("At least one field must be provided for update");
+    }
+
+    // Validate numeric values
+    Object.entries(updateData).forEach(([key, value]) => {
+      if (value !== undefined && (typeof value !== "number" || value < 0)) {
+        throw new Error(`${key} must be a non-negative number`);
+      }
+    });
+
+    const updated = await this.actualRepository.updateWeeklyReporting(
+      userId,
+      startDate,
+      updateData
+    );
+
+    if (!updated) {
+      throw new Error("Failed to update weekly reporting data");
+    }
+
+    return updated;
+  }
 }

@@ -9,6 +9,7 @@ export class ActualController {
     this.upsertActual = this.upsertActual.bind(this);
     this.getActuals = this.getActuals.bind(this);
     this.getActualAndTargetReport = this.getActualAndTargetReport.bind(this);
+    this.updateWeeklyReporting = this.updateWeeklyReporting.bind(this);
   }
   /**
    * Get both actual and target data for a given period and user.
@@ -209,6 +210,67 @@ export class ActualController {
       res.status(200).json({ success: true, data: results });
     } catch (error: any) {
       console.error("Error in getActuals:", error);
+      res.status(500).json({ success: false, message: error.message });
+    }
+  }
+
+  /**
+   * Update weekly reporting data
+   * PATCH /api/v1/report/weekly-reporting
+   * Body: { userId, startDate, revenue?, leads?, estimateRan?, estimateSet?, jobBooked? }
+   */
+  async updateWeeklyReporting(req: Request, res: Response): Promise<void> {
+    try {
+      const { userId, startDate, revenue, leads, estimateRan, estimateSet, jobBooked } = req.body;
+
+      // Validate required fields
+      if (!userId || !startDate) {
+        res.status(400).json({ success: false, message: "userId and startDate are required" });
+        return;
+      }
+
+      // Validate startDate format
+      const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+      if (!dateRegex.test(startDate)) {
+        res.status(400).json({ success: false, message: "startDate must be in YYYY-MM-DD format" });
+        return;
+      }
+
+      // Build update data object (only include provided fields)
+      // Map API field names to database field names
+      const updateData: {
+        revenue?: number;
+        leads?: number;
+        estimatesRan?: number;
+        estimatesSet?: number;
+        sales?: number;
+      } = {};
+
+      if (revenue !== undefined) updateData.revenue = Number(revenue);
+      if (leads !== undefined) updateData.leads = Number(leads);
+      if (estimateRan !== undefined) updateData.estimatesRan = Number(estimateRan);
+      if (estimateSet !== undefined) updateData.estimatesSet = Number(estimateSet);
+      if (jobBooked !== undefined) updateData.sales = Number(jobBooked);
+
+      // Check if at least one field is provided
+      if (Object.keys(updateData).length === 0) {
+        res.status(400).json({ success: false, message: "At least one field (revenue, leads, estimateRan, estimateSet, jobBooked) must be provided" });
+        return;
+      }
+
+      const updated = await this.actualService.updateWeeklyReporting(
+        userId,
+        startDate,
+        updateData
+      );
+
+      res.status(200).json({
+        success: true,
+        message: "Weekly reporting data updated successfully",
+        data: updated,
+      });
+    } catch (error: any) {
+      console.error("Error updating weekly reporting:", error);
       res.status(500).json({ success: false, message: error.message });
     }
   }

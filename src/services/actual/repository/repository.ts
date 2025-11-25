@@ -98,4 +98,104 @@ export class ActualRepository {
   async findActualsByQuery(query: any): Promise<IWeeklyActualDocument[]> {
     return await this.model.find(query).sort({ startDate: 1 });
   }
+
+  /**
+   * Get users with their total revenue for a date range
+   * @param startDate - Start date in ISO format
+   * @param endDate - End date in ISO format
+   * @returns Array of objects with userId, userName, userEmail, and totalRevenue
+   */
+  async getUsersRevenueByDateRange(
+    startDate: string,
+    endDate: string
+  ): Promise<Array<{ userId: string; userName: string; userEmail: string; totalRevenue: number; testingBudgetSpent?: number; awarenessBrandingBudgetSpent?: number; leadGenerationBudgetSpent?: number; totalBudgetSpent?: number }>> {
+    const result = await this.model.aggregate([
+      {
+        $match: {
+          startDate: {
+            $gte: startDate,
+            $lte: endDate,
+          },
+        },
+      },
+      {
+        $group: {
+          _id: "$userId",
+          totalRevenue: { $sum: "$revenue" },
+          testingBudgetSpent: { $sum: "$testingBudgetSpent" },
+          awarenessBrandingBudgetSpent: { $sum: "$awarenessBrandingBudgetSpent" },
+          leadGenerationBudgetSpent: { $sum: "$leadGenerationBudgetSpent" },
+        },
+      },
+      {
+        $addFields: {
+          userObjectId: { $toObjectId: "$_id" },
+        },
+      },
+      {
+        $lookup: {
+          from: "users",
+          localField: "userObjectId",
+          foreignField: "_id",
+          as: "userDetails",
+        },
+      },
+      {
+        $unwind: {
+          path: "$userDetails",
+          preserveNullAndEmptyArrays: true,
+        },
+      },
+      {
+        $addFields: {
+          totalBudgetSpent: { 
+            $add: ["$testingBudgetSpent", "$awarenessBrandingBudgetSpent", "$leadGenerationBudgetSpent"] 
+          },
+        },
+      },
+      {
+        $project: {
+          _id: 0,
+          userId: "$_id",
+          userName: { $ifNull: ["$userDetails.name", "Unknown User"] },
+          userEmail: { $ifNull: ["$userDetails.email", ""] },
+          totalRevenue: 1,
+          testingBudgetSpent: 1,
+          awarenessBrandingBudgetSpent: 1,
+          leadGenerationBudgetSpent: 1,
+          totalBudgetSpent: 1,
+        },
+      },
+      {
+        $sort: { totalRevenue: -1 },
+      },
+    ]);
+    return result;
+  }
+
+  /**
+   * Update weekly reporting data (revenue, leads, estimates, sales)
+   * @param userId - User ID
+   * @param startDate - Week start date
+   * @param updateData - Data to update
+   * @returns Updated weekly actual document
+   */
+  async updateWeeklyReporting(
+    userId: string,
+    startDate: string,
+    updateData: {
+      revenue?: number;
+      leads?: number;
+      estimatesRan?: number;
+      estimatesSet?: number;
+      sales?: number;
+    }
+  ): Promise<IWeeklyActualDocument | null> {
+    const res = await this.model.findOneAndUpdate(
+      { userId, startDate },
+      { $set: updateData },
+      { new: true, upsert: true, setDefaultsOnInsert: true }
+    );
+    return res;
+  }
 }
