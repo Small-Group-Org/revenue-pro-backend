@@ -3,7 +3,6 @@ version: 1
 allowedMergeBranches:
   - main
   - dev-phase2
-
 services:
   - name: revenue-pro-backend
     path: .
