@@ -24,5 +24,9 @@ export const config = {
   GOOGLE_SERVICE_ACCOUNT_EMAIL: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL || '',
   GOOGLE_PRIVATE_KEY: process.env.GOOGLE_PRIVATE_KEY || '',
   LEAD_SHEETS_SYNC_CRON: process.env.LEAD_SHEETS_SYNC_CRON || "0 4 * * *", // daily 04:00 UTC
- 
+  
+  // Facebook Ads Configuration
+  FB_ACCESS_TOKEN: process.env.FB_ACCESS_TOKEN,
+  FB_AD_ACCOUNT_ID: process.env.FB_AD_ACCOUNT_ID,
+  FB_API_VERSION: process.env.FB_API_VERSION || 'v21.0',
 };
