@@ -51,6 +51,23 @@ const userSchema = new Schema<IUser, IUserModel>(
     hasSeenLatestUpdate: {
       type: Boolean,
       default: false
+    },
+    // Meta OAuth fields
+    metaAccessToken: {
+      type: String,
+      required: false,
+    },
+    metaTokenExpiresAt: {
+      type: Date,
+      required: false,
+    },
+    metaTokenType: {
+      type: String,
+      required: false,
+    },
+    metaConnectedAt: {
+      type: Date,
+      required: false,
     }
   },
   {

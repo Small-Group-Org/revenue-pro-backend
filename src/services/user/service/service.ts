@@ -205,6 +205,31 @@ export default class UserService {
     }
   }
 
+  async updateUser(userId: string, updateData: {
+    name?: string;
+    email?: string;
+    imageURL?: string;
+    role?: string;
+    isEmailVerified?: boolean;
+    hasLoggedIn?: boolean;
+    status?: 'active' | 'inactive' | 'deleted';
+    hasSeenLatestUpdate?: boolean;
+    metaAccessToken?: string;
+    metaTokenExpiresAt?: Date;
+    metaTokenType?: string;
+    metaConnectedAt?: Date;
+  }): Promise<IUser | null> {
+    try {
+      if (!userId) {
+        throw new CustomError(ErrorCode.INVALID_INPUT, "User ID is required");
+      }
+
+      return await this.repository.updateUser(userId, updateData);
+    } catch (error) {
+      throw utils.ThrowableError(error);
+    }
+  }
+
   async deleteUser(userId: string): Promise<void> {
     await this.repository.deleteUser(userId);
   }

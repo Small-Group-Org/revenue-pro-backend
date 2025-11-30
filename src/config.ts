@@ -28,4 +28,12 @@ export const config = {
   // Facebook Ads Configuration
   FB_ACCESS_TOKEN: process.env.FB_ACCESS_TOKEN,
   FB_API_VERSION: process.env.FB_API_VERSION || 'v21.0',
+  // Meta OAuth Configuration
+  META_CLIENT_ID: process.env.META_CLIENT_ID || '',
+  META_CLIENT_SECRET: process.env.META_CLIENT_SECRET || '',
+  // This is the redirect URI where Facebook sends the authorization code back to our backend
+  // Must match exactly what's configured in Facebook App settings
+  META_REDIRECT_URI: process.env.META_REDIRECT_URI || '',
+  META_API_VERSION: process.env.META_API_VERSION || '',
+ 
 };

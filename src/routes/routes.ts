@@ -15,6 +15,7 @@ import ghlClientRouter from "./ghlClient.routes.js"
 import aggregateRouter from "./aggregate.routes.js"
 import featureRequestRoutes from './featureRequest.route.js';
 import facebookAdsRouter from './facebookAds.routes.js';
+import metaOAuthRouter from "./metaOAuth.routes.js";
 
 
 import {
@@ -52,6 +53,7 @@ const otherRoutes: Route[] = [
   // { path: "/api/v1/process-lead-sheet", router: sheetRouter },
   { path: "/api/v1/cron-logs", router: cronLogsRouter },
   { path: "/api/v1/webhooks", router: webhooksRouter },
+  { path: "/api/v1", router: metaOAuthRouter }, // Meta OAuth callback (handles auth manually)
 ];
 
 const configureRoutes = (app: Express): void => {

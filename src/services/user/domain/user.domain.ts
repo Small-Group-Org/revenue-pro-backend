@@ -17,5 +17,10 @@ export interface IUser extends Document {
   updated_at: Date;
   lastAccessAt: Date;
   hasSeenLatestUpdate?: boolean;
+  // Meta OAuth fields
+  metaAccessToken?: string;
+  metaTokenExpiresAt?: Date;
+  metaTokenType?: string;
+  metaConnectedAt?: Date;
   comparePassword(candidatePassword: string): Promise<boolean>;
 }
