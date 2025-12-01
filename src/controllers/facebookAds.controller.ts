@@ -11,7 +11,10 @@ export class FacebookAdsController {
 
   /**
    * Get enriched Facebook ads data with insights, creatives, and lead forms
-   * GET /api/v1/facebook/enriched-ads?adAccountId=XXX&since=YYYY-MM-DD&until=YYYY-MM-DD
+   * GET /api/v1/facebook/enriched-ads?adAccountId=XXX&startDate=YYYY-MM-DD&endDate=YYYY-MM-DD&queryType=monthly
+   * 
+   * For queryType="monthly": Returns array of weekly spend data (5 weeks per month)
+   * For queryType="weekly": Returns single week data
    */
   async getEnrichedAds(req: Request, res: Response): Promise<void> {
     console.log(`\n========================================`);
@@ -21,14 +24,15 @@ export class FacebookAdsController {
     
     try {
       const adAccountId = req.query.adAccountId as string;
-      const since = req.query.since as string;
-      const until = req.query.until as string;
+      const startDate = req.query.startDate as string;
+      const endDate = req.query.endDate as string;
+      const queryType = req.query.queryType as string;
 
-      if (!adAccountId || !since || !until) {
+      if (!adAccountId || !startDate || !endDate || !queryType) {
         console.log('[API] Bad request: missing required parameters');
         res.status(400).json({ 
           success: false, 
-          error: 'adAccountId, since, and until are required' 
+          error: 'adAccountId, startDate, endDate, and queryType are required' 
         });
         return;
       }
@@ -45,7 +49,7 @@ export class FacebookAdsController {
 
       // Validate date format
       const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
-      if (!dateRegex.test(since) || !dateRegex.test(until)) {
+      if (!dateRegex.test(startDate) || !dateRegex.test(endDate)) {
         console.log('[API] Bad request: invalid date format');
         res.status(400).json({ 
           success: false, 
@@ -54,16 +58,32 @@ export class FacebookAdsController {
         return;
       }
 
+      // Validate queryType
+      const validQueryTypes = ['weekly', 'monthly', 'yearly'];
+      if (!validQueryTypes.includes(queryType)) {
+        console.log('[API] Bad request: invalid queryType');
+        res.status(400).json({ 
+          success: false, 
+          error: 'queryType must be one of: weekly, monthly, yearly' 
+        });
+        return;
+      }
+
       // Ensure adAccountId has act_ prefix
       const formattedAdAccountId = adAccountId.startsWith('act_') ? adAccountId : `act_${adAccountId}`;
 
-      const data = await getEnrichedAds({ adAccountId: formattedAdAccountId, since, until });
+      const data = await getEnrichedAds({ 
+        adAccountId: formattedAdAccountId, 
+        startDate, 
+        endDate,
+        queryType: queryType as 'weekly' | 'monthly' | 'yearly'
+      });
 
-      console.log(`\n[API] Returning ${data.length} enriched records\n`);
+      console.log(`\n[API] Returning ${Array.isArray(data) ? data.length : 1} enriched records\n`);
       res.status(200).json({ 
         success: true, 
         data,
-        count: data.length
+        count: Array.isArray(data) ? data.length : 1
       });
     } catch (err: any) {
       console.error('\n[API] Error in /api/v1/facebook/enriched-ads:', err.message);

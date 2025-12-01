@@ -2,6 +2,7 @@
 import { getAdInsights } from './fbInsightsService.js';
 import { getAdsWithCreatives, mapAdWithCreative } from './fbAdsService.js';
 import { getLeadForms } from './fbLeadFormsService.js';
+import { DateUtils } from '../../utils/date.utils.js';
 
 interface EnrichedAd {
   campaign: {
@@ -36,12 +37,37 @@ interface EnrichedAd {
   };
 }
 
-export async function getEnrichedAds({ adAccountId, since, until }: { adAccountId: string; since: string; until: string }): Promise<EnrichedAd[]> {
-  console.log(`\n[Enriched Ads] Starting enrichment process for ${adAccountId} from ${since} to ${until}`);
+interface WeeklyMetaSpend {
+  startDate: string;
+  endDate: string;
+  spend: number;
+  impressions: number;
+  clicks: number;
+  adAccountId: string;
+}
+
+export async function getEnrichedAds({ 
+  adAccountId, 
+  startDate, 
+  endDate, 
+  queryType 
+}: { 
+  adAccountId: string; 
+  startDate: string; 
+  endDate: string; 
+  queryType: 'weekly' | 'monthly' | 'yearly';
+}): Promise<EnrichedAd[] | WeeklyMetaSpend[]> {
+  console.log(`\n[Enriched Ads] Starting enrichment process for ${adAccountId} from ${startDate} to ${endDate} (${queryType})`);
   
+  // For monthly/yearly queries, split into weeks like actuals
+  if (queryType === 'monthly' || queryType === 'yearly') {
+    return await getWeeklyMetaSpend(adAccountId, startDate, endDate, queryType);
+  }
+
+  // For weekly queries, return detailed enriched ads (original behavior)
   // 1) Insights
   console.log('[Enriched Ads] Step 1: Fetching insights...');
-  const insightsRows = await getAdInsights({ adAccountId, since, until });
+  const insightsRows = await getAdInsights({ adAccountId, since: startDate, until: endDate });
   if (!insightsRows.length) {
     console.log('[Enriched Ads] No insights found');
     return [];
@@ -112,4 +138,64 @@ export async function getEnrichedAds({ adAccountId, since, until }: { adAccountI
 
   console.log(`[Enriched Ads] Enrichment complete! ${final.length} records enriched\n`);
   return final;
+}
+
+/**
+ * Get weekly aggregated Meta ad spend data (matching WeeklyActual pattern)
+ * Returns array of weekly spend objects with startDate/endDate boundaries
+ */
+async function getWeeklyMetaSpend(
+  adAccountId: string,
+  startDate: string,
+  endDate: string,
+  queryType: 'monthly' | 'yearly'
+): Promise<WeeklyMetaSpend[]> {
+  console.log(`[Weekly Meta Spend] Calculating weeks for ${queryType} query: ${startDate} to ${endDate}`);
+  
+  // Get week boundaries using same logic as actuals
+  const weeks = DateUtils.getMonthWeeks(startDate, endDate);
+  console.log(`[Weekly Meta Spend] Found ${weeks.length} weeks`);
+
+  // Fetch insights for each week and aggregate
+  const weeklyResults = await Promise.all(
+    weeks.map(async ({ weekStart, weekEnd }) => {
+      console.log(`[Weekly Meta Spend] Fetching data for week: ${weekStart} to ${weekEnd}`);
+      
+      try {
+        const insightsRows = await getAdInsights({ 
+          adAccountId, 
+          since: weekStart, 
+          until: weekEnd 
+        });
+
+        // Aggregate spend, impressions, clicks for the week
+        const weekTotal = insightsRows.reduce((acc, row) => ({
+          spend: acc.spend + Number(row.spend || 0),
+          impressions: acc.impressions + Number(row.impressions || 0),
+          clicks: acc.clicks + Number(row.clicks || 0),
+        }), { spend: 0, impressions: 0, clicks: 0 });
+
+        return {
+          startDate: weekStart,
+          endDate: weekEnd,
+          adAccountId,
+          ...weekTotal
+        };
+      } catch (error) {
+        console.error(`[Weekly Meta Spend] Error fetching week ${weekStart}:`, error);
+        // Return zero-filled data for failed weeks
+        return {
+          startDate: weekStart,
+          endDate: weekEnd,
+          adAccountId,
+          spend: 0,
+          impressions: 0,
+          clicks: 0,
+        };
+      }
+    })
+  );
+
+  console.log(`[Weekly Meta Spend] Returning ${weeklyResults.length} weekly records\n`);
+  return weeklyResults;
 }
