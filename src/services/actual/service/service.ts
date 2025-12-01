@@ -374,7 +374,7 @@ export class ActualService {
   public async getUsersRevenueByDateRange(
     startDate: string,
     endDate: string
-  ): Promise<Array<{ userId: string; userName: string; userEmail: string; totalRevenue: number; testingBudgetSpent?: number; awarenessBrandingBudgetSpent?: number; leadGenerationBudgetSpent?: number; totalBudgetSpent?: number }>> {
+  ): Promise<Array<{ userId: string; userName: string; userEmail: string; totalRevenue: number; testingBudgetSpent?: number; awarenessBrandingBudgetSpent?: number; leadGenerationBudgetSpent?: number; totalBudgetSpent?: number; estimateSetCount?: number; disqualifiedLeadsCount?: number }>> {
     const revenueData = await this.actualRepository.getUsersRevenueByDateRange(startDate, endDate);
     return revenueData;
   }

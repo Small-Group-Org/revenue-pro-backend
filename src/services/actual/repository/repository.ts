@@ -108,7 +108,7 @@ export class ActualRepository {
   async getUsersRevenueByDateRange(
     startDate: string,
     endDate: string
-  ): Promise<Array<{ userId: string; userName: string; userEmail: string; totalRevenue: number; testingBudgetSpent?: number; awarenessBrandingBudgetSpent?: number; leadGenerationBudgetSpent?: number; totalBudgetSpent?: number }>> {
+  ): Promise<Array<{ userId: string; userName: string; userEmail: string; totalRevenue: number; testingBudgetSpent?: number; awarenessBrandingBudgetSpent?: number; leadGenerationBudgetSpent?: number; totalBudgetSpent?: number; estimateSetCount?: number; disqualifiedLeadsCount?: number }>> {
     const result = await this.model.aggregate([
       {
         $match: {
@@ -147,9 +147,48 @@ export class ActualRepository {
         },
       },
       {
+        $lookup: {
+          from: "leads",
+          let: { clientId: "$_id" },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $and: [
+                    { $eq: ["$clientId", "$$clientId"] },
+                    { $gte: ["$leadDate", startDate] },
+                    { $lte: ["$leadDate", endDate] },
+                    { $ne: ["$isDeleted", true] },
+                  ],
+                },
+              },
+            },
+          ],
+          as: "leads",
+        },
+      },
+      {
         $addFields: {
           totalBudgetSpent: { 
             $add: ["$testingBudgetSpent", "$awarenessBrandingBudgetSpent", "$leadGenerationBudgetSpent"] 
+          },
+          estimateSetCount: {
+            $size: {
+              $filter: {
+                input: "$leads",
+                as: "lead",
+                cond: { $eq: ["$$lead.status", "estimate_set"] },
+              },
+            },
+          },
+          disqualifiedLeadsCount: {
+            $size: {
+              $filter: {
+                input: "$leads",
+                as: "lead",
+                cond: { $eq: ["$$lead.status", "unqualified"] },
+              },
+            },
           },
         },
       },
@@ -164,6 +203,8 @@ export class ActualRepository {
           awarenessBrandingBudgetSpent: 1,
           leadGenerationBudgetSpent: 1,
           totalBudgetSpent: 1,
+          estimateSetCount: 1,
+          disqualifiedLeadsCount: 1,
         },
       },
       {
