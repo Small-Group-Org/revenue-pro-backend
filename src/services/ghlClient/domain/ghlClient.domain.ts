@@ -5,6 +5,8 @@ export interface IGhlClient extends Document {
   encryptedApiToken: string;
   queryValue: string;
   customFieldId?: string;
+  queryValue2?: string;
+  customFieldId2?: string;
   pipelineId: string;
   revenueProClientId: string;
   status?: 'active' | 'deleted' | 'inactive';

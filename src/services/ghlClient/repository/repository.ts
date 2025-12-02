@@ -11,7 +11,9 @@ export class GhlClientRepository {
     revenueProClientId: string,
     customFieldId?: string,
     pipelineId?: string,
-    status: 'active' | 'inactive' | 'deleted' = 'active'
+    status: 'active' | 'inactive' | 'deleted' = 'active',
+    queryValue2?: string,
+    customFieldId2?: string
   ): Promise<IGhlClient> {
     try {
       // Check if locationId already exists (only check active clients)
@@ -33,6 +35,8 @@ export class GhlClientRepository {
         customFieldId,
         pipelineId,
         status,
+        queryValue2,
+        customFieldId2,
       });
       await ghlClient.save();
       return ghlClient;
@@ -88,6 +92,8 @@ export class GhlClientRepository {
       encryptedApiToken?: string;
       queryValue?: string;
       customFieldId?: string;
+      queryValue2?: string;
+      customFieldId2?: string;
       pipelineId?: string;
       revenueProClientId?: string;
       status?: 'active' | 'inactive' | 'deleted';

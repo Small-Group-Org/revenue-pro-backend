@@ -10,6 +10,7 @@ export interface IUser extends Document {
   hasLoggedIn: boolean;
   name: string;
   leadSheetUrl?: string;
+  fbAdAccountId?: string;
   status?: 'active' | 'deleted' | "inactive";
   deletedAt?: Date;
   created_at: Date;

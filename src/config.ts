@@ -25,6 +25,9 @@ export const config = {
   GOOGLE_PRIVATE_KEY: process.env.GOOGLE_PRIVATE_KEY || '',
   LEAD_SHEETS_SYNC_CRON: process.env.LEAD_SHEETS_SYNC_CRON || "0 4 * * *", // daily 04:00 UTC
   
+  // Facebook Ads Configuration
+  FB_ACCESS_TOKEN: process.env.FB_ACCESS_TOKEN,
+  FB_API_VERSION: process.env.FB_API_VERSION || 'v21.0',
   // Meta OAuth Configuration
   META_CLIENT_ID: process.env.META_CLIENT_ID || '',
   META_CLIENT_SECRET: process.env.META_CLIENT_SECRET || '',

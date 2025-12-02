@@ -34,6 +34,146 @@ async function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+/**
+ * Parse date from customfield2 format: "2025-11-25 03:43 PM"
+ */
+function parseCustomField2Date(dateStr: string): Date | null {
+  try {
+    // Format: "2025-11-25 03:43 PM"
+    const parts = dateStr.trim().split(' ');
+    if (parts.length < 3) return null;
+    
+    const datePart = parts[0]; // "2025-11-25"
+    const timePart = parts[1]; // "03:43"
+    const amPm = parts[2].toUpperCase(); // "PM"
+    
+    const [year, month, day] = datePart.split('-').map(Number);
+    const [hours, minutes] = timePart.split(':').map(Number);
+    
+    let hour24 = hours;
+    if (amPm === 'PM' && hours !== 12) hour24 = hours + 12;
+    if (amPm === 'AM' && hours === 12) hour24 = 0;
+    
+    return new Date(year, month - 1, day, hour24, minutes, 0, 0);
+  } catch (e) {
+    return null;
+  }
+}
+
+/**
+ * Check if a date falls within the week range (inclusive)
+ */
+function isDateInWeekRange(date: Date | null, startDateStr: string, endDateStr: string): boolean {
+  if (!date) return false;
+  
+  const startDate = new Date(startDateStr);
+  startDate.setHours(0, 0, 0, 0);
+  
+  const endDate = new Date(endDateStr);
+  endDate.setHours(23, 59, 59, 999);
+  
+  return date >= startDate && date <= endDate;
+}
+
+/**
+ * Fetch contact and extract the relevant date based on tags
+ * Returns the date if found, null otherwise
+ */
+async function getContactDate(
+  contactId: string,
+  locationId: string,
+  decryptedToken: string,
+  tags: Set<string>,
+  customFieldId2?: string,
+  retry: RetryOptions = { retries: 3, baseDelayMs: 1000 }
+): Promise<Date | null> {
+  try {
+    const clientHttp = new http(config.GHL_BASE_URL, 15000);
+    const resp = await withRetry(
+      async () => {
+        try {
+          return await clientHttp.get<any>(`/contacts/${encodeURIComponent(contactId)}`, {
+            headers: {
+              Authorization: `Bearer ${decryptedToken}`,
+              Version: '2021-07-28',
+            },
+          });
+        } catch (error: any) {
+          // If we get a 429, throw a specific error that can be handled
+          if (error?.message?.includes('429') || error?.code === 429) {
+            const rateLimitError: any = new Error('Rate limit exceeded');
+            rateLimitError.code = 429;
+            throw rateLimitError;
+          }
+          throw error;
+        }
+      },
+      retry,
+    );
+    
+    const contact = resp?.contact;
+    if (!contact) return null;
+    
+    // Check if has any other TARGET_TAG besides "facebook lead"
+    const TARGET_TAGS = [
+      'appt_completed',
+      'job_won',
+      'job_lost',
+      'appt_completed_unresponsive',
+      'color_consultation_booked',
+      'appt_booked',
+    ];
+    const hasOtherTargetTag = Array.from(tags).some(
+      tag => TARGET_TAGS.includes(tag.toLowerCase())
+    );
+    
+    // If has any other TARGET_TAG (not just facebook_lead), check customfield2
+    if (hasOtherTargetTag) {
+      const customFields = contact?.customFields;
+      if (Array.isArray(customFields)) {
+        // Try to find by customFieldId2 first, then by name "customfield2"
+        let field = customFieldId2 
+          ? customFields.find((f: any) => f?.id === customFieldId2 || f?._id === customFieldId2)
+          : null;
+        
+        if (!field) {
+          field = customFields.find((f: any) => 
+            f?.name?.toLowerCase() === 'customfield2' || 
+            f?.fieldName?.toLowerCase() === 'customfield2'
+          );
+        }
+        
+        if (field && field.value) {
+          const parsedDate = parseCustomField2Date(String(field.value));
+          if (parsedDate) {
+            return parsedDate;
+          }
+        }
+      }
+    }
+    
+    // If only has "facebook lead" tag (no other TARGET_TAGS), check dateAdded
+    if (tags.has('facebook lead') && !hasOtherTargetTag) {
+      const dateAdded = contact.dateAdded;
+      if (dateAdded) {
+        const date = new Date(dateAdded);
+        if (!isNaN(date.getTime())) {
+          return date;
+        }
+      }
+    }
+    
+    return null;
+  } catch (e) {
+    logger.warn('Failed to fetch contact for date check', {
+      locationId,
+      contactId,
+      error: (e as any)?.message || String(e),
+    });
+    return null;
+  }
+}
+
 class MultiClientOpportunitySyncCron {
   private isRunning = false;
 
@@ -84,6 +224,7 @@ class MultiClientOpportunitySyncCron {
         const locationId = client.locationId;
         const decryptedToken = ghlClientService.getDecryptedApiToken(client);
         const customFieldId = client.customFieldId;
+        const customFieldId2 = client.customFieldId2;
         const userId = client.revenueProClientId;
 
         if (!locationId || !decryptedToken || !userId) {
@@ -131,6 +272,12 @@ class MultiClientOpportunitySyncCron {
         // eslint-disable-next-line no-console
         console.log('[MultiClient GHL] Processing all pipelines:', { locationId, userId });
 
+        // Calculate week dates for filtering
+        const todayStr = new Date().toISOString().slice(0, 10);
+        const weekDetails = DateUtils.getWeekDetails(todayStr);
+        const startDate = weekDetails.weekStart;
+        const endDate = weekDetails.weekEnd;
+
         // Count target tags and sum revenue from custom field for job_won contacts
         const TARGET_TAGS = [
           'facebook lead',
@@ -143,15 +290,17 @@ class MultiClientOpportunitySyncCron {
         ];
         const counts: Record<string, number> = Object.fromEntries(TARGET_TAGS.map((t) => [t, 0]));
 
-        // Log opportunities analysis
-        let opportunitiesWithPipelineId = 0;
-        let opportunitiesWithTags = 0;
-        const tagDetails: Record<string, { count: number; opportunityIds: string[] }> = {};
-
+        // First pass: collect all opportunities with their tags and contact IDs for date filtering
+        interface OpportunityWithTags {
+          opp: any;
+          tags: Set<string>;
+          contactId: string;
+        }
+        const opportunitiesToProcess: OpportunityWithTags[] = [];
+        
         for (const opp of opportunities) {
-          if (!opp?.pipelineId) continue;
-          opportunitiesWithPipelineId++;
-
+          if (!opp?.pipelineId || !opp?.contactId) continue;
+          
           const collected: string[] = [];
           const contactTags = (opp as any)?.contact?.tags;
           if (Array.isArray(contactTags)) collected.push(...contactTags);
@@ -163,12 +312,109 @@ class MultiClientOpportunitySyncCron {
           }
           
           if (collected.length === 0) continue;
-          opportunitiesWithTags++;
-
           const lower = new Set(collected.map((t: string) => String(t).toLowerCase()));
           
           // Mandatory check: skip if "facebook lead" tag is not present
           if (!lower.has('facebook lead')) continue;
+          
+          opportunitiesToProcess.push({
+            opp,
+            tags: lower,
+            contactId: opp.contactId,
+          });
+        }
+
+        // Fetch contact dates with rate limiting to avoid 429 errors
+        const contactDateCache = new Map<string, Date | null>();
+        const uniqueContactIds = Array.from(new Set(opportunitiesToProcess.map(o => o.contactId)));
+        
+        // Fetch contacts sequentially with delays to respect rate limits
+        // GHL API typically allows ~100 requests per minute, so we'll be conservative
+        const DELAY_BETWEEN_REQUESTS_MS = 100; // 100ms = ~10 requests per second = ~600 per minute (safe)
+        
+        logger.info('[MultiClient GHL] Fetching contact dates', {
+          locationId,
+          userId,
+          totalContacts: uniqueContactIds.length,
+        });
+        
+        for (let i = 0; i < uniqueContactIds.length; i++) {
+          const contactId = uniqueContactIds[i];
+          
+          // Find tags for this contact (use first opportunity's tags as they should be the same)
+          const oppWithTags = opportunitiesToProcess.find(o => o.contactId === contactId);
+          if (!oppWithTags) continue;
+          
+          try {
+            const date = await getContactDate(
+              contactId,
+              locationId,
+              decryptedToken,
+              oppWithTags.tags,
+              customFieldId2,
+              retry
+            );
+            contactDateCache.set(contactId, date);
+            
+            // Delay between requests to avoid rate limits (except for the last one)
+            if (i < uniqueContactIds.length - 1) {
+              await delay(DELAY_BETWEEN_REQUESTS_MS);
+            }
+          } catch (error: any) {
+            // If we get a 429 error, wait longer before continuing
+            if (error?.message?.includes('429') || error?.code === 429) {
+              logger.warn('[MultiClient GHL] Rate limit hit, waiting longer', {
+                locationId,
+                contactId,
+                attempt: i + 1,
+                total: uniqueContactIds.length,
+              });
+              // Wait 5 seconds before retrying
+              await delay(5000);
+              // Retry this contact
+              i--;
+              continue;
+            }
+            // For other errors, log and continue
+            logger.warn('[MultiClient GHL] Failed to fetch contact date', {
+              locationId,
+              contactId,
+              error: error?.message || String(error),
+            });
+          }
+          
+          // Log progress every 100 contacts
+          if ((i + 1) % 100 === 0) {
+            logger.info('[MultiClient GHL] Contact date fetch progress', {
+              locationId,
+              userId,
+              processed: i + 1,
+              total: uniqueContactIds.length,
+              progress: `${Math.round(((i + 1) / uniqueContactIds.length) * 100)}%`,
+            });
+          }
+        }
+        
+        logger.info('[MultiClient GHL] Finished fetching contact dates', {
+          locationId,
+          userId,
+          totalContacts: uniqueContactIds.length,
+          cachedDates: contactDateCache.size,
+        });
+
+        // Log opportunities analysis
+        let opportunitiesWithPipelineId = opportunities.length;
+        let opportunitiesWithTags = opportunitiesToProcess.length;
+        const tagDetails: Record<string, { count: number; opportunityIds: string[] }> = {};
+
+        // Second pass: process opportunities using cached dates
+        for (const { opp, tags: lower, contactId } of opportunitiesToProcess) {
+          // Date filtering: check if date is within week range using cache
+          const contactDate = contactDateCache.get(contactId) ?? null;
+          
+          if (!isDateInWeekRange(contactDate, startDate, endDate)) {
+            continue; // Skip this opportunity if date is not in week range
+          }
           
           const presentTargetTags = TARGET_TAGS.filter((tag) => lower.has(tag) && tag !== 'facebook lead');
           
@@ -215,21 +461,15 @@ class MultiClientOpportunitySyncCron {
         // Sum revenue custom field on job_won contacts
         const JOB_WON_TAG = 'job_won';
         const jobWonContactIds: string[] = [];
-        for (const opp of opportunities) {
-          if (!opp?.pipelineId) continue;
-          const collected: string[] = [];
-          const contactTags = (opp as any)?.contact?.tags;
-          if (Array.isArray(contactTags)) collected.push(...contactTags);
-          const relations = (opp as any)?.relations;
-          if (Array.isArray(relations)) {
-            for (const rel of relations) {
-              if (Array.isArray(rel?.tags)) collected.push(...rel.tags);
-            }
-          }
-          const lower = new Set(collected.map((t: string) => String(t).toLowerCase()));
+        for (const { opp, tags: lower, contactId } of opportunitiesToProcess) {
           // Mandatory check: require both "facebook lead" and "job_won" tags
-          if (lower.has('facebook lead') && lower.has(JOB_WON_TAG) && opp?.contactId) {
-            jobWonContactIds.push(opp.contactId);
+          if (lower.has('facebook lead') && lower.has(JOB_WON_TAG)) {
+            // Date filtering: check if date is within week range using cache
+            const contactDate = contactDateCache.get(contactId) ?? null;
+            
+            if (isDateInWeekRange(contactDate, startDate, endDate)) {
+              jobWonContactIds.push(contactId);
+            }
           }
         }
         const uniqueJobWonContactIds = Array.from(new Set(jobWonContactIds));
@@ -264,31 +504,22 @@ class MultiClientOpportunitySyncCron {
                 error: (e as any)?.message || String(e),
               });
             }
-            // small gap between contact fetches
-            await delay(150);
+            // small gap between contact fetches (reduced for performance)
+            await delay(30);
           }
         }
 
         // Derived values
         let leadsCount = 0;
         const leadsDetails: { opportunityId: string; tags: string[] }[] = [];
-        for (const opp of opportunities) {
-          if (!opp?.pipelineId) continue;
-          const collected: string[] = [];
-          const contactTags = (opp as any)?.contact?.tags;
-          if (Array.isArray(contactTags)) collected.push(...contactTags);
-          const relations = (opp as any)?.relations;
-          if (Array.isArray(relations)) {
-            for (const rel of relations) {
-              if (Array.isArray(rel?.tags)) collected.push(...rel.tags);
-            }
-          }
-          if (collected.length === 0) continue;
-          const lower = new Set(collected.map((t: string) => String(t).toLowerCase()));
-          // Count if 'facebook lead' tag is present
-          if (lower.has('facebook lead')) {
+        for (const { opp, tags: lower, contactId } of opportunitiesToProcess) {
+          // Count if 'facebook lead' tag is present (already filtered in opportunitiesToProcess)
+          // Date filtering: check if date is within week range using cache
+          const contactDate = contactDateCache.get(contactId) ?? null;
+          
+          if (isDateInWeekRange(contactDate, startDate, endDate)) {
             leadsCount += 1;
-            leadsDetails.push({ opportunityId: opp.id, tags: collected });
+            leadsDetails.push({ opportunityId: opp.id, tags: Array.from(lower) });
           }
         }
         const leads = leadsCount;
@@ -304,22 +535,15 @@ class MultiClientOpportunitySyncCron {
         console.log('[MultiClient GHL] Leads calculation:', JSON.stringify(leadsLog, null, 2));
 
         let estimatesSetCount = 0;
-        for (const opp of opportunities) {
-          if (!opp?.pipelineId) continue;
-          const collected: string[] = [];
-          const contactTags = (opp as any)?.contact?.tags;
-          if (Array.isArray(contactTags)) collected.push(...contactTags);
-          const relations = (opp as any)?.relations;
-          if (Array.isArray(relations)) {
-            for (const rel of relations) {
-              if (Array.isArray(rel?.tags)) collected.push(...rel.tags);
-            }
-          }
-          if (collected.length === 0) continue;
-          const lower = new Set(collected.map((t: string) => String(t).toLowerCase()));
+        for (const { opp, tags: lower, contactId } of opportunitiesToProcess) {
           // Count if BOTH 'facebook lead' AND 'appt_booked' are present
           if (lower.has('facebook lead') && lower.has('appt_booked')) {
-            estimatesSetCount += 1;
+            // Date filtering: check if date is within week range using cache
+            const contactDate = contactDateCache.get(contactId) ?? null;
+            
+            if (isDateInWeekRange(contactDate, startDate, endDate)) {
+              estimatesSetCount += 1;
+            }
           }
         }
         const estimatesSet = estimatesSetCount;
@@ -332,24 +556,17 @@ class MultiClientOpportunitySyncCron {
           'color_consultation_booked',
         ];
         let estimatesRanCount = 0;
-        for (const opp of opportunities) {
-          if (!opp?.pipelineId) continue;
-          const collected: string[] = [];
-          const contactTags = (opp as any)?.contact?.tags;
-          if (Array.isArray(contactTags)) collected.push(...contactTags);
-          const relations = (opp as any)?.relations;
-          if (Array.isArray(relations)) {
-            for (const rel of relations) {
-              if (Array.isArray(rel?.tags)) collected.push(...rel.tags);
-            }
-          }
-          if (collected.length === 0) continue;
-          const lower = new Set(collected.map((t: string) => String(t).toLowerCase()));
+        for (const { opp, tags: lower, contactId } of opportunitiesToProcess) {
           // Count if 'facebook lead' tag is present AND ANY of the estimates ran tags are present
           if (lower.has('facebook lead')) {
             const hasEstimatesRanTag = ESTIMATES_RAN_TAGS.some((tag) => lower.has(tag));
             if (hasEstimatesRanTag) {
-              estimatesRanCount += 1;
+              // Date filtering: check if date is within week range using cache
+              const contactDate = contactDateCache.get(contactId) ?? null;
+              
+              if (isDateInWeekRange(contactDate, startDate, endDate)) {
+                estimatesRanCount += 1;
+              }
             }
           }
         }
@@ -375,10 +592,6 @@ class MultiClientOpportunitySyncCron {
         console.log('[MultiClient GHL] Final calculated values:', JSON.stringify(finalValuesLog, null, 2));
 
         const actualService = new ActualService();
-        const todayStr = new Date().toISOString().slice(0, 10);
-        const weekDetails = DateUtils.getWeekDetails(todayStr);
-        const startDate = weekDetails.weekStart;
-        const endDate = weekDetails.weekEnd;
 
         // Prepare data to upload
         const uploadData = {
@@ -387,9 +600,7 @@ class MultiClientOpportunitySyncCron {
           estimatesSet,
           sales: jobBooked,
           revenue,
-          testingBudgetSpent: 0,
-          awarenessBrandingBudgetSpent: 0,
-          leadGenerationBudgetSpent: 0,
+          
         };
 
         // Log what data is being uploaded to Revenue Pro API
@@ -404,9 +615,7 @@ class MultiClientOpportunitySyncCron {
             estimatesSet: uploadData.estimatesSet,
             sales: uploadData.sales,
             revenue: uploadData.revenue,
-            testingBudgetSpent: uploadData.testingBudgetSpent,
-            awarenessBrandingBudgetSpent: uploadData.awarenessBrandingBudgetSpent,
-            leadGenerationBudgetSpent: uploadData.leadGenerationBudgetSpent,
+           
           },
           weekDetails: {
             weekStart: weekDetails.weekStart,

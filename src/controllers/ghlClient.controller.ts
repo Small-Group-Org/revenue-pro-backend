@@ -11,17 +11,18 @@ class GhlClientController {
   /**
    * POST /api/v1/ghl-clients
    * Create a new GHL client configuration
-   * Body: { locationId, ghlApiToken, queryValue }
+   * Body: { locationId, ghlApiToken, queryValue, queryValue2? }
    * RevenuePro client ID is extracted from the authenticated user's token
    */
   public createGhlClient = async (req: Request, res: Response): Promise<void> => {
     try {
-      const { locationId, ghlApiToken, queryValue, revenueProClientId } = req.body;
+      const { locationId, ghlApiToken, queryValue, queryValue2, revenueProClientId } = req.body;
 
       // Log all incoming values from frontend
       logger.info('[GHL Client Create] Request received', {
         locationId,
         queryValue,
+        queryValue2,
         revenueProClientId,
         ghlApiTokenLength: ghlApiToken?.length || 0,
         hasGhlApiToken: !!ghlApiToken,
@@ -47,7 +48,9 @@ class GhlClientController {
         locationId,
         ghlApiToken,
         queryValue,
-        revenueProClientId
+        revenueProClientId,
+        'active',
+        queryValue2
       );
 
       utils.sendSuccessResponse(res, 201, {
@@ -58,6 +61,8 @@ class GhlClientController {
           locationId: ghlClient.locationId,
           queryValue: ghlClient.queryValue,
           customFieldId: ghlClient.customFieldId,
+          queryValue2: ghlClient.queryValue2,
+          customFieldId2: ghlClient.customFieldId2,
           pipelineId: ghlClient.pipelineId,
           revenueProClientId: ghlClient.revenueProClientId,
           status: ghlClient.status,
@@ -104,6 +109,8 @@ class GhlClientController {
         locationId: client.locationId,
         queryValue: client.queryValue,
         customFieldId: client.customFieldId,
+        queryValue2: client.queryValue2,
+        customFieldId2: client.customFieldId2,
         pipelineId: client.pipelineId,
         revenueProClientId: client.revenueProClientId,
         status: client.status,
@@ -145,6 +152,8 @@ class GhlClientController {
           ghlApiToken: decryptedToken,
           queryValue: client.queryValue,
           customFieldId: client.customFieldId,
+          queryValue2: client.queryValue2,
+          customFieldId2: client.customFieldId2,
           pipelineId: client.pipelineId,
           revenueProClientId: client.revenueProClientId,
           status: client.status,
@@ -160,18 +169,19 @@ class GhlClientController {
   /**
    * PUT /api/v1/ghl-clients/:locationId
    * Update a GHL client configuration by locationId
-   * Body: { ghlApiToken?, queryValue?, revenueProClientId?, status? }
+   * Body: { ghlApiToken?, queryValue?, queryValue2?, revenueProClientId?, status? }
    * Only updates the fields that are provided in the request body
    */
   public updateGhlClient = async (req: Request, res: Response): Promise<void> => {
     try {
       const { locationId } = req.params;
-      const { ghlApiToken, queryValue, revenueProClientId, status } = req.body;
+      const { ghlApiToken, queryValue, queryValue2, revenueProClientId, status } = req.body;
 
       // Log all incoming values from frontend
       logger.info('[GHL Client Update] Request received', {
         locationId,
         queryValue,
+        queryValue2,
         revenueProClientId,
         status,
         ghlApiTokenLength: ghlApiToken?.length || 0,
@@ -180,11 +190,11 @@ class GhlClientController {
       });
 
       // Check if at least one field is being updated
-      if (!ghlApiToken && !queryValue && !revenueProClientId && !status) {
+      if (!ghlApiToken && !queryValue && queryValue2 === undefined && !revenueProClientId && !status) {
         logger.warn('[GHL Client Update] No fields to update', { locationId });
         utils.sendErrorResponse(
           res,
-          new CustomError(ErrorCode.BAD_REQUEST, "At least one field must be provided for update: ghlApiToken, queryValue, revenueProClientId, or status")
+          new CustomError(ErrorCode.BAD_REQUEST, "At least one field must be provided for update: ghlApiToken, queryValue, queryValue2, revenueProClientId, or status")
         );
         return;
       }
@@ -204,6 +214,7 @@ class GhlClientController {
         {
           ghlApiToken,
           queryValue,
+          queryValue2,
           revenueProClientId,
           status,
         }
@@ -234,6 +245,8 @@ class GhlClientController {
           locationId: updatedClient.locationId,
           queryValue: updatedClient.queryValue,
           customFieldId: updatedClient.customFieldId,
+          queryValue2: updatedClient.queryValue2,
+          customFieldId2: updatedClient.customFieldId2,
           pipelineId: updatedClient.pipelineId,
           revenueProClientId: updatedClient.revenueProClientId,
           status: updatedClient.status,

@@ -49,10 +49,14 @@ export class GhlClientService {
     apiToken: string,
     queryValue: string,
     revenueProClientId: string,
-    status: 'active' | 'inactive' | 'deleted' = 'active'
+    status: 'active' | 'inactive' | 'deleted' = 'active',
+    queryValue2?: string
   ): Promise<IGhlClient> {
     // Encrypt the API token before storing
     const encryptedApiToken = encrypt(apiToken);
+
+    // Set default value for queryValue2 if not provided
+    const queryValue2WithDefault = queryValue2 || 'Last Date Tag Changed';
 
     // Fetch the custom field ID from GHL API - REQUIRED
     // If this fails, we should not create the client
@@ -72,6 +76,25 @@ export class GhlClientService {
       });
       // Throw error to prevent client creation if custom field fetch fails
       throw new Error(`Failed to fetch custom field ID from GHL API: ${errorMessage}. Please verify the location ID, API token, and query value are correct.`);
+    }
+
+    // Fetch the custom field ID for queryValue2 (Last Date Tag Changed) - OPTIONAL
+    // Always fetch since we have a default value
+    let customFieldId2: string | undefined;
+    try {
+      customFieldId2 = await this.fetchCustomFieldId(locationId, apiToken, queryValue2WithDefault);
+      if (!customFieldId2) {
+        console.warn(`[GHL Client Create] Custom field not found for queryValue2: ${queryValue2WithDefault}, continuing without it`);
+      }
+    } catch (error: any) {
+      const errorMessage = error?.message || String(error);
+      console.warn(`[GHL Client Create] Failed to fetch custom field ID for queryValue2 (location ${locationId}):`, {
+        locationId,
+        queryValue2: queryValue2WithDefault,
+        error: errorMessage,
+        errorCode: error?.code,
+      });
+      // Don't throw error for queryValue2, just log it - it's optional
     }
 
     // Fetch the pipeline ID from GHL API - REQUIRED
@@ -100,7 +123,9 @@ export class GhlClientService {
       revenueProClientId,
       customFieldId,
       pipelineId,
-      status
+      status,
+      queryValue2WithDefault,
+      customFieldId2
     );
   }
 
@@ -253,6 +278,7 @@ export class GhlClientService {
     updates: {
       ghlApiToken?: string;
       queryValue?: string;
+      queryValue2?: string;
       revenueProClientId?: string;
       status?: 'active' | 'inactive' | 'deleted';
     }
@@ -274,6 +300,8 @@ export class GhlClientService {
       encryptedApiToken?: string;
       queryValue?: string;
       customFieldId?: string;
+      queryValue2?: string;
+      customFieldId2?: string;
       pipelineId?: string;
       revenueProClientId?: string;
       status?: 'active' | 'inactive' | 'deleted';
@@ -282,6 +310,7 @@ export class GhlClientService {
     // Determine which API token to use (new one if provided, otherwise existing one)
     const apiTokenToUse = updates.ghlApiToken || this.getDecryptedApiToken(existingClient);
     const queryValueToUse = updates.queryValue || existingClient.queryValue;
+    const queryValue2ToUse = updates.queryValue2 !== undefined ? updates.queryValue2 : existingClient.queryValue2;
 
     // If API token or query value is being updated, fetch new customFieldId
     if (updates.ghlApiToken || updates.queryValue) {
@@ -301,6 +330,32 @@ export class GhlClientService {
           errorCode: error?.code,
         });
         // Don't throw error, just log it - we'll keep the existing customFieldId
+      }
+    }
+
+    // If API token or queryValue2 is being updated, fetch new customFieldId2
+    if (updates.ghlApiToken || updates.queryValue2 !== undefined) {
+      if (queryValue2ToUse) {
+        try {
+          const customFieldId2 = await this.fetchCustomFieldId(locationId, apiTokenToUse, queryValue2ToUse);
+          if (customFieldId2) {
+            updateData.customFieldId2 = customFieldId2;
+          } else {
+            console.warn(`[GHL Client Update] Failed to fetch custom field ID2 for location ${locationId}, keeping existing value`);
+          }
+        } catch (error: any) {
+          const errorMessage = error?.message || String(error);
+          console.warn(`[GHL Client Update] Failed to fetch custom field ID2 for location ${locationId}:`, {
+            locationId,
+            queryValue2: queryValue2ToUse,
+            error: errorMessage,
+            errorCode: error?.code,
+          });
+          // Don't throw error, just log it - queryValue2 is optional
+        }
+      } else if (updates.queryValue2 === null || updates.queryValue2 === '') {
+        // If queryValue2 is being cleared, also clear customFieldId2
+        updateData.customFieldId2 = undefined;
       }
     }
 
@@ -355,6 +410,9 @@ export class GhlClientService {
     // Update other fields if provided
     if (updates.queryValue) {
       updateData.queryValue = updates.queryValue;
+    }
+    if (updates.queryValue2 !== undefined) {
+      updateData.queryValue2 = updates.queryValue2;
     }
     if (updates.revenueProClientId) {
       updateData.revenueProClientId = updates.revenueProClientId;

@@ -25,6 +25,14 @@ const ghlClientSchema = new Schema<IGhlClient, IGhlClientModel>(
       type: String,
       required: false,
     },
+    queryValue2: {
+      type: String,
+      required: false,
+    },
+    customFieldId2: {
+      type: String,
+      required: false,
+    },
     pipelineId: {
       type: String,
       required: true,

@@ -31,6 +31,10 @@ const userSchema = new Schema<IUser, IUserModel>(
       type: String,
       required: false,
     },
+    fbAdAccountId: {
+      type: String,
+      required: false,
+    },
     status: {
       type: String,
       enum: ['active', 'deleted', 'inactive'],

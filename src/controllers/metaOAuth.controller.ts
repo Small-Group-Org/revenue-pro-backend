@@ -1,6 +1,5 @@
 import { Request, Response } from 'express';
 import { MetaOAuthService } from '../services/metaOAuth/service/service.js';
-import { verifyToken } from '../services/auth/utils/token.js';
 import { config } from '../config.js';
 import { CustomError, ErrorCode } from '../pkg/error/custom_error.js';
 
@@ -14,6 +13,7 @@ class MetaOAuthController {
   /**
    * Handle Meta OAuth callback
    * GET /api/v1/generate-meta-access-token/
+   * Note: No authentication required - updates hardcoded client ID
    */
   generateMetaAccessToken = async (req: Request, res: Response): Promise<void> => {
     try {
@@ -39,42 +39,20 @@ class MetaOAuthController {
         );
       }
 
-      // Step 2: Get authenticated user from headers
-      const accessToken = req.headers.accesstoken as string;
-      const refreshToken = req.headers.refreshtoken as string;
+      // Step 2: Hardcoded client IDs - no authentication required
+      const hardcodedClientIds = [
+        '683acb7561f26ee98f5d2d51',
+        '68ac6ebce46631727500499b'
+      ];
 
-      if (!accessToken || !refreshToken) {
-        const frontendUrl = config.FRONTEND_URL || 'http://localhost:8080';
-        return res.redirect(
-          `${frontendUrl}/profile?meta_error=${encodeURIComponent('unauthorized: User authentication tokens are missing')}`
-        );
-      }
+      // Step 3: Complete OAuth flow (exchange code, get long-lived token, store for all client IDs)
+      await Promise.all(
+        hardcodedClientIds.map(clientId => 
+          this.metaOAuthService.completeOAuthFlow(clientId, code)
+        )
+      );
 
-      // Step 3: Verify user authentication
-      let user;
-      try {
-        const tokenResult = await verifyToken(accessToken, refreshToken);
-        if (!tokenResult.valid || !tokenResult.user) {
-          throw new CustomError(ErrorCode.UNAUTHORIZED, {
-            message: 'User not authenticated',
-            status: 401,
-          });
-        }
-        user = tokenResult.user;
-      } catch (error: any) {
-        const frontendUrl = config.FRONTEND_URL || 'http://localhost:8080';
-        const errorMsg = error instanceof CustomError 
-          ? error.message 
-          : 'Invalid token';
-        return res.redirect(
-          `${frontendUrl}/profile?meta_error=${encodeURIComponent(`invalid_token: ${errorMsg}`)}`
-        );
-      }
-
-      // Step 4: Complete OAuth flow (exchange code, get long-lived token, store)
-      await this.metaOAuthService.completeOAuthFlow(user._id.toString(), code);
-
-      // Step 5: Redirect to frontend with success (this is the redirect AFTER getting the token)
+      // Step 4: Redirect to frontend with success (this is the redirect AFTER getting the token)
       const frontendUrl = config.FRONTEND_URL || 'http://localhost:8080';
       return res.redirect(`${frontendUrl}/profile?meta_success=true`);
 
