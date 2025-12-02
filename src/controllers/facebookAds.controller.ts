@@ -134,37 +134,11 @@ export class FacebookAdsController {
         return;
       }
 
-      const businessId = req.query.businessId as string;
+      const data = await getAllAdAccounts(accessToken);
 
-      if (!businessId) {
-        console.log('[API] Bad request: missing businessId');
-        res.status(400).json({ 
-          success: false, 
-          error: 'businessId is required as query parameter' 
-        });
-        return;
-      }
-
-      // Validate businessId format (should be numeric)
-      if (!/^\d+$/.test(businessId)) {
-        console.log('[API] Bad request: invalid businessId format');
-        res.status(400).json({ 
-          success: false, 
-          error: 'businessId must be numeric' 
-        });
-        return;
-      }
-
-      const data = await getAllAdAccounts(businessId, accessToken);
-
-      console.log(`\n[API] Returning ${data.total} ad accounts\n`);
       res.status(200).json({ 
         success: true, 
-        data: {
-          owned: data.owned,
-          client: data.client,
-          total: data.total,
-        }
+        data: data.adAccounts,
       });
     } catch (err: any) {
       console.error('\n[API] Error in /api/v1/facebook/ad-accounts:', err.message);

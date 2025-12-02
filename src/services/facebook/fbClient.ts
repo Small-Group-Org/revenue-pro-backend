@@ -1,7 +1,7 @@
 // fbClient.ts
 import { config } from '../../config.js';
 
-const FB_API_VERSION = config.FB_API_VERSION || 'v21.0';
+const FB_API_VERSION = config.META_API_VERSION || 'v24.0';
 const FB_BASE_URL = `https://graph.facebook.com/${FB_API_VERSION}`;
 
 /**

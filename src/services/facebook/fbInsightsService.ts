@@ -44,8 +44,6 @@ export async function getAdInsights({
       'adset_name',
       'campaign_id',
       'campaign_name',
-      'impressions',
-      'clicks',
       'spend',
       'date_start',
       'date_stop',

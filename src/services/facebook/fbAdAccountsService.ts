@@ -12,67 +12,31 @@ interface AdAccount {
 }
 
 interface AdAccountsResponse {
-  owned: AdAccount[];
-  client: AdAccount[];
-  total: number;
+  adAccounts: AdAccount[];
 }
 
 /**
  * Get all ad accounts (owned + client) from Business Manager
- * @param businessId - Facebook Business Manager ID
  * @param accessToken - Meta access token for this request
  * @returns Combined list of owned and client ad accounts
  */
 export async function getAllAdAccounts(
-  businessId: string,
   accessToken: string
 ): Promise<AdAccountsResponse> {
-  console.log(`[Ad Accounts] Fetching ad accounts for Business ID: ${businessId}`);
-    console.log('accessToken', accessToken);
-  if (!businessId) {
-    throw new Error('businessId is required');
-  }
   if (!accessToken) {
     throw new Error('Meta access token is required');
   }
 
-  const fields = [
-    'id',
-    'account_id',
-    'name',
-    'account_status',
-    'currency',
-    'amount_spent',
-    'owner',
-  ].join(',');
-
-  // Fetch owned ad accounts
-  console.log('[Ad Accounts] Step 1: Fetching owned ad accounts...');
-  const ownedParams = {
-    fields,
+  const accountParams = {
+    fields: 'name',
     limit: 100,
   };
-  const ownedRes = await fbGet(`/${businessId}/owned_ad_accounts`, ownedParams, accessToken);
+  const ownedRes = await fbGet(`/me/adaccounts`, accountParams, accessToken);
   const ownedAccounts: AdAccount[] = ownedRes.data || [];
   console.log(`[Ad Accounts] Retrieved ${ownedAccounts.length} owned ad accounts`);
 
-  // Fetch client ad accounts
-  console.log('[Ad Accounts] Step 2: Fetching client ad accounts...');
-  const clientParams = {
-    fields,
-    limit: 100,
-  };
-  const clientRes = await fbGet(`/${businessId}/client_ad_accounts`, clientParams, accessToken);
-  const clientAccounts: AdAccount[] = clientRes.data || [];
-  console.log(`[Ad Accounts] Retrieved ${clientAccounts.length} client ad accounts`);
-
-  const total = ownedAccounts.length + clientAccounts.length;
-  console.log(`[Ad Accounts] Total: ${total} ad accounts (${ownedAccounts.length} owned, ${clientAccounts.length} client)`);
-
   return {
-    owned: ownedAccounts,
-    client: clientAccounts,
-    total,
+    adAccounts: ownedAccounts,
   };
 }
 
