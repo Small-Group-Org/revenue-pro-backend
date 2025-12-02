@@ -5,18 +5,12 @@ import { getLeadForms } from './fbLeadFormsService.js';
 import { DateUtils } from '../../utils/date.utils.js';
 
 interface EnrichedAd {
-  campaign: {
-    id: string;
-    name: string;
-  };
-  adset: {
-    id: string;
-    name: string;
-  };
-  ad: {
-    id: string;
-    name: string;
-  };
+  campaign_id: string;
+  campaign_name: string;
+  adset_id: string;
+  adset_name: string;
+  ad_id: string;
+  ad_name: string;
   creative: {
     id: string | null;
     name: string | null;
@@ -72,7 +66,6 @@ export async function getEnrichedAds({
 
   // For weekly queries, return detailed enriched ads (original behavior)
   // 1) Insights
-  console.log('[Enriched Ads] Step 1: Fetching insights...');
   const insightsRows = await getAdInsights({ adAccountId, since: startDate, until: endDate, accessToken });
   if (!insightsRows.length) {
     console.log('[Enriched Ads] No insights found');
@@ -82,7 +75,6 @@ export async function getEnrichedAds({
   const uniqueAdIds = Array.from(
     new Set(insightsRows.map(row => row.ad_id))
   );
-  console.log(`[Enriched Ads] Found ${uniqueAdIds.length} unique ad IDs`);
 
   // 2) Ads + creatives
   console.log('[Enriched Ads] Step 2: Fetching ads with creatives...');
@@ -108,26 +100,22 @@ export async function getEnrichedAds({
   const formMap = await getLeadForms(Array.from(formIdsSet), accessToken);
 
   // 4) Join into final structure per insight row
-  console.log('[Enriched Ads] Step 4: Joining data...');
   const final: EnrichedAd[] = insightsRows.map(row => {
     const enriched = adEnrichedMap[row.ad_id] || {};
     const creative = enriched.creative || null;
     const formId = enriched.lead_gen_form_id || null;
     const form = formId ? formMap[formId] || null : null;
+    const adConfigs = {
+      campaign_id: row.campaign_id,
+      campaign_name: row.campaign_name,
+      adset_id: row.adset_id,
+      adset_name: row.adset_name,
+      ad_id: row.ad_id,
+      ad_name: row.ad_name,
+    }
 
     return {
-      campaign: {
-        id: row.campaign_id,
-        name: row.campaign_name,
-      },
-      adset: {
-        id: row.adset_id,
-        name: row.adset_name,
-      },
-      ad: {
-        id: row.ad_id,
-        name: row.ad_name,
-      },
+      ...adConfigs,
       creative: creative,
       lead_form: form
         ? { id: form.id, name: form.name }
