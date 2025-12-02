@@ -8,7 +8,7 @@ const facebookAdsController = new FacebookAdsController();
 /**
  * GET /api/v1/facebook/enriched-ads
  * Get enriched Facebook ads data with insights, creatives, and lead forms
- * Query params: since (YYYY-MM-DD), until (YYYY-MM-DD)
+ * Query params: clientId, startDate (YYYY-MM-DD), endDate (YYYY-MM-DD), queryType
  */
 router.get('/enriched-ads', (req, res) => facebookAdsController.getEnrichedAds(req, res));
 
