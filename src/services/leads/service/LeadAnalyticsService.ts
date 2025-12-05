@@ -164,9 +164,14 @@ export class LeadAnalyticsService {
       unqualifiedCount
     );
 
+    // Filter out unqualified reasons with count less than 50
+    const filteredUnqualifiedReasons = unqualifiedReasons.filter(
+      reason => reason.totalLeads >= 50
+    );
+
     return {
       dayOfWeekData,
-      unqualifiedReasons
+      unqualifiedReasons: filteredUnqualifiedReasons
     };
   }
 
