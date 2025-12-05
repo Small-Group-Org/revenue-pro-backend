@@ -108,7 +108,7 @@ export class ActualRepository {
   async getUsersRevenueByDateRange(
     startDate: string,
     endDate: string
-  ): Promise<Array<{ userId: string; userName: string; userEmail: string; totalRevenue: number; testingBudgetSpent?: number; awarenessBrandingBudgetSpent?: number; leadGenerationBudgetSpent?: number; totalBudgetSpent?: number; estimateSetCount?: number; disqualifiedLeadsCount?: number }>> {
+  ): Promise<Array<{ userId: string; userName: string; userEmail: string; totalRevenue: number; testingBudgetSpent?: number; awarenessBrandingBudgetSpent?: number; leadGenerationBudgetSpent?: number; totalBudgetSpent?: number; estimateSetCount?: number; disqualifiedLeadsCount?: number; actualLeads?: number; actualEstimateSet?: number }>> {
     const result = await this.model.aggregate([
       {
         $match: {
@@ -116,6 +116,7 @@ export class ActualRepository {
             $gte: startDate,
             $lte: endDate,
           },
+          userId: { $ne: "68bc48591d96640540bef437" },
         },
       },
       {
@@ -125,6 +126,8 @@ export class ActualRepository {
           testingBudgetSpent: { $sum: "$testingBudgetSpent" },
           awarenessBrandingBudgetSpent: { $sum: "$awarenessBrandingBudgetSpent" },
           leadGenerationBudgetSpent: { $sum: "$leadGenerationBudgetSpent" },
+          actualLeads: { $sum: "$leads" },
+          actualEstimateSet: { $sum: "$estimatesSet" },
         },
       },
       {
@@ -144,6 +147,14 @@ export class ActualRepository {
         $unwind: {
           path: "$userDetails",
           preserveNullAndEmptyArrays: true,
+        },
+      },
+      {
+        $match: {
+          $or: [
+            { "userDetails.role": { $ne: "ADMIN" } },
+            { "userDetails": { $exists: false } },
+          ],
         },
       },
       {
@@ -205,6 +216,8 @@ export class ActualRepository {
           totalBudgetSpent: 1,
           estimateSetCount: 1,
           disqualifiedLeadsCount: 1,
+          actualLeads: 1,
+          actualEstimateSet: 1,
         },
       },
       {

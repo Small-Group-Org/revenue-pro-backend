@@ -211,13 +211,81 @@ export class LeadSheetsSyncService {
   }
 
   /**
+   * Fetch contact and extract queryValue (customFieldId) value
+   * Returns the value if found, null otherwise
+   */
+  private async getContactQueryValue(
+    contactId: string,
+    locationId: string,
+    apiToken: string,
+    customFieldId: string | undefined,
+    retry: RetryOptions = { retries: 3, baseDelayMs: 1000 }
+  ): Promise<number | null> {
+    if (!customFieldId) {
+      logger.debug('[Lead Sheets Sync] No customFieldId provided, skipping queryValue fetch', {
+        locationId,
+        contactId,
+      });
+      return null;
+    }
+
+    try {
+      const resp = await withRetry(
+        async () => {
+          try {
+            return await this.httpClient.get<any>(`/contacts/${encodeURIComponent(contactId)}`, {
+              headers: {
+                Authorization: `Bearer ${apiToken}`,
+                Version: '2021-07-28',
+              },
+            });
+          } catch (error: any) {
+            // If we get a 429, throw a specific error that can be handled
+            if (error?.message?.includes('429') || error?.code === 429) {
+              const rateLimitError: any = new Error('Rate limit exceeded');
+              rateLimitError.code = 429;
+              throw rateLimitError;
+            }
+            throw error;
+          }
+        },
+        retry,
+      );
+      
+      const contact = resp?.contact;
+      if (!contact) return null;
+      
+      const customFields = contact?.customFields;
+      if (Array.isArray(customFields)) {
+        const field = customFields.find((f: any) => f?.id === customFieldId || f?._id === customFieldId);
+        if (field && field.value !== undefined && field.value !== null && field.value !== '') {
+          const val = Number(field.value);
+          if (!Number.isNaN(val)) {
+            return val;
+          }
+        }
+      }
+      
+      return null;
+    } catch (e) {
+      logger.warn('[Lead Sheets Sync] Failed to fetch contact for queryValue', {
+        locationId,
+        contactId,
+        error: (e as any)?.message || String(e),
+      });
+      return null;
+    }
+  }
+
+  /**
    * Process opportunities and sync lead statuses
    */
   async syncLeadSheetsForClient(
     locationId: string,
     pipelineId: string,
     revenueProClientId: string,
-    apiToken: string
+    apiToken: string,
+    customFieldId?: string
   ): Promise<{
     processed: number;
     updated: number;
@@ -318,6 +386,44 @@ export class LeadSheetsSyncService {
             unqualifiedLeadReason: unqualifiedReason || '',
           };
 
+          // Only fetch queryValue when lead CONVERTS to estimate_set (current status is NOT estimate_set)
+          const isConvertingToEstimateSet = status === 'estimate_set' && existingLead.status !== 'estimate_set';
+          
+          if (isConvertingToEstimateSet && opportunity.contactId) {
+            const retry: RetryOptions = { retries: 3, baseDelayMs: 1000 };
+            const queryValue = await this.getContactQueryValue(
+              opportunity.contactId,
+              locationId,
+              apiToken,
+              customFieldId,
+              retry
+            );
+            
+            if (queryValue !== null) {
+              leadData.jobBookedAmount = queryValue;
+              logger.debug('[Lead Sheets Sync] Fetched queryValue from contact for converting lead', {
+                locationId,
+                revenueProClientId,
+                email: email.trim(),
+                contactId: opportunity.contactId,
+                currentStatus: existingLead.status,
+                newStatus: status,
+                queryValue,
+              });
+            } else {
+              logger.debug('[Lead Sheets Sync] Could not fetch queryValue from contact', {
+                locationId,
+                revenueProClientId,
+                email: email.trim(),
+                contactId: opportunity.contactId,
+                customFieldId,
+              });
+            }
+            
+            // Small delay between contact fetches to avoid rate limits
+            await delay(30);
+          }
+
           // Update lead using the existing lead's query fields
           const query = {
             email: email.trim(),
@@ -390,6 +496,7 @@ export class LeadSheetsSyncService {
       const decryptedToken = ghlClientService.getDecryptedApiToken(client);
       const pipelineId = client.pipelineId;
       const revenueProClientId = client.revenueProClientId;
+      const customFieldId = client.customFieldId;
 
       if (!locationId || !decryptedToken || !pipelineId || !revenueProClientId) {
         logger.warn('[Lead Sheets Sync] Skipping client due to missing required fields', {
@@ -408,7 +515,8 @@ export class LeadSheetsSyncService {
             locationId,
             pipelineId,
             revenueProClientId,
-            decryptedToken
+            decryptedToken,
+            customFieldId
           ),
           retry
         );

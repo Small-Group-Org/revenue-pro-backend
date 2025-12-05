@@ -4,7 +4,7 @@ import { getEnrichedAds } from '../services/facebook/enrichedAdsService.js';
 import { getAllAdAccounts } from '../services/facebook/fbAdAccountsService.js';
 import { fbGet } from '../services/facebook/fbClient.js';
 import UserService from '../services/user/service/service.js';
-import { config } from '@/config.js';
+import { config } from '../config.js';
 
 export class FacebookAdsController {
   private userService: UserService;

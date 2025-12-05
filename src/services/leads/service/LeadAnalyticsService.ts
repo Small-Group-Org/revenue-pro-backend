@@ -122,6 +122,54 @@ export class LeadAnalyticsService {
     };
   }
 
+  /**
+   * Get aggregated lead analytics across ALL clients
+   * Returns single aggregated dayOfWeekData and unqualifiedReasons for the entire date range
+   */
+  async getAggregatedLeadAnalytics(
+    startDate: string,
+    endDate: string,
+  ): Promise<{
+    dayOfWeekData: Array<{ day: string; totalLeads: number; estimateSetCount: number; estimateSetRate: string }>;
+    unqualifiedReasons: Array<{ reason: string; totalLeads: number; percentage: string }>;
+  }> {
+    // Build query without clientId (all clients)
+    const query: any = {};
+
+    // Add date range filter
+    if (startDate || endDate) {
+      query.leadDate = {};
+      if (startDate) query.leadDate.$gte = startDate;
+      if (endDate) query.leadDate.$lte = endDate;
+    }
+
+    // Fetch all leads for the date range
+    const allLeads = await this.leadRepo.findLeads(query);
+
+    if (allLeads.length === 0) {
+      return {
+        dayOfWeekData: [],
+        unqualifiedReasons: []
+      };
+    }
+
+    // Calculate aggregated dayOfWeekData for all leads
+    const dayOfWeekData = await this.processDayOfWeekAnalysis(allLeads);
+
+    // Calculate aggregated unqualifiedReasons for all leads
+    const unqualifiedLeads = allLeads.filter(lead => lead.status === 'unqualified');
+    const unqualifiedCount = unqualifiedLeads.length;
+    const unqualifiedReasons = await this.processUnqualifiedReasonsAnalysis(
+      unqualifiedLeads,
+      unqualifiedCount
+    );
+
+    return {
+      dayOfWeekData,
+      unqualifiedReasons
+    };
+  }
+
   // ============= PRIVATE ANALYTICS PROCESSORS =============
 
   /**

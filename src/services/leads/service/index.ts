@@ -62,6 +62,9 @@ export class CombinedLeadService {
   async getPerformanceTables(clientId: string, startDate?: string, endDate?: string, adSetPage?: number, adNamePage?: number, adSetItemsPerPage?: number, adNameItemsPerPage?: number, sortOptions?: any) { 
     return this.analyticsService.getPerformanceTables(clientId, startDate, endDate, adSetPage, adNamePage, adSetItemsPerPage, adNameItemsPerPage, sortOptions); 
   }
+  async getAggregatedLeadAnalytics(startDate: string, endDate: string) {
+    return this.analyticsService.getAggregatedLeadAnalytics(startDate, endDate);
+  }
 
   // Delegate scoring operations to LeadScoringService
   async processLeadScoresAndCRsByClientId(clientId: string) { 
