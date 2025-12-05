@@ -8,7 +8,7 @@ class LeadSheetsSyncCron {
   private isRunning = false;
 
   public start(): void {
-    const schedule = config.LEAD_SHEETS_SYNC_CRON || '0 4 * * *'; // Default: daily at 4 AM UTC
+    const schedule = config.LEAD_SHEETS_SYNC_CRON ; // Default: daily at 4 AM UTC
     cron.schedule(
       schedule,
       async () => {
