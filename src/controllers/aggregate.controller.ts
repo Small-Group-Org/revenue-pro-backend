@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { ActualService } from '../services/actual/service/service.js';
 import { TargetService } from '../services/target/service/service.js';
+import { leadAnalyticsService } from '../services/leads/service/index.js';
 
 /**
  * Master Aggregate Controller
@@ -95,12 +96,19 @@ export class AggregateController {
         String(endDateStr)
       );
 
+      // Get aggregated lead analytics
+      const leadAnalytics = await leadAnalyticsService.getAggregatedLeadAnalytics(
+        String(startDateStr),
+        String(endDateStr)
+      );
+
       res.status(200).json({
         success: true,
         data: {
           actual: actualResults,
           target: Array.isArray(targetResults) ? targetResults : [targetResults],
-          usersBudgetAndRevenue: usersBudgetAndRevenue
+          usersBudgetAndRevenue: usersBudgetAndRevenue,
+          leadAnalytics: leadAnalytics
         }
       });
     } catch (error: any) {

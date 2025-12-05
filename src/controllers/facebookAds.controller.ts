@@ -4,6 +4,7 @@ import { getEnrichedAds } from '../services/facebook/enrichedAdsService.js';
 import { getAllAdAccounts } from '../services/facebook/fbAdAccountsService.js';
 import { fbGet } from '../services/facebook/fbClient.js';
 import UserService from '../services/user/service/service.js';
+import { config } from '@/config.js';
 
 export class FacebookAdsController {
   private userService: UserService;
@@ -103,7 +104,7 @@ export class FacebookAdsController {
         : `act_${rawAdAccountId}`;
 
       // 2) Get Meta access token from hardcoded client
-      const metaTokenClientId = '68ac6ebce46631727500499b';
+      const metaTokenClientId = config.META_USER_TOKEN_ID;
       const metaTokenUser = await this.userService.getUserById(metaTokenClientId);
 
       const accessToken = (metaTokenUser as any)?.metaAccessToken as string | undefined;
@@ -153,7 +154,7 @@ export class FacebookAdsController {
     
     try {
       // Use the same hardcoded Meta token owner as enriched-ads
-      const metaTokenClientId = '68ac6ebce46631727500499b';
+      const metaTokenClientId = config.META_USER_TOKEN_ID;
       const metaTokenUser = await this.userService.getUserById(metaTokenClientId);
       const accessToken = (metaTokenUser as any)?.metaAccessToken as string | undefined;
 

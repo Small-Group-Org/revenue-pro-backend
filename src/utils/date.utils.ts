@@ -268,4 +268,100 @@ export class DateUtils {
       endDate: properEndDate.toISOString().split('T')[0]
     };
   }
+
+  /**
+   * Helper to count days in a week that belong to a specific period (month or year)
+   * @param weekStart Start of the week (Monday)
+   * @param weekEnd End of the week (Sunday)
+   * @param targetDate Reference date to determine the period
+   * @param queryType 'monthly' or 'yearly'
+   * @returns Number of days in the week that belong to the target period
+   */
+  private static countDaysInPeriod(
+    weekStart: Date,
+    weekEnd: Date,
+    targetDate: Date,
+    queryType: 'monthly' | 'yearly'
+  ): number {
+    let count = 0;
+    const currentDate = new Date(weekStart);
+    
+    while (currentDate <= weekEnd) {
+      if (queryType === 'monthly') {
+        if (currentDate.getFullYear() === targetDate.getFullYear() && 
+            currentDate.getMonth() === targetDate.getMonth()) {
+          count++;
+        }
+      } else {
+        if (currentDate.getFullYear() === targetDate.getFullYear()) {
+          count++;
+        }
+      }
+      currentDate.setDate(currentDate.getDate() + 1);
+    }
+    
+    return count;
+  }
+
+  /**
+   * Adjusts startDate to the Monday of the week that has more days in the current period.
+   * If the week containing startDate has more days in the current month/year, use its Monday.
+   * Otherwise, use the Monday of the next week.
+   * 
+   * @param startDateStr Start date string (e.g., "2025-09-01")
+   * @param queryType 'monthly' or 'yearly'
+   * @returns Adjusted start date as Monday of the appropriate week
+   */
+  static adjustStartDateForWeekBoundary(startDateStr: string, queryType: 'monthly' | 'yearly'): string {
+    const targetDate = new Date(startDateStr);
+    const weekDetails = this.getWeekDetails(startDateStr);
+    const weekStart = new Date(weekDetails.weekStart);
+    const weekEnd = new Date(weekDetails.weekEnd);
+    
+    // Count days in current period vs previous period
+    const daysInCurrentPeriod = this.countDaysInPeriod(weekStart, weekEnd, targetDate, queryType);
+    const daysInPreviousPeriod = 7 - daysInCurrentPeriod;
+    
+    // If more days in current period, use this week's Monday
+    // Otherwise, use next week's Monday
+    if (daysInCurrentPeriod > daysInPreviousPeriod) {
+      return weekDetails.weekStart;
+    }
+    
+    // Get next week's Monday
+    const nextMonday = new Date(weekStart);
+    nextMonday.setDate(nextMonday.getDate() + 7);
+    return nextMonday.toISOString().split('T')[0];
+  }
+
+  /**
+   * Adjusts endDate to the Sunday of the week that has more days in the current period.
+   * If the week containing endDate has more days in the current month/year, use its Sunday.
+   * Otherwise, use the Sunday of the previous week.
+   * 
+   * @param endDateStr End date string (e.g., "2025-09-30")
+   * @param queryType 'monthly' or 'yearly'
+   * @returns Adjusted end date as Sunday of the appropriate week
+   */
+  static adjustEndDateForWeekBoundary(endDateStr: string, queryType: 'monthly' | 'yearly'): string {
+    const targetDate = new Date(endDateStr);
+    const weekDetails = this.getWeekDetails(endDateStr);
+    const weekStart = new Date(weekDetails.weekStart);
+    const weekEnd = new Date(weekDetails.weekEnd);
+    
+    // Count days in current period vs next period
+    const daysInCurrentPeriod = this.countDaysInPeriod(weekStart, weekEnd, targetDate, queryType);
+    const daysInNextPeriod = 7 - daysInCurrentPeriod;
+    
+    // If more days in current period, use this week's Sunday
+    // Otherwise, use previous week's Sunday
+    if (daysInCurrentPeriod > daysInNextPeriod) {
+      return weekDetails.weekEnd;
+    }
+    
+    // Get previous week's Sunday
+    const prevSunday = new Date(weekStart);
+    prevSunday.setDate(prevSunday.getDate() - 1);
+    return prevSunday.toISOString().split('T')[0];
+  }
 }
