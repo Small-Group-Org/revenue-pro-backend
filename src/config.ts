@@ -37,5 +37,4 @@ export const config = {
   META_REDIRECT_URI: process.env.META_REDIRECT_URI || '',
   META_REDIRECT_URI: "https://dev-revenue-pro-backend-1057029383450.asia-southeast1.run.app/api/v1/generate-meta-access-token/",
   META_API_VERSION: process.env.META_API_VERSION || '',
- 
 };
