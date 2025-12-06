@@ -173,8 +173,8 @@ export class LeadService {
       if (!result) throw new Error("Failed to update lead");
       return this.normalizeLeadAmounts(result);
     } else {
-      if (!payload.clientId || !payload.service || !payload.zip || (!payload.phone && !payload.email)) {
-        throw new Error('Missing required fields: clientId, service, zip, and at least phone or email');
+      if (!payload.clientId || (!payload.phone && !payload.email)) {
+        throw new Error('Missing required fields: clientId and at least phone or email');
       }
       
       const newLeadPayload = { ...payload };
