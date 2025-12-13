@@ -9,6 +9,7 @@ import logger, { requestIdMiddleware, requestLoggerMiddleware, createRequestLogg
 import conversionRateUpdateService from "./services/cron/conversionRateUpdateService.js";
 import multiClientOpportunitySyncCron from "./services/opportunities/cron/multiClientOpportunitySync.cron.js";
 import leadSheetsSyncCron from "./services/leads/cron/leadSheetsSync.cron.js";
+import dummyCronService from "./services/cron/dummyCron.service.js";
 // Initialize express app
 const app = express();
 // CORS setup
@@ -64,4 +65,7 @@ app.listen(PORT, () => {
     // Start the lead sheets sync cron job
     leadSheetsSyncCron.start();
     logger.info("Lead sheets sync cron job initialized");
+    // Start dummy cron job (runs every 10 minutes)
+    dummyCronService.start();
+    logger.info("Dummy cron job initialized (runs every 10 minutes)");
 });

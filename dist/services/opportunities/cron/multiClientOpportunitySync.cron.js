@@ -168,6 +168,21 @@ class MultiClientOpportunitySyncCron {
         const start = new Date();
         let logId = null;
         try {
+            // Call dummy endpoint to verify cron is running
+            try {
+                const serverUrl = process.env.SERVER_BASE_URL || `http://localhost:${config.PORT || 3000}`;
+                const dummyHttpClient = new http(serverUrl, 5000);
+                await dummyHttpClient.get('/api/v1/dummy/multi-opportunity-sync-test');
+                logger.info('[MultiClient Opportunity Sync] Dummy endpoint called successfully');
+                console.log('[MultiClient Opportunity Sync] Dummy endpoint called successfully - cron is running!');
+            }
+            catch (dummyError) {
+                // Log but don't fail the cron if dummy endpoint call fails
+                logger.warn('[MultiClient Opportunity Sync] Failed to call dummy endpoint', {
+                    error: dummyError?.message || String(dummyError),
+                });
+                console.warn('[MultiClient Opportunity Sync] Failed to call dummy endpoint:', dummyError?.message || String(dummyError));
+            }
             const clients = await ghlClientService.getAllActiveGhlClients();
             if (!clients || clients.length === 0) {
                 logger.warn('No active GHL clients found; skipping multi-client sync');
