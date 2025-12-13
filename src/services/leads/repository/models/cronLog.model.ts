@@ -2,7 +2,8 @@ import { Schema, model, Document } from 'mongoose';
 
 export interface ICronLog {
   jobName: string;
-  status: 'started' | 'success' | 'failure';
+  status: 'started' | 'processing' | 'success' | 'failure';
+  type?: 'manual' | 'cron'; // How the job was triggered
   startedAt: Date;
   finishedAt?: Date;
   details: string | object; // Can be narrative string or quantified metrics object
@@ -22,7 +23,7 @@ const cronLogSchema = new Schema<ICronLogDocument>(
     status: {
       type: String,
       required: true,
-      enum: ['started', 'success', 'failure']
+      enum: ['started', 'processing', 'success', 'failure']
     },
     startedAt: {
       type: Date,
@@ -47,6 +48,11 @@ const cronLogSchema = new Schema<ICronLogDocument>(
     executionId: {
       type: String,
       required: false
+    },
+    type: {
+      type: String,
+      required: false,
+      enum: ['manual', 'cron']
     }
   },
   { 
@@ -59,6 +65,7 @@ const cronLogSchema = new Schema<ICronLogDocument>(
 cronLogSchema.index({ jobName: 1, startedAt: -1 });
 cronLogSchema.index({ status: 1, startedAt: -1 });
 cronLogSchema.index({ executionId: 1 });
+cronLogSchema.index({ type: 1, startedAt: -1 });
 
 // Create individual indexes for common query patterns
 cronLogSchema.index({ jobName: 1 });

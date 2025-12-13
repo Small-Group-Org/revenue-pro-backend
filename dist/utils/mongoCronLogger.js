@@ -15,6 +15,7 @@ export class MongoCronLogger {
             const logEntry = new CronLogModel({
                 jobName: params.jobName,
                 status: 'started',
+                type: params.type,
                 startedAt: new Date(),
                 details: params.details,
                 executionId
@@ -174,6 +175,21 @@ export class MongoCronLogger {
         }
         catch (error) {
             logger.error('Failed to cleanup old cron logs:', error);
+            throw error;
+        }
+    }
+    /**
+     * Update the status of a running cron job to 'processing'
+     */
+    static async updateStatusToProcessing(logId) {
+        try {
+            await CronLogModel.findByIdAndUpdate(logId, { status: 'processing' });
+            logger.info(`Cron job status updated to processing`, {
+                logId
+            });
+        }
+        catch (error) {
+            logger.error('Failed to update cron job status:', error);
             throw error;
         }
     }

@@ -186,7 +186,7 @@ class MultiClientOpportunitySyncCron {
           logger.warn('Multi-client opportunity sync already running; skipping this tick');
           return;
         }
-        await this.runOnce();
+        await this.runOnce('cron');
       },
       { timezone: 'UTC' },
     );
@@ -198,7 +198,7 @@ class MultiClientOpportunitySyncCron {
     return this.isRunning;
   }
 
-  public async runOnce(): Promise<void> {
+  public async runOnce(type: 'manual' | 'cron'): Promise<void> {
     this.isRunning = true;
     const start = new Date();
     let logId: any = null;
@@ -229,7 +229,11 @@ class MultiClientOpportunitySyncCron {
         jobName: 'multiClientOpportunitySync',
         details: { clientCount: clients.length },
         executionId: start.toISOString().replace(/[:.]/g, '-'),
+        type,
       });
+
+      // Update status to processing to show progress
+      await MongoCronLogger.updateStatusToProcessing(logId);
 
       // Iterate clients sequentially with spacing to avoid rate-limit bursts
       const perClientDelayMs = 1000; // 1s between clients

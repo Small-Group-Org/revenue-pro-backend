@@ -6,6 +6,7 @@ export interface CronJobStartParams {
   jobName: string;
   details: string | object;
   executionId?: string;
+  type?: 'manual' | 'cron';
 }
 
 export interface CronJobSuccessParams {
@@ -37,6 +38,7 @@ export class MongoCronLogger {
       const logEntry = new CronLogModel({
         jobName: params.jobName,
         status: 'started',
+        type: params.type,
         startedAt: new Date(),
         details: params.details,
         executionId
@@ -225,6 +227,22 @@ export class MongoCronLogger {
   }
 
   /**
+   * Update the status of a running cron job to 'processing'
+   */
+  public static async updateStatusToProcessing(logId: Types.ObjectId): Promise<void> {
+    try {
+      await CronLogModel.findByIdAndUpdate(logId, { status: 'processing' });
+      
+      logger.info(`Cron job status updated to processing`, {
+        logId
+      });
+    } catch (error: any) {
+      logger.error('Failed to update cron job status:', error);
+      throw error;
+    }
+  }
+
+  /**
    * Generate a unique execution ID
    */
   private static generateExecutionId(): string {
@@ -235,7 +253,7 @@ export class MongoCronLogger {
 // Convenience function for the main cron job logging
 export async function logCronJob(
   jobName: string, 
-  status: 'started' | 'success' | 'failure', 
+  status: 'started' | 'processing' | 'success' | 'failure', 
   details: string | object,
   options?: {
     logId?: Types.ObjectId;

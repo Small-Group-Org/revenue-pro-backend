@@ -195,7 +195,7 @@ class AdminController {
                     return;
                 }
                 // Trigger the cron job and wait for completion
-                await multiClientOpportunitySyncCron.runOnce();
+                await multiClientOpportunitySyncCron.runOnce('manual');
                 utils.sendSuccessResponse(res, 200, {
                     success: true,
                     message: "Multi-client opportunity sync cron job completed successfully",

@@ -30,6 +30,13 @@ export class LeadRepository {
             isDeleted: false
         }).exec();
     }
+    async getLeadsByDateRangeAndClientId(clientId, start, end) {
+        return await LeadModel.find({
+            clientId: clientId,
+            leadDate: { $gte: start, $lte: end },
+            isDeleted: false
+        }).exec();
+    }
     async findLeads(query = {}) {
         return await LeadModel.find(this.addSoftDeleteFilter(query)).lean().exec();
     }

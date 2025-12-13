@@ -14,6 +14,7 @@ import aggregateRouter from "./aggregate.routes.js";
 import featureRequestRoutes from './featureRequest.route.js';
 import facebookAdsRouter from './facebookAds.routes.js';
 import metaOAuthRouter from "./metaOAuth.routes.js";
+import dummyRouter from './dummy.routes.js';
 import { addContext, } from "../middlewares/common.middleware.js";
 import { verifyTokenMiddleware } from "../middlewares/auth.middleware.js";
 import { config } from "../config.js";
@@ -41,6 +42,7 @@ const otherRoutes = [
     { path: "/api/v1/cron-logs", router: cronLogsRouter },
     { path: "/api/v1/webhooks", router: webhooksRouter },
     { path: "/api/v1", router: metaOAuthRouter }, // Meta OAuth callback (handles auth manually)
+    { path: "/api/v1/dummy", router: dummyRouter }, // Dummy endpoints for testing
 ];
 const configureRoutes = (app) => {
     // add health route

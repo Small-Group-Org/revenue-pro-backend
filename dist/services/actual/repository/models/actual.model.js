@@ -6,6 +6,7 @@ const weeklyActualSchema = new Schema({
     testingBudgetSpent: { type: Number, required: true },
     awarenessBrandingBudgetSpent: { type: Number, required: true },
     leadGenerationBudgetSpent: { type: Number, required: true },
+    metaBudgetSpent: { type: Number, default: null }, // Optional field for Meta (Facebook) Ads integration budget
     revenue: { type: Number, required: true },
     sales: { type: Number, required: true }, // updated
     leads: { type: Number, required: true }, // new field
