@@ -1,50 +1,6 @@
 // fbAdsService.ts
 import { fbGet } from './fbClient.js';
-
-interface Creative {
-  id?: string;
-  name?: string;
-  body?: string;
-  title?: string;
-  object_story_spec?: {
-    link_data?: {
-      message?: string;
-      name?: string;
-      description?: string;
-      caption?: string;
-      call_to_action?: {
-        type?: string;
-        value?: {
-          lead_gen_form_id?: string;
-          link?: string;
-        };
-      };
-    };
-  };
-}
-
-interface AdWithCreative {
-  id: string;
-  name: string;
-  campaign_id: string;
-  adset_id: string;
-  creative?: Creative;
-}
-
-interface NormalizedAd {
-  ad_id: string;
-  ad_name: string;
-  adset_id: string;
-  campaign_id: string;
-  creative: {
-    id: string | null;
-    name: string | null;
-    primary_text: string | null;
-    headline: string | null;
-    raw: Creative;
-  };
-  lead_gen_form_id: string | null;
-}
+import { Creative, AdWithCreative, NormalizedAd } from './domain/facebookAds.domain.js';
 
 /**
  * Batch fetch Ads with nested creative

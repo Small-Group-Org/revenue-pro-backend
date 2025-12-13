@@ -1,10 +1,6 @@
 // fbLeadFormsService.ts
 import { fbGet } from './fbClient.js';
-
-interface LeadForm {
-  id: string;
-  name: string;
-}
+import { LeadForm } from './domain/facebookAds.domain.js';
 
 /**
  * Batch fetch leadgen forms

@@ -24,4 +24,26 @@ router.get('/ad-accounts', (req, res) => facebookAdsController.getAdAccounts(req
  */
 router.get('/my-businesses', (req, res) => facebookAdsController.getMyBusinesses(req, res));
 
+/**
+ * POST /api/v1/facebook/ad-performance-board
+ * Get ad performance board with flexible columns and filters
+ * Query params: clientId
+ * Body: { groupBy, filters, columns }
+ */
+router.post('/ad-performance-board', (req, res) => facebookAdsController.getAdPerformanceBoard(req, res));
+
+/**
+ * POST /api/v1/facebook/save-weekly-analytics
+ * Save weekly Facebook analytics to database
+ * Query params: clientId, startDate (YYYY-MM-DD), endDate (YYYY-MM-DD)
+ */
+router.post('/save-weekly-analytics', (req, res) => facebookAdsController.saveWeeklyAnalytics(req, res));
+
+/**
+ * GET /api/v1/facebook/saved-analytics
+ * Get saved weekly analytics from database
+ * Query params: clientId, startDate (YYYY-MM-DD), endDate (YYYY-MM-DD)
+ */
+router.get('/saved-analytics', (req, res) => facebookAdsController.getSavedAnalytics(req, res));
+
 export default router;
