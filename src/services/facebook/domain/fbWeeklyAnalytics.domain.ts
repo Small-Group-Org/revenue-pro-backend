@@ -178,7 +178,6 @@ export interface IFbWeeklyAnalytics {
 }
 
 export interface IFbWeeklyAnalyticsDocument extends IFbWeeklyAnalytics, Document {
-  _id: string;
   createdAt: Date;
   updatedAt: Date;
 }

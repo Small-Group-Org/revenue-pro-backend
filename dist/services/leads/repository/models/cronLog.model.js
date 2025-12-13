@@ -7,7 +7,7 @@ const cronLogSchema = new Schema({
     status: {
         type: String,
         required: true,
-        enum: ['started', 'success', 'failure']
+        enum: ['started', 'processing', 'success', 'failure']
     },
     startedAt: {
         type: Date,
@@ -32,6 +32,11 @@ const cronLogSchema = new Schema({
     executionId: {
         type: String,
         required: false
+    },
+    type: {
+        type: String,
+        required: false,
+        enum: ['manual', 'cron']
     }
 }, {
     timestamps: true,
@@ -41,6 +46,7 @@ const cronLogSchema = new Schema({
 cronLogSchema.index({ jobName: 1, startedAt: -1 });
 cronLogSchema.index({ status: 1, startedAt: -1 });
 cronLogSchema.index({ executionId: 1 });
+cronLogSchema.index({ type: 1, startedAt: -1 });
 // Create individual indexes for common query patterns
 cronLogSchema.index({ jobName: 1 });
 cronLogSchema.index({ startedAt: -1 });
