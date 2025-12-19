@@ -9,7 +9,7 @@ execution-logs/
 ├── latest.json                    # Always contains the most recent execution
 ├── weekly-cron-2024-08-27T14-30-00.json  # Timestamped execution files
 ├── weekly-cron-2024-08-20T14-30-00.json
-└── weekly-cron-2024-08-13T14-30-00.json
+└── weekly-cron-2024-08-13T14-30-00.json 
 ```
 
 ## 📊 **What Gets Logged**
