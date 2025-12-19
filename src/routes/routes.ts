@@ -64,7 +64,7 @@ const otherRoutes: Route[] = [
 const configureRoutes = (app: Express): void => {
   // add health route
   app.use("/health", [], (req: Request, res: Response) => {
-    res.status(200).json({ message: "I am healthy alright!!!", config: config });
+    res.status(200).json({ message: "I am healthy alright!!!" });
   });
 
   // Add this before your routes
