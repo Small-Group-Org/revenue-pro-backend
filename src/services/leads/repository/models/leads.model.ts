@@ -1,6 +1,15 @@
 import { Schema, model } from 'mongoose';
 import { ILeadDocument } from '../../domain/leads.domain.js';
 
+const statusHistoryEntrySchema = new Schema({
+  status: {
+    type: String,
+    required: true,
+    enum: ['new', 'in_progress', 'estimate_set', 'virtual_quote', 'estimate_canceled', 'proposal_presented', 'job_booked', 'job_lost', 'unqualified']
+  },
+  timestamp: { type: Date, required: true, default: Date.now }
+}, { _id: false });
+
 const leadSchema = new Schema<ILeadDocument>(
   {
     leadDate: { type: String, required: true, default: new Date().toISOString() },
@@ -14,7 +23,7 @@ const leadSchema = new Schema<ILeadDocument>(
     status: { 
       type: String, 
       required: true,
-      enum: ['new', 'in_progress', 'estimate_set', 'unqualified'],
+      enum: ['new', 'in_progress', 'estimate_set', 'virtual_quote', 'estimate_canceled', 'proposal_presented', 'job_booked', 'job_lost', 'unqualified'],
       default: 'new'
     },
     clientId: { type: String, required: true },
@@ -23,6 +32,11 @@ const leadSchema = new Schema<ILeadDocument>(
     jobBookedAmount: { type: Number, required: false, default: 0 },
     notes: { type: String, default: '', maxlength: 2000 }, // New notes field with max length
     leadScore: { type: Number, required: false },
+    statusHistory: {
+      type: [statusHistoryEntrySchema],
+      default: [],
+      required: false
+    },
     conversionRates: {
       type: Object,
       default: {},
@@ -38,5 +52,9 @@ const leadSchema = new Schema<ILeadDocument>(
 // Optional index for uniqueness by clientId and leadDate
 // Uncomment if needed to avoid duplicates per client per day
 // leadSchema.index({ clientId: 1, leadDate: 1 }, { unique: true });
+
+// Indexes for statusHistory queries
+leadSchema.index({ 'statusHistory.status': 1, 'statusHistory.timestamp': -1 });
+leadSchema.index({ 'statusHistory.timestamp': -1 });
 
 export default model<ILeadDocument>('Lead', leadSchema);
