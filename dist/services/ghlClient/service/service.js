@@ -53,6 +53,24 @@ export class GhlClientService {
             });
             // Don't throw error for queryValue2, just log it - it's optional
         }
+        // Fetch tag-based date custom field IDs - OPTIONAL
+        let tagBasedDateFieldIds = {};
+        try {
+            tagBasedDateFieldIds = await this.fetchTagBasedDateFieldIds(locationId, apiToken);
+            console.log(`[GHL Client Create] Fetched tag-based date field IDs:`, {
+                locationId,
+                ...tagBasedDateFieldIds,
+            });
+        }
+        catch (error) {
+            const errorMessage = error?.message || String(error);
+            console.warn(`[GHL Client Create] Failed to fetch tag-based date field IDs (location ${locationId}):`, {
+                locationId,
+                error: errorMessage,
+                errorCode: error?.code,
+            });
+            // Don't throw error, just log it - these are optional
+        }
         // Fetch the pipeline ID from GHL API - REQUIRED
         // Search for "Sales Pipeline 💵" which is common across all clients
         let pipelineId;
@@ -72,7 +90,7 @@ export class GhlClientService {
             // Throw error to prevent client creation if pipeline fetch fails
             throw new Error(`Failed to fetch pipeline ID from GHL API: ${errorMessage}. Please verify the location ID and API token are correct.`);
         }
-        return await this.repository.createGhlClient(locationId, encryptedApiToken, queryValue, revenueProClientId, customFieldId, pipelineId, status, queryValue2WithDefault, customFieldId2);
+        return await this.repository.createGhlClient(locationId, encryptedApiToken, queryValue, revenueProClientId, customFieldId, pipelineId, status, queryValue2WithDefault, customFieldId2, tagBasedDateFieldIds.apptBookedTagDateFieldId, tagBasedDateFieldIds.jobWonTagDateFieldId, tagBasedDateFieldIds.jobLostTagDateFieldId, tagBasedDateFieldIds.apptCompletedTagDateFieldId, tagBasedDateFieldIds.disqualifiedTagDateFieldId);
     }
     /**
      * Fetch custom field ID from GHL API
@@ -90,6 +108,41 @@ export class GhlClientService {
             return response.customFields[0].id || response.customFields[0]._id;
         }
         return undefined;
+    }
+    /**
+     * Fetch all tag-based date custom field IDs from GHL API
+     */
+    async fetchTagBasedDateFieldIds(locationId, apiToken) {
+        const fieldNames = [
+            { key: 'apptBookedTagDateFieldId', name: 'Appt Booked Tag Added Date' },
+            { key: 'jobWonTagDateFieldId', name: 'Job Won Tag Added Date' },
+            { key: 'jobLostTagDateFieldId', name: 'Job Lost Tag Added Date' },
+            { key: 'apptCompletedTagDateFieldId', name: 'Appt Completed Tag Added Date' },
+            { key: 'disqualifiedTagDateFieldId', name: 'Disqualified Tag Added Date' },
+        ];
+        const result = {};
+        // Fetch all field IDs in parallel
+        const fetchPromises = fieldNames.map(async ({ key, name }) => {
+            try {
+                const fieldId = await this.fetchCustomFieldId(locationId, apiToken, name);
+                if (fieldId) {
+                    result[key] = fieldId;
+                    console.log(`[GHL Client] Fetched ${name} field ID: ${fieldId}`);
+                }
+                else {
+                    console.warn(`[GHL Client] Custom field not found: ${name}`);
+                }
+            }
+            catch (error) {
+                console.warn(`[GHL Client] Failed to fetch custom field ID for ${name}:`, {
+                    locationId,
+                    fieldName: name,
+                    error: error?.message || String(error),
+                });
+            }
+        });
+        await Promise.all(fetchPromises);
+        return result;
     }
     /**
      * Fetch pipeline ID from GHL API
@@ -255,6 +308,40 @@ export class GhlClientService {
                 // If queryValue2 is being cleared, also clear customFieldId2
                 updateData.customFieldId2 = undefined;
             }
+        }
+        // Always fetch tag-based date custom field IDs on update if we have an API token
+        // This ensures fields are populated even if they weren't set during initial creation
+        // Fetch tag-based date custom field IDs - OPTIONAL
+        try {
+            const tagBasedDateFieldIds = await this.fetchTagBasedDateFieldIds(locationId, apiTokenToUse);
+            console.log(`[GHL Client Update] Fetched tag-based date field IDs:`, {
+                locationId,
+                ...tagBasedDateFieldIds,
+            });
+            if (tagBasedDateFieldIds.apptBookedTagDateFieldId) {
+                updateData.apptBookedTagDateFieldId = tagBasedDateFieldIds.apptBookedTagDateFieldId;
+            }
+            if (tagBasedDateFieldIds.jobWonTagDateFieldId) {
+                updateData.jobWonTagDateFieldId = tagBasedDateFieldIds.jobWonTagDateFieldId;
+            }
+            if (tagBasedDateFieldIds.jobLostTagDateFieldId) {
+                updateData.jobLostTagDateFieldId = tagBasedDateFieldIds.jobLostTagDateFieldId;
+            }
+            if (tagBasedDateFieldIds.apptCompletedTagDateFieldId) {
+                updateData.apptCompletedTagDateFieldId = tagBasedDateFieldIds.apptCompletedTagDateFieldId;
+            }
+            if (tagBasedDateFieldIds.disqualifiedTagDateFieldId) {
+                updateData.disqualifiedTagDateFieldId = tagBasedDateFieldIds.disqualifiedTagDateFieldId;
+            }
+        }
+        catch (error) {
+            const errorMessage = error?.message || String(error);
+            console.warn(`[GHL Client Update] Failed to fetch tag-based date field IDs (location ${locationId}):`, {
+                locationId,
+                error: errorMessage,
+                errorCode: error?.code,
+            });
+            // Don't throw error, just log it - these are optional
         }
         // If API token is being updated, fetch new pipelineId (MANDATORY)
         if (updates.ghlApiToken) {

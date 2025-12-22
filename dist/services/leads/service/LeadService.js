@@ -12,22 +12,60 @@ export class LeadService {
     }
     // ============= BASIC CRUD OPERATIONS =============
     /**
+     * Helper method to update statusHistory (Option C: unique statuses with latest timestamp)
+     * Updates existing entry if status already exists, otherwise adds new entry
+     */
+    updateStatusHistory(existing, newStatus) {
+        if (!existing.statusHistory) {
+            existing.statusHistory = [];
+        }
+        const now = new Date();
+        const existingEntryIndex = existing.statusHistory.findIndex(entry => entry.status === newStatus);
+        if (existingEntryIndex >= 0) {
+            // Update existing entry with latest timestamp
+            existing.statusHistory[existingEntryIndex].timestamp = now;
+        }
+        else {
+            // Add new status entry
+            existing.statusHistory.push({
+                status: newStatus,
+                timestamp: now
+            });
+        }
+    }
+    /**
+     * Helper method to check if status allows proposalAmount
+     */
+    allowsProposalAmount(status) {
+        return ['estimate_set', 'virtual_quote', 'proposal_presented', 'job_lost'].includes(status);
+    }
+    /**
+     * Helper method to check if status allows jobBookedAmount
+     */
+    allowsJobBookedAmount(status) {
+        return status === 'job_booked';
+    }
+    /**
      * Update a lead by ID
      */
     async updateLead(id, data) {
         const existing = await this.leadRepo.getLeadById(id);
         if (!existing)
             throw new Error("Lead not found");
-        if (data.status) {
+        // Handle status change
+        if (data.status && data.status !== existing.status) {
+            // Update statusHistory before changing status
+            this.updateStatusHistory(existing, data.status);
             existing.status = data.status;
             // Clear unqualifiedLeadReason if status is not "unqualified"
             if (data.status !== 'unqualified') {
                 existing.unqualifiedLeadReason = '';
             }
-            // Reset proposal and job amounts if status is not "estimate_set"
-            // But preserve existing values if status is changing TO estimate_set
-            if (data.status !== 'estimate_set') {
+            // Reset amounts if new status doesn't allow them
+            if (!this.allowsProposalAmount(data.status)) {
                 existing.proposalAmount = 0;
+            }
+            if (!this.allowsJobBookedAmount(data.status)) {
                 existing.jobBookedAmount = 0;
             }
         }
@@ -38,21 +76,24 @@ export class LeadService {
         if (data.notes !== undefined) {
             existing.notes = data.notes.trim();
         }
-        // Only allow proposalAmount and jobBookedAmount to be set when status is "estimate_set"
-        if (existing.status === 'estimate_set') {
-            if (data.proposalAmount !== undefined) {
+        // Handle proposalAmount - allowed for: estimate_set, virtual_quote, proposal_presented, job_lost
+        if (data.proposalAmount !== undefined) {
+            if (this.allowsProposalAmount(existing.status)) {
                 const parsedProposal = Number(data.proposalAmount);
                 existing.proposalAmount = isFinite(parsedProposal) && parsedProposal >= 0 ? parsedProposal : 0;
             }
-            if (data.jobBookedAmount !== undefined) {
+            else {
+                throw new Error(`proposalAmount can only be set when status is one of: estimate_set, virtual_quote, proposal_presented, job_lost. Current status: ${existing.status}`);
+            }
+        }
+        // Handle jobBookedAmount - allowed only for: job_booked
+        if (data.jobBookedAmount !== undefined) {
+            if (this.allowsJobBookedAmount(existing.status)) {
                 const parsedBooked = Number(data.jobBookedAmount);
                 existing.jobBookedAmount = isFinite(parsedBooked) && parsedBooked >= 0 ? parsedBooked : 0;
             }
-        }
-        else {
-            // Warn if user tries to set amounts when status doesn't allow it
-            if (data.proposalAmount !== undefined || data.jobBookedAmount !== undefined) {
-                throw new Error("proposalAmount and jobBookedAmount can only be set when status is 'estimate_set'");
+            else {
+                throw new Error(`jobBookedAmount can only be set when status is 'job_booked'. Current status: ${existing.status}`);
             }
         }
         // Set lastManualUpdate timestamp for manual operations
@@ -77,9 +118,20 @@ export class LeadService {
             updatePayload.leadScore = existingLead.leadScore;
             updatePayload.conversionRates = existingLead.conversionRates;
             // Handle proposalAmount and jobBookedAmount based on status
-            if (updatePayload.status !== 'estimate_set') {
+            if (updatePayload.status && !this.allowsProposalAmount(updatePayload.status)) {
                 updatePayload.proposalAmount = 0;
+            }
+            if (updatePayload.status && !this.allowsJobBookedAmount(updatePayload.status)) {
                 updatePayload.jobBookedAmount = 0;
+            }
+            // Update statusHistory if status is changing
+            if (updatePayload.status && updatePayload.status !== existingLead.status) {
+                // Need to get the document to update statusHistory
+                const existingDoc = await this.leadRepo.getLeadById(existingLead._id);
+                if (existingDoc) {
+                    this.updateStatusHistory(existingDoc, updatePayload.status);
+                    updatePayload.statusHistory = existingDoc.statusHistory;
+                }
             }
             const result = await this.leadRepo.updateLead(query, updatePayload);
             if (!result)
@@ -95,8 +147,14 @@ export class LeadService {
             newLeadPayload.leadScore = 0;
             newLeadPayload.conversionRates = {};
             // Initialize proposalAmount and jobBookedAmount based on status
-            newLeadPayload.proposalAmount = newLeadPayload.status === 'estimate_set' ? (newLeadPayload.proposalAmount ?? 0) : 0;
-            newLeadPayload.jobBookedAmount = newLeadPayload.status === 'estimate_set' ? (newLeadPayload.jobBookedAmount ?? 0) : 0;
+            const initialStatus = newLeadPayload.status || 'new';
+            newLeadPayload.proposalAmount = this.allowsProposalAmount(initialStatus) ? (newLeadPayload.proposalAmount ?? 0) : 0;
+            newLeadPayload.jobBookedAmount = this.allowsJobBookedAmount(initialStatus) ? (newLeadPayload.jobBookedAmount ?? 0) : 0;
+            // Initialize statusHistory with initial status
+            newLeadPayload.statusHistory = [{
+                    status: initialStatus,
+                    timestamp: new Date()
+                }];
             return await this.leadRepo.upsertLead(query, newLeadPayload);
         }
     }
@@ -296,26 +354,42 @@ export class LeadService {
         else {
             leadId = "";
         }
+        // Get the existing lead to check current status and update statusHistory
+        const existingLead = await this.leadRepo.getLeadById(leadId);
+        if (!existingLead) {
+            throw new Error("Lead not found");
+        }
         // Prepare update data
         const updateData = {
             status,
             // Clear unqualifiedLeadReason if status is not "unqualified"
             unqualifiedLeadReason: status === "unqualified" ? (unqualifiedLeadReason || "") : ""
         };
-        // Only set proposalAmount and jobBookedAmount if status is "estimate_set"
-        if (status === "estimate_set") {
+        // Update statusHistory if status is changing
+        if (status !== existingLead.status) {
+            this.updateStatusHistory(existingLead, status);
+            updateData.statusHistory = existingLead.statusHistory;
+        }
+        // Handle proposalAmount - allowed for: estimate_set, virtual_quote, proposal_presented, job_lost
+        if (this.allowsProposalAmount(status)) {
             if (proposalAmount !== undefined) {
                 const parsedProposal = Number(proposalAmount);
                 updateData.proposalAmount = isFinite(parsedProposal) && parsedProposal >= 0 ? parsedProposal : 0;
             }
+        }
+        else {
+            // Reset if status doesn't allow it
+            updateData.proposalAmount = 0;
+        }
+        // Handle jobBookedAmount - allowed only for: job_booked
+        if (this.allowsJobBookedAmount(status)) {
             if (jobBookedAmount !== undefined) {
                 const parsedBooked = Number(jobBookedAmount);
                 updateData.jobBookedAmount = isFinite(parsedBooked) && parsedBooked >= 0 ? parsedBooked : 0;
             }
         }
         else {
-            // Reset amounts if status is not "estimate_set"
-            updateData.proposalAmount = 0;
+            // Reset if status doesn't allow it
             updateData.jobBookedAmount = 0;
         }
         // Update directly in database
