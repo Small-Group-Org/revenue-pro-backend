@@ -458,9 +458,12 @@ export async function getAdPerformanceBoard(
     row.fb_conversion_value = row._totalConversionValue || 0;
     row.fb_cost_per_conversion = row.fb_total_conversions > 0 ? Number((totalSpend / row.fb_total_conversions).toFixed(2)) : 0;
     row.fb_total_leads = row._totalLeads || 0;
-    row.fb_cost_per_lead = row.fb_total_leads > 0 ? Number((totalSpend / row.fb_total_leads).toFixed(2)) : 0;
     
-    // Lead cost metrics (calculate only lead-related costs)
+    row.fb_cost_per_lead = row.fb_total_leads > 0
+      ? Number((totalSpend / row.fb_total_leads).toFixed(2))
+      : 0;
+    
+    // Lead cost metrics (calculate only lead-related costs, based on CRM leads)
     row.costPerLead = totalLeads > 0 ? Number((totalSpend / totalLeads).toFixed(2)) : null;
     row.costPerEstimateSet = estimateSets > 0 ? Number((totalSpend / estimateSets).toFixed(2)) : null;
     row.costPerJobBooked = jobsBooked > 0 ? Number((totalSpend / jobsBooked).toFixed(2)) : null;

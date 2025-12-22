@@ -7,6 +7,12 @@ export interface IGhlClient extends Document {
   customFieldId?: string;
   queryValue2?: string;
   customFieldId2?: string;
+  // Tag-based date custom field IDs
+  apptBookedTagDateFieldId?: string;
+  jobWonTagDateFieldId?: string;
+  jobLostTagDateFieldId?: string;
+  apptCompletedTagDateFieldId?: string;
+  disqualifiedTagDateFieldId?: string;
   pipelineId: string;
   revenueProClientId: string;
   status?: 'active' | 'deleted' | 'inactive';

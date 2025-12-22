@@ -2,7 +2,7 @@ import { ErrorCode } from "../../../pkg/error/custom_error.js";
 import GhlClient from "./models/ghlClient.model.js";
 import utils from "../../../utils/utils.js";
 export class GhlClientRepository {
-    async createGhlClient(locationId, encryptedApiToken, queryValue, revenueProClientId, customFieldId, pipelineId, status = 'active', queryValue2, customFieldId2) {
+    async createGhlClient(locationId, encryptedApiToken, queryValue, revenueProClientId, customFieldId, pipelineId, status = 'active', queryValue2, customFieldId2, apptBookedTagDateFieldId, jobWonTagDateFieldId, jobLostTagDateFieldId, apptCompletedTagDateFieldId, disqualifiedTagDateFieldId) {
         try {
             // Check if locationId already exists (only check active clients)
             if (status === 'active') {
@@ -21,6 +21,11 @@ export class GhlClientRepository {
                 status,
                 queryValue2,
                 customFieldId2,
+                apptBookedTagDateFieldId,
+                jobWonTagDateFieldId,
+                jobLostTagDateFieldId,
+                apptCompletedTagDateFieldId,
+                disqualifiedTagDateFieldId,
             });
             await ghlClient.save();
             return ghlClient;

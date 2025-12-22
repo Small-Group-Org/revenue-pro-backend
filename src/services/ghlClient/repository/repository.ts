@@ -13,7 +13,12 @@ export class GhlClientRepository {
     pipelineId?: string,
     status: 'active' | 'inactive' | 'deleted' = 'active',
     queryValue2?: string,
-    customFieldId2?: string
+    customFieldId2?: string,
+    apptBookedTagDateFieldId?: string,
+    jobWonTagDateFieldId?: string,
+    jobLostTagDateFieldId?: string,
+    apptCompletedTagDateFieldId?: string,
+    disqualifiedTagDateFieldId?: string
   ): Promise<IGhlClient> {
     try {
       // Check if locationId already exists (only check active clients)
@@ -37,6 +42,11 @@ export class GhlClientRepository {
         status,
         queryValue2,
         customFieldId2,
+        apptBookedTagDateFieldId,
+        jobWonTagDateFieldId,
+        jobLostTagDateFieldId,
+        apptCompletedTagDateFieldId,
+        disqualifiedTagDateFieldId,
       });
       await ghlClient.save();
       return ghlClient;
@@ -94,6 +104,11 @@ export class GhlClientRepository {
       customFieldId?: string;
       queryValue2?: string;
       customFieldId2?: string;
+      apptBookedTagDateFieldId?: string;
+      jobWonTagDateFieldId?: string;
+      jobLostTagDateFieldId?: string;
+      apptCompletedTagDateFieldId?: string;
+      disqualifiedTagDateFieldId?: string;
       pipelineId?: string;
       revenueProClientId?: string;
       status?: 'active' | 'inactive' | 'deleted';

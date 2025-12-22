@@ -39,18 +39,7 @@ class GhlClientController {
                 utils.sendSuccessResponse(res, 201, {
                     success: true,
                     message: "GHL client configuration created successfully",
-                    data: {
-                        id: ghlClient._id,
-                        locationId: ghlClient.locationId,
-                        queryValue: ghlClient.queryValue,
-                        customFieldId: ghlClient.customFieldId,
-                        queryValue2: ghlClient.queryValue2,
-                        customFieldId2: ghlClient.customFieldId2,
-                        pipelineId: ghlClient.pipelineId,
-                        revenueProClientId: ghlClient.revenueProClientId,
-                        status: ghlClient.status,
-                        createdAt: ghlClient.created_at,
-                    },
+                    data: this.mapClientToResponse(ghlClient),
                 });
             }
             catch (error) {
@@ -83,19 +72,7 @@ class GhlClientController {
             try {
                 const clients = await this.ghlClientService.getAllActiveGhlClients();
                 // Return clients without encrypted tokens
-                const clientsData = clients.map((client) => ({
-                    id: client._id,
-                    locationId: client.locationId,
-                    queryValue: client.queryValue,
-                    customFieldId: client.customFieldId,
-                    queryValue2: client.queryValue2,
-                    customFieldId2: client.customFieldId2,
-                    pipelineId: client.pipelineId,
-                    revenueProClientId: client.revenueProClientId,
-                    status: client.status,
-                    createdAt: client.created_at,
-                    updatedAt: client.updated_at,
-                }));
+                const clientsData = clients.map((client) => this.mapClientToResponse(client, { includeUpdatedAt: true }));
                 utils.sendSuccessResponse(res, 200, {
                     success: true,
                     data: clientsData,
@@ -121,20 +98,10 @@ class GhlClientController {
                 const decryptedToken = this.ghlClientService.getDecryptedApiToken(client);
                 utils.sendSuccessResponse(res, 200, {
                     success: true,
-                    data: {
-                        id: client._id,
-                        locationId: client.locationId,
+                    data: this.mapClientToResponse(client, {
+                        includeUpdatedAt: true,
                         ghlApiToken: decryptedToken,
-                        queryValue: client.queryValue,
-                        customFieldId: client.customFieldId,
-                        queryValue2: client.queryValue2,
-                        customFieldId2: client.customFieldId2,
-                        pipelineId: client.pipelineId,
-                        revenueProClientId: client.revenueProClientId,
-                        status: client.status,
-                        createdAt: client.created_at,
-                        updatedAt: client.updated_at,
-                    },
+                    }),
                 });
             }
             catch (error) {
@@ -199,19 +166,7 @@ class GhlClientController {
                 utils.sendSuccessResponse(res, 200, {
                     success: true,
                     message: "GHL client configuration updated successfully",
-                    data: {
-                        id: updatedClient._id,
-                        locationId: updatedClient.locationId,
-                        queryValue: updatedClient.queryValue,
-                        customFieldId: updatedClient.customFieldId,
-                        queryValue2: updatedClient.queryValue2,
-                        customFieldId2: updatedClient.customFieldId2,
-                        pipelineId: updatedClient.pipelineId,
-                        revenueProClientId: updatedClient.revenueProClientId,
-                        status: updatedClient.status,
-                        createdAt: updatedClient.created_at,
-                        updatedAt: updatedClient.updated_at,
-                    },
+                    data: this.mapClientToResponse(updatedClient, { includeUpdatedAt: true }),
                 });
             }
             catch (error) {
@@ -235,6 +190,39 @@ class GhlClientController {
                 utils.sendErrorResponse(res, error);
             }
         };
+    }
+    /**
+     * Helper method to map GHL client domain object to response format
+     * @param client - The GHL client domain object
+     * @param options - Optional parameters for response customization
+     * @returns Mapped client object for API response
+     */
+    mapClientToResponse(client, options = {}) {
+        const { includeUpdatedAt = false, ghlApiToken } = options;
+        const response = {
+            id: client._id,
+            locationId: client.locationId,
+            queryValue: client.queryValue,
+            customFieldId: client.customFieldId,
+            queryValue2: client.queryValue2,
+            customFieldId2: client.customFieldId2,
+            apptBookedTagDateFieldId: client.apptBookedTagDateFieldId,
+            jobWonTagDateFieldId: client.jobWonTagDateFieldId,
+            jobLostTagDateFieldId: client.jobLostTagDateFieldId,
+            apptCompletedTagDateFieldId: client.apptCompletedTagDateFieldId,
+            disqualifiedTagDateFieldId: client.disqualifiedTagDateFieldId,
+            pipelineId: client.pipelineId,
+            revenueProClientId: client.revenueProClientId,
+            status: client.status,
+            createdAt: client.created_at,
+        };
+        if (includeUpdatedAt) {
+            response.updatedAt = client.updated_at;
+        }
+        if (ghlApiToken !== undefined) {
+            response.ghlApiToken = ghlApiToken;
+        }
+        return response;
     }
 }
 export default new GhlClientController();
