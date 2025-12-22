@@ -333,47 +333,54 @@ export async function getAdPerformanceBoard(params) {
         const totalLeads = row.numberOfLeads || 0;
         const estimateSets = row.numberOfEstimateSets || 0;
         const jobsBooked = row.numberOfJobsBooked || 0;
+        const unqualifiedLeads = row.numberOfUnqualifiedLeads || 0;
         const count = row._count || 1; // Number of weekly records aggregated
         // Basic metrics (directly from DB)
-        row.spend = Number(totalSpend.toFixed(2));
-        row.impressions = totalImpressions;
-        row.clicks = totalClicks;
-        row.unique_clicks = row._totalUniqueClicks || 0;
-        row.reach = totalReach;
+        row.fb_spend = Number(totalSpend.toFixed(2));
+        row.fb_impressions = totalImpressions;
+        row.fb_clicks = totalClicks;
+        row.fb_unique_clicks = row._totalUniqueClicks || 0;
+        row.fb_reach = totalReach;
         // Average pre-calculated metrics from DB (these were calculated during save)
-        row.frequency = count > 0 ? Number(((row._totalFrequency || 0) / count).toFixed(2)) : 0;
-        row.ctr = count > 0 ? Number(((row._totalCtr || 0) / count).toFixed(2)) : 0;
-        row.unique_ctr = count > 0 ? Number(((row._totalUniqueClickThroughRate || 0) / count).toFixed(6)) : 0;
-        row.cpc = count > 0 ? Number(((row._totalCostPerClick || 0) / count).toFixed(6)) : 0;
-        row.cpm = count > 0 ? Number(((row._totalCostPerThousandImpressions || 0) / count).toFixed(6)) : 0;
-        row.cpr = count > 0 ? Number(((row._totalCostPerThousandReach || 0) / count).toFixed(6)) : 0;
+        row.fb_frequency = count > 0 ? Number(((row._totalFrequency || 0) / count).toFixed(2)) : 0;
+        row.fb_ctr = count > 0 ? Number(((row._totalCtr || 0) / count).toFixed(2)) : 0;
+        row.fb_unique_ctr = count > 0 ? Number(((row._totalUniqueClickThroughRate || 0) / count).toFixed(6)) : 0;
+        row.fb_cpc = count > 0 ? Number(((row._totalCostPerClick || 0) / count).toFixed(6)) : 0;
+        row.fb_cpm = count > 0 ? Number(((row._totalCostPerThousandImpressions || 0) / count).toFixed(6)) : 0;
+        row.fb_cpr = count > 0 ? Number(((row._totalCostPerThousandReach || 0) / count).toFixed(6)) : 0;
         // Engagement metrics (from DB)
-        row.post_engagements = row._totalPostEngagements || 0;
-        row.post_reactions = row._totalPostReactions || 0;
-        row.post_comments = row._totalPostComments || 0;
-        row.post_shares = row._totalPostShares || 0;
-        row.post_saves = row._totalPostSaves || 0;
-        row.page_engagements = row._totalPageEngagements || 0;
-        row.link_clicks = row._totalLinkClicks || 0;
+        row.fb_post_engagements = row._totalPostEngagements || 0;
+        row.fb_post_reactions = row._totalPostReactions || 0;
+        row.fb_post_comments = row._totalPostComments || 0;
+        row.fb_post_shares = row._totalPostShares || 0;
+        row.fb_post_saves = row._totalPostSaves || 0;
+        row.fb_page_engagements = row._totalPageEngagements || 0;
+        row.fb_link_clicks = row._totalLinkClicks || 0;
         // Video metrics (from DB)
-        row.video_views = row._totalVideoViews || 0;
-        row.video_views_25pct = row._totalVideoViews25 || 0;
-        row.video_views_50pct = row._totalVideoViews50 || 0;
-        row.video_views_75pct = row._totalVideoViews75 || 0;
-        row.video_views_100pct = row._totalVideoViews100 || 0;
-        row.video_avg_watch_time = row._totalVideoAvgWatchTime || 0;
-        row.video_play_actions = row._totalVideoPlayActions || 0;
+        row.fb_video_views = row._totalVideoViews || 0;
+        row.fb_video_views_25pct = row._totalVideoViews25 || 0;
+        row.fb_video_views_50pct = row._totalVideoViews50 || 0;
+        row.fb_video_views_75pct = row._totalVideoViews75 || 0;
+        row.fb_video_views_100pct = row._totalVideoViews100 || 0;
+        row.fb_video_avg_watch_time = row._totalVideoAvgWatchTime || 0;
+        row.fb_video_play_actions = row._totalVideoPlayActions || 0;
         // Conversion metrics (from DB)
-        row.total_conversions = row._totalConversions || 0;
-        row.conversion_value = row._totalConversionValue || 0;
-        row.cost_per_conversion = row._totalCostPerConversion || 0;
-        row.total_leads = row._totalLeads || 0;
-        row.cost_per_lead = row._totalCostPerLead || 0;
-        // Lead cost metrics (calculate only lead-related costs)
+        row.fb_total_conversions = row._totalConversions || 0;
+        row.fb_conversion_value = row._totalConversionValue || 0;
+        row.fb_cost_per_conversion = row._totalCostPerConversion || 0;
+        row.fb_total_leads = row._totalLeads || 0;
+        row.fb_cost_per_lead = row.fb_total_leads > 0
+            ? Number((totalSpend / row.fb_total_leads).toFixed(2))
+            : 0;
+        // Lead cost metrics (calculate only lead-related costs, based on CRM leads)
         row.costPerLead = totalLeads > 0 ? Number((totalSpend / totalLeads).toFixed(2)) : null;
         row.costPerEstimateSet = estimateSets > 0 ? Number((totalSpend / estimateSets).toFixed(2)) : null;
         row.costPerJobBooked = jobsBooked > 0 ? Number((totalSpend / jobsBooked).toFixed(2)) : null;
         row.costOfMarketingPercent = totalRevenue > 0 ? Number(((totalSpend / totalRevenue) * 100).toFixed(2)) : null;
+        // Additional metrics - estimateSetRate uses estimateSets / (estimateSets + unqualifiedLeads)
+        const qualifiedLeads = estimateSets + unqualifiedLeads;
+        row.estimateSetRate = qualifiedLeads > 0 ? Number(((estimateSets / qualifiedLeads) * 100).toFixed(2)) : null;
+        row.revenue = Number(totalRevenue.toFixed(2));
         // Convert service and zipCode sets to comma-separated strings
         row.service = row._services && row._services.size > 0 ? Array.from(row._services).sort().join(', ') : undefined;
         row.zipCode = row._zipCodes && row._zipCodes.size > 0 ? Array.from(row._zipCodes).sort().join(', ') : undefined;
@@ -394,71 +401,71 @@ export async function getAdPerformanceBoard(params) {
         if (columns.zipCode)
             filteredRow.zipCode = row.zipCode;
         // Basic metrics
-        if (columns.spend)
-            filteredRow.spend = row.spend;
-        if (columns.impressions)
-            filteredRow.impressions = row.impressions;
-        if (columns.clicks)
-            filteredRow.clicks = row.clicks;
-        if (columns.unique_clicks)
-            filteredRow.unique_clicks = row.unique_clicks;
-        if (columns.reach)
-            filteredRow.reach = row.reach;
-        if (columns.frequency)
-            filteredRow.frequency = row.frequency;
+        if (columns.fb_spend)
+            filteredRow.fb_spend = row.fb_spend;
+        if (columns.fb_impressions)
+            filteredRow.fb_impressions = row.fb_impressions;
+        if (columns.fb_clicks)
+            filteredRow.fb_clicks = row.fb_clicks;
+        if (columns.fb_unique_clicks)
+            filteredRow.fb_unique_clicks = row.fb_unique_clicks;
+        if (columns.fb_reach)
+            filteredRow.fb_reach = row.fb_reach;
+        if (columns.fb_frequency)
+            filteredRow.fb_frequency = row.fb_frequency;
         // CTR metrics
-        if (columns.ctr)
-            filteredRow.ctr = row.ctr;
-        if (columns.unique_ctr)
-            filteredRow.unique_ctr = row.unique_ctr;
+        if (columns.fb_ctr)
+            filteredRow.fb_ctr = row.fb_ctr;
+        if (columns.fb_unique_ctr)
+            filteredRow.fb_unique_ctr = row.fb_unique_ctr;
         // Cost metrics
-        if (columns.cpc)
-            filteredRow.cpc = row.cpc;
-        if (columns.cpm)
-            filteredRow.cpm = row.cpm;
-        if (columns.cpr)
-            filteredRow.cpr = row.cpr;
+        if (columns.fb_cpc)
+            filteredRow.fb_cpc = row.fb_cpc;
+        if (columns.fb_cpm)
+            filteredRow.fb_cpm = row.fb_cpm;
+        if (columns.fb_cpr)
+            filteredRow.fb_cpr = row.fb_cpr;
         // Engagement metrics
-        if (columns.post_engagements)
-            filteredRow.post_engagements = row.post_engagements;
-        if (columns.post_reactions)
-            filteredRow.post_reactions = row.post_reactions;
-        if (columns.post_comments)
-            filteredRow.post_comments = row.post_comments;
-        if (columns.post_shares)
-            filteredRow.post_shares = row.post_shares;
-        if (columns.post_saves)
-            filteredRow.post_saves = row.post_saves;
-        if (columns.page_engagements)
-            filteredRow.page_engagements = row.page_engagements;
-        if (columns.link_clicks)
-            filteredRow.link_clicks = row.link_clicks;
+        if (columns.fb_post_engagements)
+            filteredRow.fb_post_engagements = row.fb_post_engagements;
+        if (columns.fb_post_reactions)
+            filteredRow.fb_post_reactions = row.fb_post_reactions;
+        if (columns.fb_post_comments)
+            filteredRow.fb_post_comments = row.fb_post_comments;
+        if (columns.fb_post_shares)
+            filteredRow.fb_post_shares = row.fb_post_shares;
+        if (columns.fb_post_saves)
+            filteredRow.fb_post_saves = row.fb_post_saves;
+        if (columns.fb_page_engagements)
+            filteredRow.fb_page_engagements = row.fb_page_engagements;
+        if (columns.fb_link_clicks)
+            filteredRow.fb_link_clicks = row.fb_link_clicks;
         // Video metrics
-        if (columns.video_views)
-            filteredRow.video_views = row.video_views;
-        if (columns.video_views_25pct)
-            filteredRow.video_views_25pct = row.video_views_25pct;
-        if (columns.video_views_50pct)
-            filteredRow.video_views_50pct = row.video_views_50pct;
-        if (columns.video_views_75pct)
-            filteredRow.video_views_75pct = row.video_views_75pct;
-        if (columns.video_views_100pct)
-            filteredRow.video_views_100pct = row.video_views_100pct;
-        if (columns.video_avg_watch_time)
-            filteredRow.video_avg_watch_time = row.video_avg_watch_time;
-        if (columns.video_play_actions)
-            filteredRow.video_play_actions = row.video_play_actions;
+        if (columns.fb_video_views)
+            filteredRow.fb_video_views = row.fb_video_views;
+        if (columns.fb_video_views_25pct)
+            filteredRow.fb_video_views_25pct = row.fb_video_views_25pct;
+        if (columns.fb_video_views_50pct)
+            filteredRow.fb_video_views_50pct = row.fb_video_views_50pct;
+        if (columns.fb_video_views_75pct)
+            filteredRow.fb_video_views_75pct = row.fb_video_views_75pct;
+        if (columns.fb_video_views_100pct)
+            filteredRow.fb_video_views_100pct = row.fb_video_views_100pct;
+        if (columns.fb_video_avg_watch_time)
+            filteredRow.fb_video_avg_watch_time = row.fb_video_avg_watch_time;
+        if (columns.fb_video_play_actions)
+            filteredRow.fb_video_play_actions = row.fb_video_play_actions;
         // Conversion metrics
-        if (columns.total_conversions)
-            filteredRow.total_conversions = row.total_conversions;
-        if (columns.conversion_value)
-            filteredRow.conversion_value = row.conversion_value;
-        if (columns.cost_per_conversion)
-            filteredRow.cost_per_conversion = row.cost_per_conversion;
-        if (columns.total_leads)
-            filteredRow.total_leads = row.total_leads;
-        if (columns.cost_per_lead)
-            filteredRow.cost_per_lead = row.cost_per_lead;
+        if (columns.fb_total_conversions)
+            filteredRow.fb_total_conversions = row.fb_total_conversions;
+        if (columns.fb_conversion_value)
+            filteredRow.fb_conversion_value = row.fb_conversion_value;
+        if (columns.fb_cost_per_conversion)
+            filteredRow.fb_cost_per_conversion = row.fb_cost_per_conversion;
+        if (columns.fb_total_leads)
+            filteredRow.fb_total_leads = row.fb_total_leads;
+        if (columns.fb_cost_per_lead)
+            filteredRow.fb_cost_per_lead = row.fb_cost_per_lead;
         // Lead metrics
         if (columns.numberOfLeads)
             filteredRow.numberOfLeads = row.numberOfLeads;
@@ -477,6 +484,11 @@ export async function getAdPerformanceBoard(params) {
             filteredRow.costPerJobBooked = row.costPerJobBooked;
         if (columns.costOfMarketingPercent)
             filteredRow.costOfMarketingPercent = row.costOfMarketingPercent;
+        // Additional metrics
+        if (columns.estimateSetRate)
+            filteredRow.estimateSetRate = row.estimateSetRate;
+        if (columns.revenue)
+            filteredRow.revenue = row.revenue;
         // Store internal fields for sorting
         filteredRow._totalSpend = row._totalSpend;
         results.push(filteredRow);

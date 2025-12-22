@@ -69,7 +69,7 @@ function isDateInWeekRange(date, startDateStr, endDateStr) {
  * Fetch contact and extract the relevant date based on tags
  * Returns the date if found, null otherwise
  */
-async function getContactDate(contactId, locationId, decryptedToken, tags, customFieldId2, retry = { retries: 3, baseDelayMs: 1000 }) {
+async function getContactDate(contactId, locationId, decryptedToken, tags, tagBasedDateFieldIds, retry = { retries: 3, baseDelayMs: 1000 }) {
     try {
         const clientHttp = new http(config.GHL_BASE_URL, 15000);
         const resp = await withRetry(async () => {
@@ -94,7 +94,49 @@ async function getContactDate(contactId, locationId, decryptedToken, tags, custo
         const contact = resp?.contact;
         if (!contact)
             return null;
-        // Check if has any other TARGET_TAG besides "facebook lead"
+        const customFields = contact?.customFields;
+        if (!Array.isArray(customFields)) {
+            // If no custom fields, fall back to dateAdded if only has "facebook lead" tag
+            if (tags.has('facebook lead')) {
+                const dateAdded = contact.dateAdded;
+                if (dateAdded) {
+                    const date = new Date(dateAdded);
+                    if (!isNaN(date.getTime())) {
+                        return date;
+                    }
+                }
+            }
+            return null;
+        }
+        // Determine which tag-based date field to use based on present tags
+        // Priority order: job_won > job_lost > appt_completed > appt_booked > disqualified
+        let fieldIdToUse;
+        if (tags.has('job_won') && tagBasedDateFieldIds.jobWonTagDateFieldId) {
+            fieldIdToUse = tagBasedDateFieldIds.jobWonTagDateFieldId;
+        }
+        else if (tags.has('job_lost') && tagBasedDateFieldIds.jobLostTagDateFieldId) {
+            fieldIdToUse = tagBasedDateFieldIds.jobLostTagDateFieldId;
+        }
+        else if (tags.has('appt_completed') && tagBasedDateFieldIds.apptCompletedTagDateFieldId) {
+            fieldIdToUse = tagBasedDateFieldIds.apptCompletedTagDateFieldId;
+        }
+        else if (tags.has('appt_booked') && tagBasedDateFieldIds.apptBookedTagDateFieldId) {
+            fieldIdToUse = tagBasedDateFieldIds.apptBookedTagDateFieldId;
+        }
+        else if (tags.has('disqualified') && tagBasedDateFieldIds.disqualifiedTagDateFieldId) {
+            fieldIdToUse = tagBasedDateFieldIds.disqualifiedTagDateFieldId;
+        }
+        // If we have a field ID to use, try to find and parse it
+        if (fieldIdToUse) {
+            const field = customFields.find((f) => f?.id === fieldIdToUse || f?._id === fieldIdToUse);
+            if (field && field.value) {
+                const parsedDate = parseCustomField2Date(String(field.value));
+                if (parsedDate) {
+                    return parsedDate;
+                }
+            }
+        }
+        // Fallback: If only has "facebook lead" tag (no other TARGET_TAGS), use dateAdded
         const TARGET_TAGS = [
             'appt_completed',
             'job_won',
@@ -102,29 +144,9 @@ async function getContactDate(contactId, locationId, decryptedToken, tags, custo
             'appt_completed_unresponsive',
             'color_consultation_booked',
             'appt_booked',
+            'disqualified',
         ];
         const hasOtherTargetTag = Array.from(tags).some(tag => TARGET_TAGS.includes(tag.toLowerCase()));
-        // If has any other TARGET_TAG (not just facebook_lead), check customfield2
-        if (hasOtherTargetTag) {
-            const customFields = contact?.customFields;
-            if (Array.isArray(customFields)) {
-                // Try to find by customFieldId2 first, then by name "customfield2"
-                let field = customFieldId2
-                    ? customFields.find((f) => f?.id === customFieldId2 || f?._id === customFieldId2)
-                    : null;
-                if (!field) {
-                    field = customFields.find((f) => f?.name?.toLowerCase() === 'customfield2' ||
-                        f?.fieldName?.toLowerCase() === 'customfield2');
-                }
-                if (field && field.value) {
-                    const parsedDate = parseCustomField2Date(String(field.value));
-                    if (parsedDate) {
-                        return parsedDate;
-                    }
-                }
-            }
-        }
-        // If only has "facebook lead" tag (no other TARGET_TAGS), check dateAdded
         if (tags.has('facebook lead') && !hasOtherTargetTag) {
             const dateAdded = contact.dateAdded;
             if (dateAdded) {
@@ -203,7 +225,13 @@ class MultiClientOpportunitySyncCron {
                 const locationId = client.locationId;
                 const decryptedToken = ghlClientService.getDecryptedApiToken(client);
                 const customFieldId = client.customFieldId;
-                const customFieldId2 = client.customFieldId2;
+                const tagBasedDateFieldIds = {
+                    apptBookedTagDateFieldId: client.apptBookedTagDateFieldId,
+                    jobWonTagDateFieldId: client.jobWonTagDateFieldId,
+                    jobLostTagDateFieldId: client.jobLostTagDateFieldId,
+                    apptCompletedTagDateFieldId: client.apptCompletedTagDateFieldId,
+                    disqualifiedTagDateFieldId: client.disqualifiedTagDateFieldId,
+                };
                 const userId = client.revenueProClientId;
                 if (!locationId || !decryptedToken || !userId) {
                     logger.warn('Skipping client due to missing required fields', {
@@ -305,7 +333,7 @@ class MultiClientOpportunitySyncCron {
                     if (!oppWithTags)
                         continue;
                     try {
-                        const date = await getContactDate(contactId, locationId, decryptedToken, oppWithTags.tags, customFieldId2, retry);
+                        const date = await getContactDate(contactId, locationId, decryptedToken, oppWithTags.tags, tagBasedDateFieldIds, retry);
                         contactDateCache.set(contactId, date);
                         // Delay between requests to avoid rate limits (except for the last one)
                         if (i < uniqueContactIds.length - 1) {

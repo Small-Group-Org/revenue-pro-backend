@@ -117,9 +117,10 @@ export class LeadController {
             return;
         }
         // Validate status
-        if (!["new", "in_progress", "estimate_set", "unqualified"].includes(status)) {
+        const validStatuses = ["new", "in_progress", "estimate_set", "virtual_quote", "estimate_canceled", "proposal_presented", "job_booked", "job_lost", "unqualified"];
+        if (!validStatuses.includes(status)) {
             utils.sendErrorResponse(res, {
-                message: "Invalid status. Must be one of: new, in_progress, estimate_set, unqualified",
+                message: `Invalid status. Must be one of: ${validStatuses.join(", ")}`,
                 statusCode: 400
             });
             return;
@@ -407,10 +408,12 @@ export class LeadController {
                 return;
             }
             // If Validate status is provided
-            if (status &&
-                !["new", "in_progress", "estimate_set", "unqualified"].includes(status)) {
-                utils.sendErrorResponse(res, "Invalid status. Must be one of: new, in_progress, estimate_set, unqualified");
-                return;
+            if (status) {
+                const validStatuses = ["new", "in_progress", "estimate_set", "virtual_quote", "estimate_canceled", "proposal_presented", "job_booked", "job_lost", "unqualified"];
+                if (!validStatuses.includes(status)) {
+                    utils.sendErrorResponse(res, `Invalid status. Must be one of: ${validStatuses.join(", ")}`);
+                    return;
+                }
             }
             // Validate notes if provided
             if (notes !== undefined && typeof notes !== 'string') {
