@@ -10,6 +10,5 @@ router.put("/update-password", userController.updatePassword);
 router.put('/last-access', userController.updateLastAccess);
 router.put('/mark-update-seen', userController.markUpdateAsSeen);
 router.put('/fb-ad-account/:clientId', userController.updateFbAdAccountId);
-router.put('/:clientId/facebook-pixel', userController.updateFacebookPixel);
 
 export default router;
