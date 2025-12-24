@@ -539,11 +539,6 @@ export interface BoardParams {
 export interface BoardResponse {
   rows: BoardRow[];
   averages: {
-    fb_spend: number;
-    fb_impressions: number;
-    fb_clicks: number;
-    fb_unique_clicks: number;
-    fb_reach: number;
     fb_frequency: number;
     fb_ctr: number;
     fb_unique_ctr: number;
@@ -552,12 +547,11 @@ export interface BoardResponse {
     fb_cpr: number;
     fb_cost_per_conversion: number;
     fb_cost_per_lead: number;
-    costPerLead: number;
-    costPerEstimateSet: number;
-    costPerJobBooked: number;
-    costOfMarketingPercent: number;
-    estimateSetRate: number;
-    revenue: number;
+    costPerLead: number | null;
+    costPerEstimateSet: number | null;
+    costPerJobBooked: number | null;
+    costOfMarketingPercent: number | null;
+    estimateSetRate: number | null;
   };
   availableZipCodes: string[];
   availableServiceTypes: string[];

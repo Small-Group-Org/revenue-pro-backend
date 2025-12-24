@@ -39,6 +39,7 @@ class UserController {
           hasLoggedIn: user.hasLoggedIn,
           hasSeenLatestUpdate: user.hasSeenLatestUpdate,
           fbAdAccountId: user.fbAdAccountId,
+          fbPixelId: user.fbPixelId,
           metaAccessToken: user.metaAccessToken,
         },
       });
@@ -180,6 +181,51 @@ class UserController {
         data: {
           id: updatedUser._id,
           fbAdAccountId: updatedUser.fbAdAccountId,
+        },
+      });
+    } catch (error) {
+      utils.sendErrorResponse(res, error);
+    }
+  };
+
+  public updateFacebookPixel = async (
+    req: Request,
+    res: Response
+  ): Promise<void> => {
+    try {
+      const clientId = req.params.clientId;
+      const { fbPixelId, fbPixelToken } = req.body;
+
+      if (!clientId) {
+        utils.sendErrorResponse(res, "clientId is required in route params");
+        return;
+      }
+
+      if (!fbPixelId || !fbPixelToken) {
+        utils.sendErrorResponse(res, "fbPixelId and fbPixelToken are required in request body");
+        return;
+      }
+
+      // Validate pixel ID format (should be numeric)
+      const isValidPixelId = /^\d+$/.test(fbPixelId);
+      if (!isValidPixelId) {
+        utils.sendErrorResponse(res, "Invalid pixel ID format. Should be numeric");
+        return;
+      }
+
+      const updatedUser = await this.userService.updateFacebookPixel(clientId, fbPixelId, fbPixelToken);
+
+      if (!updatedUser) {
+        utils.sendErrorResponse(res, "User not found");
+        return;
+      }
+
+      utils.sendSuccessResponse(res, 200, {
+        success: true,
+        message: "Facebook pixel credentials updated successfully",
+        data: {
+          id: updatedUser._id,
+          fbPixelId: updatedUser.fbPixelId,
         },
       });
     } catch (error) {

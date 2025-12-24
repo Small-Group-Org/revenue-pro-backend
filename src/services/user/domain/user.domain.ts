@@ -22,5 +22,8 @@ export interface IUser extends Document {
   metaTokenExpiresAt?: Date;
   metaTokenType?: string;
   metaConnectedAt?: Date;
+  // Facebook Pixel fields
+  fbPixelId?: string;
+  fbPixelToken?: string;
   comparePassword(candidatePassword: string): Promise<boolean>;
 }

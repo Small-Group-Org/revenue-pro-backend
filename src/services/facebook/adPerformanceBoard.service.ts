@@ -24,14 +24,9 @@ export async function getAdPerformanceBoard(
   );
 
   if (savedAnalytics.length === 0) {
-    return { 
-      rows: [], 
+    return {
+      rows: [],
       averages: {
-        fb_spend: 0,
-        fb_impressions: 0,
-        fb_clicks: 0,
-        fb_unique_clicks: 0,
-        fb_reach: 0,
         fb_frequency: 0,
         fb_ctr: 0,
         fb_unique_ctr: 0,
@@ -44,11 +39,10 @@ export async function getAdPerformanceBoard(
         costPerEstimateSet: 0,
         costPerJobBooked: 0,
         costOfMarketingPercent: 0,
-        estimateSetRate: 0,
-        revenue: 0,
+        estimateSetRate:0,
       },
-      availableZipCodes: [], 
-      availableServiceTypes: [] 
+      availableZipCodes: [],
+      availableServiceTypes: []
     };
   }
 
@@ -599,12 +593,8 @@ export async function getAdPerformanceBoard(
     sumRevenue += row._totalRevenue || 0;
   });
 
+  // Only include calculated averages (ratios/percentages), not sums
   const averages = {
-    fb_spend: totalRows > 0 ? Number((sumSpend / totalRows).toFixed(2)) : 0,
-    fb_impressions: totalRows > 0 ? Math.round(sumImpressions / totalRows) : 0,
-    fb_clicks: totalRows > 0 ? Math.round(sumClicks / totalRows) : 0,
-    fb_unique_clicks: totalRows > 0 ? Math.round(sumUniqueClicks / totalRows) : 0,
-    fb_reach: totalRows > 0 ? Math.round(sumReach / totalRows) : 0,
     fb_frequency: sumReach > 0 ? Number((sumImpressions / sumReach).toFixed(2)) : 0,
     fb_ctr: sumImpressions > 0 ? Number(((sumClicks / sumImpressions) * 100).toFixed(2)) : 0,
     fb_unique_ctr: sumImpressions > 0 ? Number(((sumUniqueClicks / sumImpressions) * 100).toFixed(2)) : 0,
@@ -613,12 +603,11 @@ export async function getAdPerformanceBoard(
     fb_cpr: sumReach > 0 ? Number(((sumSpend / sumReach) * 1000).toFixed(2)) : 0,
     fb_cost_per_conversion: sumTotalConversions > 0 ? Number((sumSpend / sumTotalConversions).toFixed(2)) : 0,
     fb_cost_per_lead: sumTotalLeads > 0 ? Number((sumSpend / sumTotalLeads).toFixed(2)) : 0,
-    costPerLead: sumNumberOfLeads > 0 ? Number((sumSpend / sumNumberOfLeads).toFixed(2)) : 0,
-    costPerEstimateSet: sumEstimateSets > 0 ? Number((sumSpend / sumEstimateSets).toFixed(2)) : 0,
-    costPerJobBooked: sumJobsBooked > 0 ? Number((sumSpend / sumJobsBooked).toFixed(2)) : 0,
-    costOfMarketingPercent: sumRevenue > 0 ? Number(((sumSpend / sumRevenue) * 100).toFixed(2)) : 0,
-    estimateSetRate: (sumEstimateSets + sumUnqualifiedLeads) > 0 ? Number(((sumEstimateSets / (sumEstimateSets + sumUnqualifiedLeads)) * 100).toFixed(2)) : 0,
-    revenue: totalRows > 0 ? Number((sumRevenue / totalRows).toFixed(2)) : 0,
+    costPerLead: sumNumberOfLeads > 0 ? Number((sumSpend / sumNumberOfLeads).toFixed(2)) : null,
+    costPerEstimateSet: sumEstimateSets > 0 ? Number((sumSpend / sumEstimateSets).toFixed(2)) : null,
+    costPerJobBooked: sumJobsBooked > 0 ? Number((sumSpend / sumJobsBooked).toFixed(2)) : null,
+    costOfMarketingPercent: sumRevenue > 0 ? Number(((sumSpend / sumRevenue) * 100).toFixed(2)) : null,
+    estimateSetRate: (sumEstimateSets + sumUnqualifiedLeads) > 0 ? Number(((sumEstimateSets / (sumEstimateSets + sumUnqualifiedLeads)) * 100).toFixed(2)) : null,
   };
 
   return {
