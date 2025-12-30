@@ -1,19 +1,6 @@
 // fbAdAccountsService.ts
 import { fbGet } from './fbClient.js';
-
-interface AdAccount {
-  id: string;
-  account_id: string;
-  name: string;
-  account_status: number;
-  currency: string;
-  amount_spent: string;
-  owner: string;
-}
-
-interface AdAccountsResponse {
-  adAccounts: AdAccount[];
-}
+import { AdAccount, AdAccountsResponse } from './domain/facebookAds.domain.js';
 
 /**
  * Get all ad accounts (owned + client) from Business Manager

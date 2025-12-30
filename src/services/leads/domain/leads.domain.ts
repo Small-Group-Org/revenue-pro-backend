@@ -1,6 +1,20 @@
 import { Document } from "mongoose";
 
-export type LeadStatus = 'new' | 'in_progress' | 'estimate_set' | 'unqualified';
+export type LeadStatus = 
+  | 'new' 
+  | 'in_progress' 
+  | 'estimate_set' 
+  | 'virtual_quote'
+  | 'estimate_canceled'
+  | 'proposal_presented'
+  | 'job_booked'
+  | 'job_lost'
+  | 'unqualified';
+
+export interface StatusHistoryEntry {
+  status: LeadStatus;
+  timestamp: Date;
+}
 
 export interface ILead {
   leadDate: string;
@@ -14,10 +28,11 @@ export interface ILead {
   status: LeadStatus;
   clientId: string;
   unqualifiedLeadReason?: string;
-  proposalAmount?: number; // only when status is 'estimate_set'
-  jobBookedAmount?: number; // only when status is 'estimate_set'
+  proposalAmount?: number; // allowed when status is: estimate_set, virtual_quote, proposal_presented, job_lost
+  jobBookedAmount?: number; // allowed when status is: job_booked
   notes?: string; // New field for notes
   leadScore?: number; // calculated lead score
+  statusHistory?: StatusHistoryEntry[]; // Tracks latest timestamp for each unique status
   conversionRates?: {
     service?: number;
     adSetName?: number;

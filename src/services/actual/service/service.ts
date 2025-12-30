@@ -40,6 +40,12 @@ export class ActualService {
           acc.testingBudgetSpent += curr.testingBudgetSpent || 0;
           acc.awarenessBrandingBudgetSpent += curr.awarenessBrandingBudgetSpent || 0;
           acc.leadGenerationBudgetSpent += curr.leadGenerationBudgetSpent || 0;
+          // Sum metaBudgetSpent, but preserve null if all values are null
+          if (acc.metaBudgetSpent === null && curr.metaBudgetSpent === null) {
+            acc.metaBudgetSpent = null;
+          } else {
+            acc.metaBudgetSpent = (acc.metaBudgetSpent ?? 0) + (curr.metaBudgetSpent ?? 0);
+          }
           acc.revenue += curr.revenue || 0;
           acc.sales += curr.sales || 0;
           acc.leads += curr.leads || 0;
@@ -69,6 +75,7 @@ export class ActualService {
       testingBudgetSpent: 0,
       awarenessBrandingBudgetSpent: 0,
       leadGenerationBudgetSpent: 0,
+      metaBudgetSpent: null,
       revenue: 0,
       sales: 0,
       leads: 0,
@@ -86,6 +93,13 @@ export class ActualService {
   ): Promise<IWeeklyActualDocument> {
     const week = DateUtils.getWeekDetails(startDate);
 
+    // Validate metaBudgetSpent if provided
+    if (data.metaBudgetSpent !== undefined && data.metaBudgetSpent !== null) {
+      if (typeof data.metaBudgetSpent !== 'number' || data.metaBudgetSpent < 0) {
+        throw new Error('metaBudgetSpent must be a non-negative number');
+      }
+    }
+
     const payload: IWeeklyActual = {
       userId,
       startDate: week.weekStart,
@@ -93,6 +107,7 @@ export class ActualService {
       testingBudgetSpent: data.testingBudgetSpent ?? 0,
       awarenessBrandingBudgetSpent: data.awarenessBrandingBudgetSpent ?? 0,
       leadGenerationBudgetSpent: data.leadGenerationBudgetSpent ?? 0,
+      metaBudgetSpent: data.metaBudgetSpent !== undefined ? data.metaBudgetSpent : null,
       revenue: data.revenue ?? 0,
       sales: data.sales ?? 0,
       leads: data.leads ?? 0,
@@ -280,6 +295,11 @@ export class ActualService {
           testingBudgetSpent: actuals.reduce((sum: number, a) => sum + (a.testingBudgetSpent || 0), 0),
           awarenessBrandingBudgetSpent: actuals.reduce((sum: number, a) => sum + (a.awarenessBrandingBudgetSpent || 0), 0),
           leadGenerationBudgetSpent: actuals.reduce((sum: number, a) => sum + (a.leadGenerationBudgetSpent || 0), 0),
+          metaBudgetSpent: (() => {
+            const hasAnyValue = actuals.some(a => a.metaBudgetSpent !== null && a.metaBudgetSpent !== undefined);
+            if (!hasAnyValue) return null;
+            return actuals.reduce((sum: number, a) => sum + (a.metaBudgetSpent ?? 0), 0);
+          })(),
           revenue: actuals.reduce((sum: number, a) => sum + (a.revenue || 0), 0),
           sales: actuals.reduce((sum: number, a) => sum + (a.sales || 0), 0),
           leads: actuals.reduce((sum: number, a) => sum + (a.leads || 0), 0),
@@ -329,6 +349,11 @@ export class ActualService {
             testingBudgetSpent: actuals.reduce((sum: number, a) => sum + (a.testingBudgetSpent || 0), 0),
             awarenessBrandingBudgetSpent: actuals.reduce((sum: number, a) => sum + (a.awarenessBrandingBudgetSpent || 0), 0),
             leadGenerationBudgetSpent: actuals.reduce((sum: number, a) => sum + (a.leadGenerationBudgetSpent || 0), 0),
+            metaBudgetSpent: (() => {
+            const hasAnyValue = actuals.some(a => a.metaBudgetSpent !== null && a.metaBudgetSpent !== undefined);
+            if (!hasAnyValue) return null;
+            return actuals.reduce((sum: number, a) => sum + (a.metaBudgetSpent ?? 0), 0);
+          })(),
             revenue: actuals.reduce((sum: number, a) => sum + (a.revenue || 0), 0),
             sales: actuals.reduce((sum: number, a) => sum + (a.sales || 0), 0),
             leads: actuals.reduce((sum: number, a) => sum + (a.leads || 0), 0),
@@ -348,6 +373,12 @@ export class ActualService {
           acc.testingBudgetSpent += curr.testingBudgetSpent || 0;
           acc.awarenessBrandingBudgetSpent += curr.awarenessBrandingBudgetSpent || 0;
           acc.leadGenerationBudgetSpent += curr.leadGenerationBudgetSpent || 0;
+          // Sum metaBudgetSpent, but preserve null if all values are null
+          if (acc.metaBudgetSpent === null && curr.metaBudgetSpent === null) {
+            acc.metaBudgetSpent = null;
+          } else {
+            acc.metaBudgetSpent = (acc.metaBudgetSpent ?? 0) + (curr.metaBudgetSpent ?? 0);
+          }
           acc.revenue += curr.revenue || 0;
           acc.sales += curr.sales || 0;
           acc.leads += curr.leads || 0;

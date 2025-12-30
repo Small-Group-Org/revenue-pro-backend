@@ -6,7 +6,6 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 
-dist/
 # Runtime data
 pids
 *.pid
@@ -22,7 +21,6 @@ jspm_packages/
 .env.*.local
 
 # Build output
-build/
 .cache/
 
 # TypeScript

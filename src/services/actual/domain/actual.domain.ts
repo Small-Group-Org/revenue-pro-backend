@@ -5,6 +5,7 @@ export interface IMonthlyActual {
   testingBudgetSpent: number;
   awarenessBrandingBudgetSpent: number;
   leadGenerationBudgetSpent: number;
+  metaBudgetSpent?: number ; // Optional field for Meta (Facebook) Ads integration budget
   revenue: number;
   sales: number; // renamed from jobsBooked
   leads: number; // new field
@@ -32,6 +33,7 @@ export interface IWeeklyActual {
   testingBudgetSpent: number;
   awarenessBrandingBudgetSpent: number;
   leadGenerationBudgetSpent: number;
+  metaBudgetSpent?: number | null; // Optional field for Meta (Facebook) Ads integration budget
   revenue: number;
   sales: number; // renamed from jobsBooked
   leads: number; // new field

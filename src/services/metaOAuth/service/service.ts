@@ -16,6 +16,12 @@ export class MetaOAuthService {
    */
   async exchangeCodeForToken(code: string): Promise<TokenData> {
     try {
+      console.log("params--------------------------------------", {
+        client_id: config.META_CLIENT_ID,
+        client_secret: config.META_CLIENT_SECRET,
+        redirect_uri: config.META_REDIRECT_URI,
+        code: code,
+      })
       const response = await axios.post(
         `https://graph.facebook.com/${config.META_API_VERSION}/oauth/access_token`,
         null,
@@ -28,12 +34,6 @@ export class MetaOAuthService {
           },
         }
       );
-        console.log("params--------------------------------------", {
-            client_id: config.META_CLIENT_ID,
-            client_secret: config.META_CLIENT_SECRET,
-            redirect_uri: config.META_REDIRECT_URI,
-            code: code,
-          })
       if (!response.data.access_token) {
         throw new CustomError(ErrorCode.INTERNAL_SERVER_ERROR, {
           message: 'Failed to get access token from Meta',

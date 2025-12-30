@@ -14,6 +14,7 @@ import conversionRateUpdateService from "./services/cron/conversionRateUpdateSer
 import opportunitySyncCron from "./services/opportunities/cron/opportunitySync.cron.js";
 import multiClientOpportunitySyncCron from "./services/opportunities/cron/multiClientOpportunitySync.cron.js";
 import leadSheetsSyncCron from "./services/leads/cron/leadSheetsSync.cron.js";
+import dummyCronService from "./services/cron/dummyCron.service.js";
 
 // Initialize express app
 const app: Express = express();
@@ -78,7 +79,7 @@ app.listen(PORT, () => {
 
 
   // opportunitySyncCron.start();
- 
+
 
   // Start multi-client opportunity sync cron job
   multiClientOpportunitySyncCron.start();
@@ -88,4 +89,8 @@ app.listen(PORT, () => {
   // Start the lead sheets sync cron job
   leadSheetsSyncCron.start();
   logger.info("Lead sheets sync cron job initialized");
+
+  // Start dummy cron job (runs every 10 minutes)
+  dummyCronService.start();
+  logger.info("Dummy cron job initialized (runs every 10 minutes)");
 });

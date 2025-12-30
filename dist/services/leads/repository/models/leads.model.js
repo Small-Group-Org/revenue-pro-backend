@@ -1,0 +1,51 @@
+import { Schema, model } from 'mongoose';
+const statusHistoryEntrySchema = new Schema({
+    status: {
+        type: String,
+        required: true,
+        enum: ['new', 'in_progress', 'estimate_set', 'virtual_quote', 'estimate_canceled', 'proposal_presented', 'job_booked', 'job_lost', 'unqualified']
+    },
+    timestamp: { type: Date, required: true, default: Date.now }
+}, { _id: false });
+const leadSchema = new Schema({
+    leadDate: { type: String, required: true, default: new Date().toISOString() },
+    name: { type: String, required: true },
+    email: { type: String, required: false, default: '' },
+    phone: { type: String, required: false, default: '' },
+    zip: { type: String, required: true },
+    service: { type: String, required: true },
+    adSetName: { type: String, required: false, default: "" },
+    adName: { type: String, required: false, default: "" },
+    status: {
+        type: String,
+        required: true,
+        enum: ['new', 'in_progress', 'estimate_set', 'virtual_quote', 'estimate_canceled', 'proposal_presented', 'job_booked', 'job_lost', 'unqualified'],
+        default: 'new'
+    },
+    clientId: { type: String, required: true },
+    unqualifiedLeadReason: { type: String, default: '' },
+    proposalAmount: { type: Number, required: false, default: 0 },
+    jobBookedAmount: { type: Number, required: false, default: 0 },
+    notes: { type: String, default: '', maxlength: 2000 }, // New notes field with max length
+    leadScore: { type: Number, required: false },
+    statusHistory: {
+        type: [statusHistoryEntrySchema],
+        default: [],
+        required: false
+    },
+    conversionRates: {
+        type: Object,
+        default: {},
+        required: false // stores per-lead conversion rates for service, adSetName, adName, leadDate, zip
+    },
+    lastManualUpdate: { type: Date, default: null },
+    isDeleted: { type: Boolean, default: false },
+    deletedAt: { type: Date, default: null },
+}, { timestamps: true });
+// Optional index for uniqueness by clientId and leadDate
+// Uncomment if needed to avoid duplicates per client per day
+// leadSchema.index({ clientId: 1, leadDate: 1 }, { unique: true });
+// Indexes for statusHistory queries
+leadSchema.index({ 'statusHistory.status': 1, 'statusHistory.timestamp': -1 });
+leadSchema.index({ 'statusHistory.timestamp': -1 });
+export default model('Lead', leadSchema);

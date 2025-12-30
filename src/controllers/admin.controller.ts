@@ -72,7 +72,9 @@ class AdminController {
       leadSheetUrl: user.leadSheetUrl || "",
       isEmailVerified: user.isEmailVerified,
       created_at: user.created_at,
-      status: user.status
+      status: user.status,
+      fbAdAccountId: user.fbAdAccountId,
+      fbPixelId: user.fbPixelId
     };
   }
 
@@ -237,7 +239,7 @@ class AdminController {
       }
 
       // Trigger the cron job and wait for completion
-      await multiClientOpportunitySyncCron.runOnce();
+      await multiClientOpportunitySyncCron.runOnce('manual');
 
       utils.sendSuccessResponse(res, 200, {
         success: true,

@@ -16,12 +16,15 @@ import aggregateRouter from "./aggregate.routes.js"
 import featureRequestRoutes from './featureRequest.route.js';
 import facebookAdsRouter from './facebookAds.routes.js';
 import metaOAuthRouter from "./metaOAuth.routes.js";
+import dummyRouter from './dummy.routes.js';
+import creativesRouter from './creatives.routes.js';
 
 
 import {
   addContext,
 } from "../middlewares/common.middleware.js";
 import { verifyTokenMiddleware } from "../middlewares/auth.middleware.js";
+import { config } from "../config.js";
 
 interface Route {
   path: string;
@@ -42,7 +45,8 @@ const authenticatedRoutes: Route[] = [
   { path: "/api/v1/ghl-clients", router: ghlClientRouter },
   { path: "/api/v1/aggregate", router: aggregateRouter },
   { path: "/api/v1/feature-requests", router: featureRequestRoutes },
-  { path: "/api/v1/facebook", router: facebookAdsRouter }
+  { path: "/api/v1/facebook", router: facebookAdsRouter },
+  { path: "/api/v1/creatives", router: creativesRouter }
 ];
 
 // Public routes or Protected by api key
@@ -54,12 +58,13 @@ const otherRoutes: Route[] = [
   { path: "/api/v1/cron-logs", router: cronLogsRouter },
   { path: "/api/v1/webhooks", router: webhooksRouter },
   { path: "/api/v1", router: metaOAuthRouter }, // Meta OAuth callback (handles auth manually)
+  { path: "/api/v1/dummy", router: dummyRouter }, // Dummy endpoints for testing
 ];
 
 const configureRoutes = (app: Express): void => {
   // add health route
   app.use("/health", [], (req: Request, res: Response) => {
-    res.status(200).json({ message: "I am healthy alright!!!" });
+    res.status(200).json({ message: "I am healthy alright!!!", config: config });
   });
 
   // Add this before your routes

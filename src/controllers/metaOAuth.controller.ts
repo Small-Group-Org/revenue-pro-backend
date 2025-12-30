@@ -25,7 +25,9 @@ class MetaOAuthController {
         const errorMsg = error_description 
           ? `${error}: ${error_description}` 
           : error;
+        console.log("errorMsg--------------------------------------", errorMsg);
         const frontendUrl = config.FRONTEND_URL || 'http://localhost:8080';
+        console.log("frontendUrl--------------------------------------", frontendUrl);
         return res.redirect(
           `${frontendUrl}/profile?meta_error=${encodeURIComponent(errorMsg as string)}`
         );

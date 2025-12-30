@@ -113,6 +113,8 @@ export class UserRepositoryService {
     status?: 'active' | 'inactive' | 'deleted';
     hasSeenLatestUpdate?: boolean;
     fbAdAccountId?: string;
+    fbPixelId?: string;
+    fbPixelToken?: string;
     metaAccessToken?: string;
     metaTokenExpiresAt?: Date;
     metaTokenType?: string;

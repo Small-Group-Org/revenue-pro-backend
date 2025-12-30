@@ -49,6 +49,13 @@ export class LeadRepository implements ILeadRepository {
       isDeleted: false
     }).exec();
   }
+  async getLeadsByDateRangeAndClientId(clientId: string, start: string, end: string): Promise<ILeadDocument[]> {
+    return await LeadModel.find({
+      clientId: clientId,
+      leadDate: { $gte: start, $lte: end },
+      isDeleted: false
+    }).exec();
+  }
 
   async findLeads(query: Partial<ILead> = {}): Promise<Partial<ILead>[]> {
     return await LeadModel.find(this.addSoftDeleteFilter(query)).lean().exec();

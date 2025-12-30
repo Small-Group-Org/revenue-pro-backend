@@ -84,7 +84,13 @@ async function getContactDate(
   locationId: string,
   decryptedToken: string,
   tags: Set<string>,
-  customFieldId2?: string,
+  tagBasedDateFieldIds: {
+    apptBookedTagDateFieldId?: string;
+    jobWonTagDateFieldId?: string;
+    jobLostTagDateFieldId?: string;
+    apptCompletedTagDateFieldId?: string;
+    disqualifiedTagDateFieldId?: string;
+  },
   retry: RetryOptions = { retries: 3, baseDelayMs: 1000 }
 ): Promise<Date | null> {
   try {
@@ -114,7 +120,52 @@ async function getContactDate(
     const contact = resp?.contact;
     if (!contact) return null;
     
-    // Check if has any other TARGET_TAG besides "facebook lead"
+    const customFields = contact?.customFields;
+    if (!Array.isArray(customFields)) {
+      // If no custom fields, fall back to dateAdded if only has "facebook lead" tag
+      if (tags.has('facebook lead')) {
+        const dateAdded = contact.dateAdded;
+        if (dateAdded) {
+          const date = new Date(dateAdded);
+          if (!isNaN(date.getTime())) {
+            return date;
+          }
+        }
+      }
+      return null;
+    }
+    
+    // Determine which tag-based date field to use based on present tags
+    // Priority order: job_won > job_lost > appt_completed > appt_booked > disqualified
+    let fieldIdToUse: string | undefined;
+    
+    if (tags.has('job_won') && tagBasedDateFieldIds.jobWonTagDateFieldId) {
+      fieldIdToUse = tagBasedDateFieldIds.jobWonTagDateFieldId;
+    } else if (tags.has('job_lost') && tagBasedDateFieldIds.jobLostTagDateFieldId) {
+      fieldIdToUse = tagBasedDateFieldIds.jobLostTagDateFieldId;
+    } else if (tags.has('appt_completed') && tagBasedDateFieldIds.apptCompletedTagDateFieldId) {
+      fieldIdToUse = tagBasedDateFieldIds.apptCompletedTagDateFieldId;
+    } else if (tags.has('appt_booked') && tagBasedDateFieldIds.apptBookedTagDateFieldId) {
+      fieldIdToUse = tagBasedDateFieldIds.apptBookedTagDateFieldId;
+    } else if (tags.has('disqualified') && tagBasedDateFieldIds.disqualifiedTagDateFieldId) {
+      fieldIdToUse = tagBasedDateFieldIds.disqualifiedTagDateFieldId;
+    }
+    
+    // If we have a field ID to use, try to find and parse it
+    if (fieldIdToUse) {
+      const field = customFields.find((f: any) => 
+        f?.id === fieldIdToUse || f?._id === fieldIdToUse
+      );
+      
+      if (field && field.value) {
+        const parsedDate = parseCustomField2Date(String(field.value));
+        if (parsedDate) {
+          return parsedDate;
+        }
+      }
+    }
+    
+    // Fallback: If only has "facebook lead" tag (no other TARGET_TAGS), use dateAdded
     const TARGET_TAGS = [
       'appt_completed',
       'job_won',
@@ -122,37 +173,12 @@ async function getContactDate(
       'appt_completed_unresponsive',
       'color_consultation_booked',
       'appt_booked',
+      'disqualified',
     ];
     const hasOtherTargetTag = Array.from(tags).some(
       tag => TARGET_TAGS.includes(tag.toLowerCase())
     );
     
-    // If has any other TARGET_TAG (not just facebook_lead), check customfield2
-    if (hasOtherTargetTag) {
-      const customFields = contact?.customFields;
-      if (Array.isArray(customFields)) {
-        // Try to find by customFieldId2 first, then by name "customfield2"
-        let field = customFieldId2 
-          ? customFields.find((f: any) => f?.id === customFieldId2 || f?._id === customFieldId2)
-          : null;
-        
-        if (!field) {
-          field = customFields.find((f: any) => 
-            f?.name?.toLowerCase() === 'customfield2' || 
-            f?.fieldName?.toLowerCase() === 'customfield2'
-          );
-        }
-        
-        if (field && field.value) {
-          const parsedDate = parseCustomField2Date(String(field.value));
-          if (parsedDate) {
-            return parsedDate;
-          }
-        }
-      }
-    }
-    
-    // If only has "facebook lead" tag (no other TARGET_TAGS), check dateAdded
     if (tags.has('facebook lead') && !hasOtherTargetTag) {
       const dateAdded = contact.dateAdded;
       if (dateAdded) {
@@ -186,7 +212,7 @@ class MultiClientOpportunitySyncCron {
           logger.warn('Multi-client opportunity sync already running; skipping this tick');
           return;
         }
-        await this.runOnce();
+        await this.runOnce('cron');
       },
       { timezone: 'UTC' },
     );
@@ -198,12 +224,27 @@ class MultiClientOpportunitySyncCron {
     return this.isRunning;
   }
 
-  public async runOnce(): Promise<void> {
+  public async runOnce(type: 'manual' | 'cron'): Promise<void> {
     this.isRunning = true;
     const start = new Date();
     let logId: any = null;
 
     try {
+      // Call dummy endpoint to verify cron is running
+      try {
+        const serverUrl = process.env.SERVER_BASE_URL || `http://localhost:${config.PORT || 3000}`;
+        const dummyHttpClient = new http(serverUrl, 5000);
+        await dummyHttpClient.get('/api/v1/dummy/multi-opportunity-sync-test');
+        logger.info('[MultiClient Opportunity Sync] Dummy endpoint called successfully');
+        console.log('[MultiClient Opportunity Sync] Dummy endpoint called successfully - cron is running!');
+      } catch (dummyError: any) {
+        // Log but don't fail the cron if dummy endpoint call fails
+        logger.warn('[MultiClient Opportunity Sync] Failed to call dummy endpoint', {
+          error: dummyError?.message || String(dummyError),
+        });
+        console.warn('[MultiClient Opportunity Sync] Failed to call dummy endpoint:', dummyError?.message || String(dummyError));
+      }
+
       const clients = await ghlClientService.getAllActiveGhlClients();
       if (!clients || clients.length === 0) {
         logger.warn('No active GHL clients found; skipping multi-client sync');
@@ -214,7 +255,11 @@ class MultiClientOpportunitySyncCron {
         jobName: 'multiClientOpportunitySync',
         details: { clientCount: clients.length },
         executionId: start.toISOString().replace(/[:.]/g, '-'),
+        type,
       });
+
+      // Update status to processing to show progress
+      await MongoCronLogger.updateStatusToProcessing(logId);
 
       // Iterate clients sequentially with spacing to avoid rate-limit bursts
       const perClientDelayMs = 1000; // 1s between clients
@@ -224,7 +269,13 @@ class MultiClientOpportunitySyncCron {
         const locationId = client.locationId;
         const decryptedToken = ghlClientService.getDecryptedApiToken(client);
         const customFieldId = client.customFieldId;
-        const customFieldId2 = client.customFieldId2;
+        const tagBasedDateFieldIds = {
+          apptBookedTagDateFieldId: client.apptBookedTagDateFieldId,
+          jobWonTagDateFieldId: client.jobWonTagDateFieldId,
+          jobLostTagDateFieldId: client.jobLostTagDateFieldId,
+          apptCompletedTagDateFieldId: client.apptCompletedTagDateFieldId,
+          disqualifiedTagDateFieldId: client.disqualifiedTagDateFieldId,
+        };
         const userId = client.revenueProClientId;
 
         if (!locationId || !decryptedToken || !userId) {
@@ -351,7 +402,7 @@ class MultiClientOpportunitySyncCron {
               locationId,
               decryptedToken,
               oppWithTags.tags,
-              customFieldId2,
+              tagBasedDateFieldIds,
               retry
             );
             contactDateCache.set(contactId, date);

@@ -33,6 +33,27 @@ const ghlClientSchema = new Schema<IGhlClient, IGhlClientModel>(
       type: String,
       required: false,
     },
+    // Tag-based date custom field IDs
+    apptBookedTagDateFieldId: {
+      type: String,
+      required: false,
+    },
+    jobWonTagDateFieldId: {
+      type: String,
+      required: false,
+    },
+    jobLostTagDateFieldId: {
+      type: String,
+      required: false,
+    },
+    apptCompletedTagDateFieldId: {
+      type: String,
+      required: false,
+    },
+    disqualifiedTagDateFieldId: {
+      type: String,
+      required: false,
+    },
     pipelineId: {
       type: String,
       required: true,

@@ -218,6 +218,9 @@ export default class UserService {
     metaTokenExpiresAt?: Date;
     metaTokenType?: string;
     metaConnectedAt?: Date;
+    fbAdAccountId?: string;
+    fbPixelId?: string;
+    fbPixelToken?: string;
   }): Promise<IUser | null> {
     try {
       if (!userId) {
@@ -234,7 +237,12 @@ export default class UserService {
     await this.repository.deleteUser(userId);
   }
 
-  async updateFbAdAccountId(userId: string, fbAdAccountId: string): Promise<IUser> {
+  async updateFbAdAccountId(
+    userId: string,
+    fbAdAccountId: string,
+    fbPixelId?: string,
+    fbPixelToken?: string
+  ): Promise<IUser> {
     try {
       if (!userId) {
         throw new CustomError(ErrorCode.INVALID_INPUT, "User ID is required");
@@ -244,9 +252,14 @@ export default class UserService {
         throw new CustomError(ErrorCode.INVALID_INPUT, "Facebook Ad Account ID is required");
       }
 
-      const updatedUser = await this.repository.updateUser(userId, { 
-        fbAdAccountId 
-      });
+      const updateData: any = { fbAdAccountId };
+
+      if (fbPixelId && fbPixelToken) {
+        updateData.fbPixelId = fbPixelId;
+        updateData.fbPixelToken = fbPixelToken;
+      }
+
+      const updatedUser = await this.repository.updateUser(userId, updateData);
 
       if (!updatedUser) {
         throw new CustomError(ErrorCode.NOT_FOUND, "User not found");
@@ -257,4 +270,5 @@ export default class UserService {
       throw utils.ThrowableError(error);
     }
   }
+
 }

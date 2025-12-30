@@ -68,6 +68,15 @@ const userSchema = new Schema<IUser, IUserModel>(
     metaConnectedAt: {
       type: Date,
       required: false,
+    },
+    // Facebook Pixel fields
+    fbPixelId: {
+      type: String,
+      required: false,
+    },
+    fbPixelToken: {
+      type: String,
+      required: false,
     }
   },
   {

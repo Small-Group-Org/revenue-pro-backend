@@ -12,7 +12,7 @@ export const config = {
   ACCESS_TOKEN_SECRET: process.env.ACCESS_TOKEN_SECRET,
   REFRESH_TOKEN_SECRET: process.env.REFRESH_TOKEN_SECRET,
   SESSION_SECRET: process.env.SESSION_SECRET,
-  FRONTEND_URL: process.env.FRONTEND_URL,
+  FRONTEND_URL: process.env.FRONTEND_URL || '',
   NAME: process.env.NAME,
   GHL_BASE_URL: "https://services.leadconnectorhq.com",
   GHL_API_TOKEN: process.env.GHL_API_TOKEN, // GHL Private Integration Token
@@ -35,7 +35,6 @@ export const config = {
   // This is the redirect URI where Facebook sends the authorization code back to our backend
   // Must match exactly what's configured in Facebook App settings
   // META_REDIRECT_URI: process.env.META_REDIRECT_URI || '',
-    META_REDIRECT_URI: "https://dev-revenue-pro-backend-1057029383450.asia-southeast1.run.app/api/v1/generate-meta-access-token/",
+  META_REDIRECT_URI: process.env.META_REDIRECT_URI || '',
   META_API_VERSION: process.env.META_API_VERSION || '',
- 
 };

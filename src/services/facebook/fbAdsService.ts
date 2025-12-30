@@ -1,50 +1,6 @@
 // fbAdsService.ts
 import { fbGet } from './fbClient.js';
-
-interface Creative {
-  id?: string;
-  name?: string;
-  body?: string;
-  title?: string;
-  object_story_spec?: {
-    link_data?: {
-      message?: string;
-      name?: string;
-      description?: string;
-      caption?: string;
-      call_to_action?: {
-        type?: string;
-        value?: {
-          lead_gen_form_id?: string;
-          link?: string;
-        };
-      };
-    };
-  };
-}
-
-interface AdWithCreative {
-  id: string;
-  name: string;
-  campaign_id: string;
-  adset_id: string;
-  creative?: Creative;
-}
-
-interface NormalizedAd {
-  ad_id: string;
-  ad_name: string;
-  adset_id: string;
-  campaign_id: string;
-  creative: {
-    id: string | null;
-    name: string | null;
-    primary_text: string | null;
-    headline: string | null;
-    raw: Creative;
-  };
-  lead_gen_form_id: string | null;
-}
+import { Creative, AdWithCreative, NormalizedAd } from './domain/facebookAds.domain.js';
 
 /**
  * Batch fetch Ads with nested creative
@@ -62,23 +18,37 @@ export async function getAdsWithCreatives(
   }
 
   console.log(`[Ads] Fetching ${adIds.length} ads with creatives`);
-  console.log(`[Ads] Ad IDs:`, adIds.join(', '));
 
-  const params = {
-    ids: adIds.join(','),
-    fields: [
-      'id',
-      'name',
-      'campaign_id',
-      'adset_id',
-      'creative{id,name,body,title,object_story_spec{link_data{message,name,description,caption,call_to_action{type,value}}}}',
-    ].join(','),
-  };
+  // Facebook API limit: max 50 IDs per request
+  const MAX_IDS_PER_REQUEST = 50;
+  const allResults: Record<string, AdWithCreative> = {};
 
-  // Root path `/` for multi-id
-  const res = await fbGet('/', params, accessToken);
-  console.log(`[Ads] Retrieved ${Object.keys(res).length} ads`);
-  return res;
+  // Split adIds into chunks of 50
+  for (let i = 0; i < adIds.length; i += MAX_IDS_PER_REQUEST) {
+    const chunk = adIds.slice(i, i + MAX_IDS_PER_REQUEST);
+    console.log(`[Ads] Processing batch ${Math.floor(i / MAX_IDS_PER_REQUEST) + 1} (${chunk.length} ads)`);
+
+    const params = {
+      ids: chunk.join(','),
+      fields: [
+        'id',
+        'name',
+        'campaign_id',
+        'adset_id',
+        'creative{id,name,body,title,object_story_spec{link_data{message,name,description,caption,call_to_action{type,value}}}}',
+      ].join(','),
+    };
+
+    // Root path `/` for multi-id
+    const res = await fbGet('/', params, accessToken);
+    console.log(`[Ads] Retrieved ${Object.keys(res).length} ads from batch`);
+    
+    // Merge results
+    Object.assign(allResults, res);
+  }
+
+  console.log(`[Ads] Total retrieved: ${Object.keys(allResults).length} ads`);
+  return allResults;
 }
 
 /**
