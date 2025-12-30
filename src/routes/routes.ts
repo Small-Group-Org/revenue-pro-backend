@@ -17,6 +17,7 @@ import featureRequestRoutes from './featureRequest.route.js';
 import facebookAdsRouter from './facebookAds.routes.js';
 import metaOAuthRouter from "./metaOAuth.routes.js";
 import dummyRouter from './dummy.routes.js';
+import creativesRouter from './creatives.routes.js';
 
 
 import {
@@ -44,7 +45,8 @@ const authenticatedRoutes: Route[] = [
   { path: "/api/v1/ghl-clients", router: ghlClientRouter },
   { path: "/api/v1/aggregate", router: aggregateRouter },
   { path: "/api/v1/feature-requests", router: featureRequestRoutes },
-  { path: "/api/v1/facebook", router: facebookAdsRouter }
+  { path: "/api/v1/facebook", router: facebookAdsRouter },
+  { path: "/api/v1/creatives", router: creativesRouter }
 ];
 
 // Public routes or Protected by api key
