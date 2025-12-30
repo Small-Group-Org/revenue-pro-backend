@@ -44,10 +44,6 @@ export class FbWeeklyAnalyticsRepository {
         try {
             const result = await FbWeeklyAnalyticsModel.bulkWrite(operations);
             const totalSaved = result.upsertedCount + result.modifiedCount;
-            console.log(`[FbWeeklyAnalyticsRepository] ✓ BulkWrite completed successfully`);
-            console.log(`[FbWeeklyAnalyticsRepository] - Upserted: ${result.upsertedCount}`);
-            console.log(`[FbWeeklyAnalyticsRepository] - Modified: ${result.modifiedCount}`);
-            console.log(`[FbWeeklyAnalyticsRepository] - Total saved: ${totalSaved}`);
             return {
                 saved: totalSaved,
                 errors: []

@@ -1,5 +1,6 @@
 import { leadRepository } from '../leads/repository/LeadRepository.js';
 import { fbWeeklyAnalyticsRepository } from './repository/FbWeeklyAnalyticsRepository.js';
+import { creativesRepository } from '../creatives/repository/CreativesRepository.js';
 export async function getAdPerformanceBoard(params) {
     const { clientId, filters, columns, groupBy } = params;
     // Fetch saved weekly analytics from database
@@ -26,35 +27,70 @@ export async function getAdPerformanceBoard(params) {
             availableServiceTypes: []
         };
     }
+    // Step 1.5: Fetch creatives from creatives collection
+    const creativeIds = savedAnalytics
+        .map(a => a.creative?.id)
+        .filter((id) => !!id);
+    const uniqueCreativeIds = Array.from(new Set(creativeIds));
+    let creativesMap = {};
+    if (uniqueCreativeIds.length > 0) {
+        try {
+            const creatives = await creativesRepository.getCreativesByIds(uniqueCreativeIds);
+            creatives.forEach(c => {
+                creativesMap[c.creativeId] = c;
+            });
+            console.log(`[AdPerformanceBoard] Loaded ${Object.keys(creativesMap).length} creatives from database`);
+        }
+        catch (error) {
+            console.error('[AdPerformanceBoard] Failed to load creatives:', error);
+            // Continue without enriched creative data
+        }
+    }
     // Map DB fields (camelCase) to EnrichedAd interface (snake_case)
-    const enrichedAds = savedAnalytics.map((analytics) => ({
-        campaign_id: analytics.campaignId,
-        campaign_name: analytics.campaignName,
-        adset_id: analytics.adSetId,
-        adset_name: analytics.adSetName,
-        ad_id: analytics.adId,
-        ad_name: analytics.adName,
-        creative: analytics.creative ? {
-            id: analytics.creative.id || null,
-            name: analytics.creative.name || null,
-            primary_text: analytics.creative.primaryText || null,
-            headline: analytics.creative.headline || null,
-            raw: analytics.creative.raw || null,
-        } : null,
-        lead_form: analytics.leadForm ? {
-            id: analytics.leadForm.id,
-            name: analytics.leadForm.name,
-        } : null,
-        insights: {
-            impressions: analytics.metrics?.impressions || 0,
-            clicks: analytics.metrics?.clicks || 0,
-            spend: analytics.metrics?.spend || 0,
-            date_start: analytics.weekStartDate,
-            date_stop: analytics.weekEndDate,
-        },
-        // Store full metrics for aggregation
-        _fullMetrics: analytics.metrics,
-    }));
+    const enrichedAds = savedAnalytics.map((analytics) => {
+        const creativeId = analytics.creative?.id;
+        const enrichedCreative = creativeId ? creativesMap[creativeId] : null;
+        return {
+            campaign_id: analytics.campaignId,
+            campaign_name: analytics.campaignName,
+            adset_id: analytics.adSetId,
+            adset_name: analytics.adSetName,
+            ad_id: analytics.adId,
+            ad_name: analytics.adName,
+            creative: analytics.creative ? {
+                id: analytics.creative.id || null,
+                name: analytics.creative.name || null,
+                primary_text: analytics.creative.primaryText || null,
+                headline: analytics.creative.headline || null,
+                raw: analytics.creative.raw || null,
+                // Add enriched creative data from creatives collection
+                ...(enrichedCreative && {
+                    thumbnailUrl: enrichedCreative.thumbnailUrl,
+                    imageUrl: enrichedCreative.imageUrl,
+                    imageHash: enrichedCreative.imageHash,
+                    videoId: enrichedCreative.videoId,
+                    creativeType: enrichedCreative.creativeType,
+                    images: enrichedCreative.images,
+                    videos: enrichedCreative.videos,
+                    childAttachments: enrichedCreative.childAttachments,
+                    callToAction: enrichedCreative.callToAction,
+                })
+            } : null,
+            lead_form: analytics.leadForm ? {
+                id: analytics.leadForm.id,
+                name: analytics.leadForm.name,
+            } : null,
+            insights: {
+                impressions: analytics.metrics?.impressions || 0,
+                clicks: analytics.metrics?.clicks || 0,
+                spend: analytics.metrics?.spend || 0,
+                date_start: analytics.weekStartDate,
+                date_stop: analytics.weekEndDate,
+            },
+            // Store full metrics for aggregation
+            _fullMetrics: analytics.metrics,
+        };
+    });
     // Step 2: Fetch leads from database
     const allLeads = await leadRepository.getLeadsByDateRangeAndClientId(clientId, filters.startDate, filters.endDate);
     // Collect all unique zip codes and service types from leads for filtering options
@@ -171,6 +207,10 @@ export async function getAdPerformanceBoard(params) {
                 rowData.campaignName = ad.campaign_name;
                 rowData.adSetName = ad.adset_name;
                 rowData.adName = ad.ad_name;
+                // Include creative data when grouping by ad
+                if (ad.creative) {
+                    rowData.creative = ad.creative;
+                }
                 break;
             default:
                 groupKey = ad.ad_name || 'Unknown Ad';
@@ -412,6 +452,10 @@ export async function getAdPerformanceBoard(params) {
             filteredRow.service = row.service;
         if (columns.zipCode)
             filteredRow.zipCode = row.zipCode;
+        // Always include creative data when available (for ad-level grouping)
+        if (row.creative) {
+            filteredRow.creative = row.creative;
+        }
         // Basic metrics
         if (columns.fb_spend)
             filteredRow.fb_spend = row.fb_spend;
