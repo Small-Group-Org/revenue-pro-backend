@@ -92,8 +92,23 @@ export class LeadAggregationRepository implements ILeadAggregationRepository {
           estimateSet: {
             $sum: { $cond: [{ $eq: ['$status', 'estimate_set'] }, 1, 0] }
           },
+          virtualQuote: {
+            $sum: { $cond: [{ $eq: ['$status', 'virtual_quote'] }, 1, 0] }
+          },
+          proposalPresented: {
+            $sum: { $cond: [{ $eq: ['$status', 'proposal_presented'] }, 1, 0] }
+          },
+          jobBooked: {
+            $sum: { $cond: [{ $eq: ['$status', 'job_booked'] }, 1, 0] }
+          },
           unqualified: {
             $sum: { $cond: [{ $eq: ['$status', 'unqualified'] }, 1, 0] }
+          },
+          estimateCanceled: {
+            $sum: { $cond: [{ $eq: ['$status', 'estimate_canceled'] }, 1, 0] }
+          },
+          jobLost: {
+            $sum: { $cond: [{ $eq: ['$status', 'job_lost'] }, 1, 0] }
           },
           totalJobBookedAmount: {
             $sum: { $cond: [{ $gt: ['$jobBookedAmount', 0] }, '$jobBookedAmount', 0] }
@@ -112,14 +127,22 @@ export class LeadAggregationRepository implements ILeadAggregationRepository {
           jobBookedAmount: { $round: ['$totalJobBookedAmount', 2] },
           proposalAmount: { $round: ['$totalProposalAmount', 2] },
           percentage: {
-            $cond: [
-              { $gt: [ { $add: ['$estimateSet', '$unqualified'] }, 0 ] },
-              { $multiply: [
-                { $divide: ['$estimateSet', { $add: ['$estimateSet', '$unqualified'] }] },
-                100
-              ] },
-              0
-            ]
+            $let: {
+              vars: {
+                netEstimates: { $add: ['$estimateSet', '$virtualQuote', '$proposalPresented', '$jobBooked'] },
+                netUnqualifieds: { $add: ['$unqualified', '$estimateCanceled', '$jobLost'] }
+              },
+              in: {
+                $cond: [
+                  { $gt: [ { $add: ['$$netEstimates', '$$netUnqualifieds'] }, 0 ] },
+                  { $multiply: [
+                    { $divide: ['$$netEstimates', { $add: ['$$netEstimates', '$$netUnqualifieds'] }] },
+                    100
+                  ] },
+                  0
+                ]
+              }
+            }
           },
           _id: 0
         }
@@ -189,8 +212,23 @@ export class LeadAggregationRepository implements ILeadAggregationRepository {
           estimateSet: {
             $sum: { $cond: [{ $eq: ['$status', 'estimate_set'] }, 1, 0] }
           },
+          virtualQuote: {
+            $sum: { $cond: [{ $eq: ['$status', 'virtual_quote'] }, 1, 0] }
+          },
+          proposalPresented: {
+            $sum: { $cond: [{ $eq: ['$status', 'proposal_presented'] }, 1, 0] }
+          },
+          jobBooked: {
+            $sum: { $cond: [{ $eq: ['$status', 'job_booked'] }, 1, 0] }
+          },
           unqualified: {
             $sum: { $cond: [{ $eq: ['$status', 'unqualified'] }, 1, 0] }
+          },
+          estimateCanceled: {
+            $sum: { $cond: [{ $eq: ['$status', 'estimate_canceled'] }, 1, 0] }
+          },
+          jobLost: {
+            $sum: { $cond: [{ $eq: ['$status', 'job_lost'] }, 1, 0] }
           },
           totalJobBookedAmount: {
             $sum: { $cond: [{ $gt: ['$jobBookedAmount', 0] }, '$jobBookedAmount', 0] }
@@ -210,14 +248,22 @@ export class LeadAggregationRepository implements ILeadAggregationRepository {
           jobBookedAmount: { $round: ['$totalJobBookedAmount', 2] },
           proposalAmount: { $round: ['$totalProposalAmount', 2] },
           percentage: {
-            $cond: [
-              { $gt: [ { $add: ['$estimateSet', '$unqualified'] }, 0 ] },
-              { $multiply: [
-                { $divide: ['$estimateSet', { $add: ['$estimateSet', '$unqualified'] }] },
-                100
-              ] },
-              0
-            ]
+            $let: {
+              vars: {
+                netEstimates: { $add: ['$estimateSet', '$virtualQuote', '$proposalPresented', '$jobBooked'] },
+                netUnqualifieds: { $add: ['$unqualified', '$estimateCanceled', '$jobLost'] }
+              },
+              in: {
+                $cond: [
+                  { $gt: [ { $add: ['$$netEstimates', '$$netUnqualifieds'] }, 0 ] },
+                  { $multiply: [
+                    { $divide: ['$$netEstimates', { $add: ['$$netEstimates', '$$netUnqualifieds'] }] },
+                    100
+                  ] },
+                  0
+                ]
+              }
+            }
           },
           _id: 0
         }
