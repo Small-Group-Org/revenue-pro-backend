@@ -82,9 +82,9 @@ export async function getAdPerformanceBoard(
       ad_name: analytics.adName,
       creative: analytics.creative ? {
         id: analytics.creative.id || null,
-        name: analytics.creative.name || null,
-        primary_text: analytics.creative.primaryText || null,
-        headline: analytics.creative.headline || null,
+        name: enrichedCreative?.name || analytics.creative.name || null,
+        primary_text: enrichedCreative?.primaryText || analytics.creative.primaryText || null,
+        headline: enrichedCreative?.headline || analytics.creative.headline || null,
         raw: analytics.creative.raw || null,
         // Add enriched creative data from creatives collection
         ...(enrichedCreative && {
@@ -97,6 +97,8 @@ export async function getAdPerformanceBoard(
           videos: enrichedCreative.videos,
           childAttachments: enrichedCreative.childAttachments,
           callToAction: enrichedCreative.callToAction,
+          description: enrichedCreative.description,
+          body: enrichedCreative.body,
         })
       } : null,
       lead_form: analytics.leadForm ? {

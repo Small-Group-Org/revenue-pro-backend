@@ -39,12 +39,20 @@ export class CreativesRepository {
    * Save or update creative
    */
   async upsertCreative(creativeData: Partial<ICreative>): Promise<ICreative> {
+    console.log(`[CreativesRepository] Upserting creative ${creativeData.creativeId}:`, {
+      creativeType: creativeData.creativeType,
+      hasVideos: !!creativeData.videos,
+      videosLength: creativeData.videos?.length,
+      videos: creativeData.videos
+    });
     const updated = await CreativeModel.findOneAndUpdate(
       { creativeId: creativeData.creativeId },
       { $set: creativeData },
       { upsert: true, new: true }
     );
-    return updated.toObject();
+    const result = updated.toObject();
+    console.log(`[CreativesRepository] Saved creative ${result.creativeId} with videos:`, result.videos);
+    return result;
   }
 
   /**

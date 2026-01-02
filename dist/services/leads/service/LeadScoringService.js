@@ -196,12 +196,14 @@ export class LeadScoringService {
     }
     /**
      * Calculate conversion rate for a specific field and value
-     * Conversion Rate = estimate_set / (estimate_set + unqualified)
+     * Conversion Rate = netEstimates / (netEstimates + netUnqualifieds)
+     * netEstimates = estimate_set + virtual_quote + proposal_presented + job_booked
+     * netUnqualifieds = unqualified + estimate_canceled + job_lost
      */
     calculateConversionRate(clientLeads, // Already filtered by clientId
     keyName, keyField) {
-        let yesForKey = 0; // estimate_set count
-        let unqualifiedForKey = 0; // unqualified count
+        let netEstimates = 0; // estimate_set + virtual_quote + proposal_presented + job_booked
+        let netUnqualifieds = 0; // unqualified + estimate_canceled + job_lost
         // Build a matcher for the selected key type, then do a single-pass count
         let matches;
         if (keyField === 'leadDate') {
@@ -221,19 +223,28 @@ export class LeadScoringService {
         for (const lead of clientLeads) {
             if (!matches(lead))
                 continue;
-            if (lead.status === 'estimate_set')
-                yesForKey++;
-            else if (lead.status === 'unqualified')
-                unqualifiedForKey++;
+            // Count qualified/successful statuses
+            if (lead.status === 'estimate_set' ||
+                lead.status === 'virtual_quote' ||
+                lead.status === 'proposal_presented' ||
+                lead.status === 'job_booked') {
+                netEstimates++;
+            }
+            // Count unqualified/unsuccessful statuses
+            else if (lead.status === 'unqualified' ||
+                lead.status === 'estimate_canceled' ||
+                lead.status === 'job_lost') {
+                netUnqualifieds++;
+            }
         }
         // Conversion rate as decimal, rounded to 2 decimals
-        const effectiveTotal = yesForKey + unqualifiedForKey;
+        const effectiveTotal = netEstimates + netUnqualifieds;
         const conversionRate = effectiveTotal === 0 ? 0 :
-            Math.round((yesForKey / effectiveTotal) * 100) / 100;
+            Math.round((netEstimates / effectiveTotal) * 100) / 100;
         return {
             conversionRate,
             pastTotalCount: effectiveTotal,
-            pastTotalEst: yesForKey,
+            pastTotalEst: netEstimates,
         };
     }
     /**

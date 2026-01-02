@@ -150,7 +150,12 @@ export class ActualRepository {
                             $filter: {
                                 input: "$leads",
                                 as: "lead",
-                                cond: { $eq: ["$$lead.status", "estimate_set"] },
+                                cond: {
+                                    $in: [
+                                        "$$lead.status",
+                                        ["estimate_set", "virtual_quote", "proposal_presented", "job_booked"]
+                                    ]
+                                },
                             },
                         },
                     },
@@ -159,7 +164,12 @@ export class ActualRepository {
                             $filter: {
                                 input: "$leads",
                                 as: "lead",
-                                cond: { $eq: ["$$lead.status", "unqualified"] },
+                                cond: {
+                                    $in: [
+                                        "$$lead.status",
+                                        ["unqualified", "estimate_canceled", "job_lost"]
+                                    ]
+                                },
                             },
                         },
                     },

@@ -30,13 +30,60 @@ export class CreativesService {
     async fetchVideoDetails(videoId, accessToken) {
         try {
             console.log(`[Creatives] Fetching video details for ${videoId}`);
-            const fields = 'source,picture,length,thumbnails';
-            const videoData = await fbGet(`/${videoId}`, { fields }, accessToken);
-            return videoData;
+            // Request high-quality thumbnails using the thumbnails field with scale parameter
+            const fields = 'source,picture,length,thumbnails.limit(1){uri,width,height,scale,is_preferred}';
+            // Add retry logic (up to 3 retries with exponential backoff)
+            const videoData = await fbGet(`/${videoId}`, { fields }, accessToken, 3);
+            // Get the highest quality thumbnail available
+            let highQualityThumbnail = videoData.picture;
+            if (videoData.thumbnails?.data?.length > 0) {
+                // Sort thumbnails by scale/size and get the largest one
+                const thumbnails = videoData.thumbnails.data;
+                const largestThumbnail = thumbnails.reduce((prev, current) => {
+                    const prevScale = prev.scale || prev.width || 0;
+                    const currentScale = current.scale || current.width || 0;
+                    return currentScale > prevScale ? current : prev;
+                });
+                highQualityThumbnail = largestThumbnail.uri || highQualityThumbnail;
+            }
+            return {
+                ...videoData,
+                picture: highQualityThumbnail
+            };
         }
         catch (error) {
+            // Log but don't throw - allow creative to be saved without video details
             console.error(`[Creatives] Error fetching video ${videoId}:`, error.message || error);
             return null;
+        }
+    }
+    /**
+     * Fetch high-quality images from post using effective_object_story_id
+     */
+    async fetchPostAttachments(postId, accessToken) {
+        try {
+            console.log(`[Creatives] Fetching post attachments for ${postId}`);
+            const fields = 'attachments{media,media_type,subattachments,url,unshimmed_url}';
+            const postData = await fbGet(`/${postId}`, { fields }, accessToken);
+            const attachments = postData?.attachments?.data?.[0];
+            if (!attachments) {
+                return { imageUrl: null, thumbnailUrl: null };
+            }
+            // Get the media object which contains full_picture
+            const media = attachments.media;
+            if (media?.image) {
+                // Request high-quality image by accessing image with src
+                const imageUrl = media.image.src || null;
+                return {
+                    imageUrl: imageUrl,
+                    thumbnailUrl: imageUrl // Same URL, but we store it for consistency
+                };
+            }
+            return { imageUrl: null, thumbnailUrl: null };
+        }
+        catch (error) {
+            console.log(`[Creatives] Could not fetch post attachments: ${error.message}`);
+            return { imageUrl: null, thumbnailUrl: null };
         }
     }
     /**
@@ -47,6 +94,7 @@ export class CreativesService {
         const linkData = oss.link_data || {};
         const photoData = oss.photo_data || {};
         const videoData = oss.video_data || {};
+        const assetFeedSpec = creativeData.asset_feed_spec || {};
         // Determine creative type
         let creativeType = 'other';
         const videoId = videoData.video_id || creativeData.video_id || null;
@@ -59,22 +107,69 @@ export class CreativesService {
         else if (photoData.image_hash || creativeData.image_hash || creativeData.image_url) {
             creativeType = 'image';
         }
+        else if (Object.keys(assetFeedSpec).length > 0) {
+            // Advantage+ Creative / Dynamic Format - has asset_feed_spec
+            const adFormats = assetFeedSpec.ad_formats || [];
+            if (adFormats.includes('SINGLE_IMAGE')) {
+                creativeType = 'image'; // Advantage+ single image
+            }
+            else if (adFormats.includes('CAROUSEL')) {
+                creativeType = 'carousel'; // Advantage+ carousel
+            }
+            else if (adFormats.includes('SINGLE_VIDEO')) {
+                creativeType = 'video'; // Advantage+ video
+            }
+            else {
+                creativeType = 'image'; // Default to image for Advantage+ with asset_feed_spec
+            }
+        }
         else if (linkData.link) {
             creativeType = 'link';
+        }
+        // For creatives without direct image_url (Advantage+, other types, or links), fetch high-quality from post
+        let highQualityImages = {
+            imageUrl: null,
+            thumbnailUrl: null
+        };
+        const effectiveStoryId = creativeData.effective_object_story_id || creativeData.object_story_id;
+        const hasDirectImageUrl = creativeData.image_url || photoData.url;
+        // Fetch high-quality images if:
+        // 1. We have an effective_object_story_id AND
+        // 2. Either no direct image URL OR it's an Advantage+ creative (has asset_feed_spec)
+        if (effectiveStoryId && (!hasDirectImageUrl || Object.keys(assetFeedSpec).length > 0)) {
+            try {
+                highQualityImages = await this.fetchPostAttachments(effectiveStoryId, accessToken);
+                // If we found high-quality images and type was 'other', reclassify as 'image'
+                if (highQualityImages.imageUrl && creativeType === 'other') {
+                    creativeType = 'image';
+                }
+            }
+            catch (error) {
+                console.log(`[Creatives] Could not fetch post attachments (may need additional permissions): ${error.message}`);
+                // Continue without high-quality images - use fallback
+            }
         }
         // Fetch video details if video creative
         let videos = [];
         if (videoId) {
+            console.log(`[Creatives] Found video ID: ${videoId} for creative ${creativeData.id}`);
             const videoDetails = await this.fetchVideoDetails(videoId, accessToken);
+            console.log(`[Creatives] Video details for ${videoId}:`, JSON.stringify(videoDetails, null, 2));
             if (videoDetails) {
-                videos = [{
-                        id: videoId,
-                        url: videoDetails.source || null,
-                        thumbnailUrl: videoDetails.picture || creativeData.thumbnail_url || null,
-                        duration: videoDetails.length || null
-                    }];
+                const videoObject = {
+                    id: videoId,
+                    url: videoDetails.source || null,
+                    thumbnailUrl: videoDetails.picture || creativeData.thumbnail_url || null,
+                    duration: videoDetails.length || null
+                };
+                console.log(`[Creatives] Created video object:`, JSON.stringify(videoObject, null, 2));
+                videos = [videoObject];
+            }
+            else {
+                console.log(`[Creatives] No video details returned for ${videoId}`);
             }
         }
+        console.log(`[Creatives] Final videos array for creative ${creativeData.id}:`, videos);
         // Parse carousel attachments
         const childAttachments = (linkData.child_attachments || []).map((child) => ({
             name: child.name || null,
@@ -84,19 +179,74 @@ export class CreativesService {
             link: child.link || null,
             videoId: child.video_id || null
         }));
-        // Parse call to action
-        const callToAction = creativeData.call_to_action || linkData.call_to_action || videoData.call_to_action || null;
+        // Extract data from asset_feed_spec (Advantage+ Creative)
+        let assetFeedData = null;
+        if (Object.keys(assetFeedSpec).length > 0) {
+            // Extract first image hash from asset_feed_spec
+            const assetImages = assetFeedSpec.images || [];
+            const firstImageHash = assetImages[0]?.hash || null;
+            // Extract first body text
+            const assetBodies = assetFeedSpec.bodies || [];
+            const firstBody = assetBodies[0]?.text || null;
+            // Extract first title/headline
+            const assetTitles = assetFeedSpec.titles || [];
+            const firstTitle = assetTitles[0]?.text || null;
+            // Extract first description
+            const assetDescriptions = assetFeedSpec.descriptions || [];
+            const firstDescription = assetDescriptions[0]?.text || null;
+            // Extract call to action
+            const assetCallToActions = assetFeedSpec.call_to_actions || [];
+            const firstCta = assetCallToActions[0] || null;
+            assetFeedData = {
+                imageHash: firstImageHash,
+                primaryText: firstBody,
+                headline: firstTitle,
+                description: firstDescription,
+                callToAction: firstCta
+            };
+        }
+        // Parse call to action - prioritize asset_feed_spec, then other sources
+        const callToAction = assetFeedData?.callToAction || creativeData.call_to_action || linkData.call_to_action || videoData.call_to_action || null;
+        // Prioritize high-quality images from post attachments, fallback to direct API fields, then asset_feed_spec
+        let finalImageUrl = highQualityImages.imageUrl || creativeData.image_url || photoData.url || linkData.picture || null;
+        let finalThumbnailUrl = highQualityImages.thumbnailUrl || creativeData.thumbnail_url || finalImageUrl || null;
+        let finalImageHash = creativeData.image_hash || photoData.image_hash || assetFeedData?.imageHash || null;
+        // VALIDATION: Ensure we have actual media for the classified type
+        // If classified as video but no video data retrieved, downgrade to other
+        if (creativeType === 'video' && (!videoId || videos.length === 0)) {
+            console.log(`[Creatives] Creative ${creativeData.id}: Classified as video but no video found, changing to 'other'`);
+            creativeType = 'other';
+        }
+        // If classified as image but no actual image URL or thumbnail, downgrade to other
+        if (creativeType === 'image' && !finalImageUrl && !finalThumbnailUrl) {
+            console.log(`[Creatives] Creative ${creativeData.id}: Classified as image but no image URL found, changing to 'other'`);
+            creativeType = 'other';
+        }
+        // If classified as carousel but no child attachments, downgrade to other
+        if (creativeType === 'carousel' && childAttachments.length === 0) {
+            console.log(`[Creatives] Creative ${creativeData.id}: Classified as carousel but no child attachments found, changing to 'other'`);
+            creativeType = 'other';
+        }
+        // Get text content for validation
+        const hasPrimaryText = assetFeedData?.primaryText || creativeData.body || linkData.message || photoData.message || videoData.message;
+        const hasHeadline = assetFeedData?.headline || creativeData.title || linkData.name;
+        const hasDescription = assetFeedData?.description || linkData.description;
+        const hasTextContent = hasPrimaryText || hasHeadline || hasDescription;
+        // Log warning if creative has no media and no text
+        if (creativeType === 'other' && !finalImageUrl && !finalThumbnailUrl && !hasTextContent) {
+            console.warn(`[Creatives] Creative ${creativeData.id}: Type 'other' with no media or text content`);
+        }
         return {
             creativeId: creativeData.id,
             adAccountId,
             name: creativeData.name || null,
-            primaryText: creativeData.body || linkData.message || photoData.message || videoData.message || null,
-            headline: creativeData.title || linkData.name || null,
-            description: linkData.description || null,
-            body: creativeData.body || null,
-            thumbnailUrl: creativeData.thumbnail_url || null,
-            imageUrl: creativeData.image_url || photoData.url || linkData.picture || null,
-            imageHash: creativeData.image_hash || photoData.image_hash || null,
+            primaryText: assetFeedData?.primaryText || creativeData.body || linkData.message || photoData.message || videoData.message || null,
+            headline: assetFeedData?.headline || creativeData.title || linkData.name || null,
+            description: assetFeedData?.description || linkData.description || null,
+            body: assetFeedData?.primaryText || creativeData.body || null,
+            thumbnailUrl: finalThumbnailUrl,
+            imageUrl: finalImageUrl,
+            imageHash: finalImageHash,
             videoId,
             images: [],
             videos,
