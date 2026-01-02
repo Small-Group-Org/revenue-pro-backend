@@ -47,7 +47,7 @@ export class LeadAggregationRepository implements ILeadAggregationRepository {
     adNames: string[];
     statuses: string[];
     unqualifiedLeadReasons: string[];
-    statusAgg: { _id: string; count: number }[];
+    statusAgg: { _id: string; count: number; netEstimateSet?: number; netUnqualified?: number }[];
   }> {
     const finalQuery = this.addSoftDeleteFilter(query);
     const unqualifiedQuery = { ...finalQuery, status: "unqualified" };
@@ -65,6 +65,41 @@ export class LeadAggregationRepository implements ILeadAggregationRepository {
             $group: {
               _id: "$status",
               count: { $sum: 1 }
+            }
+          },
+          {
+            $group: {
+              _id: null,
+              statuses: { $push: { status: "$_id", count: "$count" } },
+              netEstimateSet: {
+                $sum: {
+                  $cond: [
+                    { $in: ["$_id", ["estimate_set", "virtual_quote", "proposal_presented", "job_booked"]] },
+                    "$count",
+                    0
+                  ]
+                }
+              },
+              netUnqualified: {
+                $sum: {
+                  $cond: [
+                    { $in: ["$_id", ["unqualified", "estimate_canceled", "job_lost"]] },
+                    "$count",
+                    0
+                  ]
+                }
+              }
+            }
+          },
+          {
+            $unwind: "$statuses"
+          },
+          {
+            $project: {
+              _id: "$statuses.status",
+              count: "$statuses.count",
+              netEstimateSet: "$netEstimateSet",
+              netUnqualified: "$netUnqualified"
             }
           }
         ]).exec()
