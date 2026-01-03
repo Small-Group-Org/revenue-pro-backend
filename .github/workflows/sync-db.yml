@@ -27,7 +27,7 @@ jobs:
             mongorestore --uri='${{ secrets.MONGO_DEV_URI }}' --archive=/dump/dump.gz --gzip --drop
 
             echo 'Restoring to RICKEY database...'
-            mongorestore --uri='${{ secrets.MONGO_RICKEY_URI }}' --archive=/dump/dump.gz --gzip --drop --nsFrom=\"revenue-pro-dev.*\" --nsTo=\"revenue-pro.*\"
+            mongorestore --uri='${{ secrets.MONGO_RICKEY_URI }}' --archive=/dump/dump.gz --gzip --drop --nsFrom='revenue-pro-dev.*' --nsTo='revenue-pro.*'
           "
 
       # Step 4: Clean up temporary dump folder (optional)
