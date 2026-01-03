@@ -31,6 +31,7 @@ out/
 .next/
 .nuxt/
 .svelte-kit/
+dist/
 
 # IDE files
 .vscode/
