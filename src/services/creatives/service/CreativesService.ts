@@ -4,6 +4,37 @@ import { ICreative } from '../domain/creatives.domain.js';
 
 export class CreativesService {
   /**
+   * Fetch image URL from hash via Facebook API
+   */
+  private async fetchImageUrlFromHash(
+    imageHash: string,
+    adAccountId: string,
+    accessToken: string
+  ): Promise<string | null> {
+    if (!imageHash) return null;
+    
+    try {
+      console.log(`[Creatives] Fetching image URL for hash ${imageHash}`);
+      const accountId = adAccountId.replace('act_', '');
+      
+      // Use Ad Images endpoint to get the actual image URL
+      const response = await fbGet(`/${accountId}/adimages`, {
+        hashes: [imageHash]
+      }, accessToken);
+      
+      // Response format: { "data": { "hash": { "url": "...", "permalink_url": "..." } } }
+      const imageData = response?.data?.[imageHash];
+      const imageUrl = imageData?.url || imageData?.permalink_url || null;
+      
+      console.log(`[Creatives] Image URL for hash ${imageHash}: ${imageUrl}`);
+      return imageUrl;
+    } catch (error: any) {
+      console.error(`[Creatives] Failed to fetch image URL from hash ${imageHash}:`, error.message);
+      return null;
+    }
+  }
+
+  /**
    * Fetch creative details from Facebook API
    */
   async fetchCreativeFromFacebook(
@@ -41,11 +72,9 @@ export class CreativesService {
   ): Promise<any> {
     try {
       console.log(`[Creatives] Fetching video details for ${videoId}`);
-      // Request high-quality thumbnails using the thumbnails field with scale parameter
       const fields = 'source,picture,length,thumbnails.limit(1){uri,width,height,scale,is_preferred}';
       
-      // Add retry logic (up to 3 retries with exponential backoff)
-      const videoData = await fbGet(`/${videoId}`, { fields }, accessToken, 3);
+      const videoData = await fbGet(`/${videoId}`, { fields }, accessToken);
       
       // Get the highest quality thumbnail available
       let highQualityThumbnail = videoData.picture;
@@ -241,6 +270,19 @@ export class CreativesService {
     let finalImageUrl = highQualityImages.imageUrl || creativeData.image_url || photoData.url || linkData.picture || null;
     let finalThumbnailUrl = highQualityImages.thumbnailUrl || creativeData.thumbnail_url || finalImageUrl || null;
     let finalImageHash = creativeData.image_hash || photoData.image_hash || assetFeedData?.imageHash || null;
+
+    // If we have image hash but no image URL, try to fetch the URL from hash
+    if (finalImageHash && !finalImageUrl) {
+      console.log(`[Creatives] Creative ${creativeData.id} has image hash but no URL, fetching from hash...`);
+      const imageUrlFromHash = await this.fetchImageUrlFromHash(finalImageHash, adAccountId, accessToken);
+      if (imageUrlFromHash) {
+        finalImageUrl = imageUrlFromHash;
+        finalThumbnailUrl = finalThumbnailUrl || imageUrlFromHash;
+        console.log(`[Creatives] ✅ Retrieved image URL from hash for creative ${creativeData.id}`);
+      } else {
+        console.log(`[Creatives] ⚠️ Failed to retrieve image URL from hash for creative ${creativeData.id}`);
+      }
+    }
 
     // VALIDATION: Ensure we have actual media for the classified type
     // If classified as video but no video data retrieved, downgrade to other

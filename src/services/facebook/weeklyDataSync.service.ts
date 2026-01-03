@@ -4,6 +4,7 @@ import { config } from '../../config.js';
 import { DateUtils } from '../../utils/date.utils.js';
 import { fbWeeklyAnalyticsRepository } from './repository/FbWeeklyAnalyticsRepository.js';
 import { saveWeeklyAnalyticsToDb } from './saveWeeklyAnalytics.service.js';
+import { creativesService } from '../creatives/service/CreativesService.js';
 
 export class WeeklyDataSyncService {
   private userService: UserService;
@@ -93,6 +94,7 @@ export class WeeklyDataSyncService {
     missingWeeksCount: number,
     currentWeekNeedsUpdate: boolean
   ): Promise<void> {
+    // Step 1: Save weekly analytics data
     await saveWeeklyAnalyticsToDb({
       clientId,
       adAccountId,
@@ -100,6 +102,48 @@ export class WeeklyDataSyncService {
       endDate,
       accessToken,
     });
+
+    // Step 2: Auto-fetch creatives for the synced weeks (non-blocking)
+    if (config.AUTO_FETCH_CREATIVES) {
+      this.fetchCreativesForSyncedWeeks(
+        clientId,
+        adAccountId,
+        startDate,
+        endDate,
+        accessToken
+      ).catch((error) => {
+        console.error('[WeeklyDataSync] Failed to auto-fetch creatives:', error.message);
+      });
+    }
+  }
+
+  /**
+   * Automatically fetch and save creatives for ads in the synced date range
+   * Runs in background without blocking the main sync
+   */
+  private async fetchCreativesForSyncedWeeks(
+    clientId: string,
+    adAccountId: string,
+    startDate: string,
+    endDate: string,
+    accessToken: string
+  ): Promise<void> {
+    try {
+      console.log(`[WeeklyDataSync] 🎨 Auto-fetching creatives for ${startDate} to ${endDate}`);
+      
+      const result = await creativesService.fetchAndSaveCreativesForClient(
+        clientId,
+        adAccountId,
+        accessToken,
+        startDate,
+        endDate
+      );
+
+      console.log(`[WeeklyDataSync] ✅ Creatives auto-fetch complete: ${result.saved} saved, ${result.failed} failed`);
+    } catch (error: any) {
+      console.error('[WeeklyDataSync] ❌ Error auto-fetching creatives:', error.message);
+      // Don't throw - let it fail silently in background
+    }
   }
 
   /**

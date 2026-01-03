@@ -29,6 +29,7 @@ export const config = {
   FB_ACCESS_TOKEN: process.env.FB_ACCESS_TOKEN,
   FB_API_VERSION: process.env.FB_API_VERSION || 'v24.0',
   META_USER_TOKEN_ID: '68ac6ebce46631727500499b',
+  AUTO_FETCH_CREATIVES: process.env.AUTO_FETCH_CREATIVES !== 'false', // Default true
   // Meta OAuth Configuration
   META_CLIENT_ID: process.env.META_CLIENT_ID || '',
   META_CLIENT_SECRET: process.env.META_CLIENT_SECRET || '',
