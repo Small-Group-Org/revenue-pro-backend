@@ -170,6 +170,10 @@ export interface IFbWeeklyAnalytics {
   weekStartDate: string; // YYYY-MM-DD format
   weekEndDate: string;   // YYYY-MM-DD format
   
+  // Week Completion Tracking
+  isWeekComplete: boolean;    // True if week has ended and data was synced after week end
+  lastSyncedAt: Date;         // Last time this week's data was fetched from Facebook
+  
   // Metadata
   savedAt: Date;
   dataSource: 'facebook_api' | 'manual_upload';
