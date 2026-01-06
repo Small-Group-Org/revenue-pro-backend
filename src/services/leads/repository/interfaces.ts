@@ -82,9 +82,9 @@ export interface ILeadAggregationRepository {
     adNames: string[];
     statuses: string[];
     unqualifiedLeadReasons: string[];
-    statusAgg: { _id: string; count: number }[];
+    statusAgg: { _id: string; count: number; netEstimateSet?: number; netUnqualified?: number }[];
   }>;
-  
+
   // Performance analytics
   getAdSetPerformance(
     query: any, 

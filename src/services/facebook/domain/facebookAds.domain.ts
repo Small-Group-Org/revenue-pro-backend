@@ -485,6 +485,10 @@ export interface BoardRow {
   numberOfEstimateSets?: number;
   numberOfJobsBooked?: number;
   numberOfUnqualifiedLeads?: number;
+  numberOfVirtualQuotes?: number;
+  numberOfEstimateCanceled?: number;
+  numberOfProposalPresented?: number;
+  numberOfJobLost?: number;
   costPerLead?: number | null;
   costPerEstimateSet?: number | null;
   costPerJobBooked?: number | null;

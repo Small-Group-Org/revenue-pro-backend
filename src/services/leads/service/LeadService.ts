@@ -484,14 +484,18 @@ export class LeadService {
       }
     }
 
-    const { 
-      services, 
-      adSetNames, 
-      adNames, 
-      statuses, 
-      unqualifiedLeadReasons, 
-      statusAgg 
+    const {
+      services,
+      adSetNames,
+      adNames,
+      statuses,
+      unqualifiedLeadReasons,
+      statusAgg
     } = await this.aggregationRepo.getLeadFilterOptionsAndStats(query);
+
+    // Get netEstimateSet and netUnqualified from the first item (all items have the same values)
+    const netEstimateSet = statusAgg.length > 0 ? (statusAgg[0].netEstimateSet || 0) : 0;
+    const netUnqualified = statusAgg.length > 0 ? (statusAgg[0].netUnqualified || 0) : 0;
 
     // Normalize status counts
     const statusCountsMap = statusAgg.reduce((acc, item) => {
@@ -502,8 +506,8 @@ export class LeadService {
     const statusCounts = {
       new: statusCountsMap["new"] || 0,
       inProgress: statusCountsMap["in_progress"] || 0,
-      estimateSet: statusCountsMap["estimate_set"] || 0,
-      unqualified: statusCountsMap["unqualified"] || 0
+      estimateSet: netEstimateSet,
+      unqualified: netUnqualified
     };
 
     return {

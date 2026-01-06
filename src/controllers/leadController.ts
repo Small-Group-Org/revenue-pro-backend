@@ -467,10 +467,10 @@ if (req.query.clientId) {
       payload.deletedAt = null;
 
       // Validate status
-      if (!["new", "in_progress", "estimate_set", "unqualified"].includes(payload.status)) {
+      if (!["new", "in_progress", "estimate_set", "virtual_quote", "estimate_canceled", "proposal_presented", "job_booked", "job_lost", "unqualified"].includes(payload.status)) {
         utils.sendErrorResponse(
           res,
-          `Invalid status '${payload.status}'. Must be one of: new, in_progress, estimate_set, unqualified`
+          `Invalid status '${payload.status}'. Must be one of: new, in_progress, estimate_set, virtual_quote, estimate_canceled, proposal_presented, job_booked, job_lost, unqualified`
         );
         return;
       }

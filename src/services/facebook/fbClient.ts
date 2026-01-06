@@ -5,6 +5,13 @@ const FB_API_VERSION = config.META_API_VERSION || 'v24.0';
 const FB_BASE_URL = `https://graph.facebook.com/${FB_API_VERSION}`;
 
 /**
+ * Sleep/delay utility
+ */
+function sleep(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+/**
  * Generic GET helper for Facebook Graph API
  * @param path - e.g. '/act_123456789/insights' or '/'
  * @param params - query params as key->value

@@ -87,6 +87,10 @@ const fbWeeklyAnalyticsSchema = new Schema<IFbWeeklyAnalyticsDocument>(
     weekStartDate: { type: String, required: true, index: true },
     weekEndDate: { type: String, required: true, index: true },
     
+    // Week Completion Tracking
+    isWeekComplete: { type: Boolean, default: false, index: true },
+    lastSyncedAt: { type: Date, default: Date.now },
+    
     // Metadata
     savedAt: { type: Date, default: Date.now },
     dataSource: { type: String, enum: ['facebook_api', 'manual_upload'], default: 'facebook_api' },

@@ -4,6 +4,7 @@ import { config } from '../../config.js';
 import { DateUtils } from '../../utils/date.utils.js';
 import { fbWeeklyAnalyticsRepository } from './repository/FbWeeklyAnalyticsRepository.js';
 import { saveWeeklyAnalyticsToDb } from './saveWeeklyAnalytics.service.js';
+import { creativesService } from '../creatives/service/CreativesService.js';
 
 export class WeeklyDataSyncService {
   private userService: UserService;
@@ -23,14 +24,21 @@ export class WeeklyDataSyncService {
     waitForSync: boolean = false
   ): Promise<void> {
     try {
-      // Check what weeks are missing (fast query)
-      const [missingWeeks, currentWeekNeedsUpdate] = await Promise.all([
+      // Check what weeks are missing or incomplete (fast query)
+      const [missingWeeks, incompleteWeeks, currentWeekNeedsUpdate] = await Promise.all([
         this.findMissingWeeks(clientId, startDate, endDate),
+        this.findIncompleteWeeks(clientId, startDate, endDate),
         this.isCurrentWeekStale(clientId),
       ]);
 
+      // Combine missing and incomplete weeks
+      const weeksToSync = [...missingWeeks, ...incompleteWeeks];
+      const uniqueWeeksToSync = Array.from(
+        new Map(weeksToSync.map(w => [w.weekStart, w])).values()
+      );
+
       // If nothing to sync, exit early
-      if (missingWeeks.length === 0 && !currentWeekNeedsUpdate) {
+      if (uniqueWeeksToSync.length === 0 && !currentWeekNeedsUpdate) {
         return;
       }
 
@@ -65,7 +73,7 @@ export class WeeklyDataSyncService {
         startDate,
         endDate,
         accessToken,
-        missingWeeks.length,
+        uniqueWeeksToSync.length,
         currentWeekNeedsUpdate
       );
 
@@ -93,6 +101,7 @@ export class WeeklyDataSyncService {
     missingWeeksCount: number,
     currentWeekNeedsUpdate: boolean
   ): Promise<void> {
+    // Step 1: Save weekly analytics data
     await saveWeeklyAnalyticsToDb({
       clientId,
       adAccountId,
@@ -100,6 +109,48 @@ export class WeeklyDataSyncService {
       endDate,
       accessToken,
     });
+
+    // Step 2: Auto-fetch creatives for the synced weeks (non-blocking)
+    if (config.AUTO_FETCH_CREATIVES) {
+      this.fetchCreativesForSyncedWeeks(
+        clientId,
+        adAccountId,
+        startDate,
+        endDate,
+        accessToken
+      ).catch((error) => {
+        console.error('[WeeklyDataSync] Failed to auto-fetch creatives:', error.message);
+      });
+    }
+  }
+
+  /**
+   * Automatically fetch and save creatives for ads in the synced date range
+   * Runs in background without blocking the main sync
+   */
+  private async fetchCreativesForSyncedWeeks(
+    clientId: string,
+    adAccountId: string,
+    startDate: string,
+    endDate: string,
+    accessToken: string
+  ): Promise<void> {
+    try {
+      console.log(`[WeeklyDataSync] 🎨 Auto-fetching creatives for ${startDate} to ${endDate}`);
+      
+      const result = await creativesService.fetchAndSaveCreativesForClient(
+        clientId,
+        adAccountId,
+        accessToken,
+        startDate,
+        endDate
+      );
+
+      console.log(`[WeeklyDataSync] ✅ Creatives auto-fetch complete: ${result.saved} saved, ${result.failed} failed`);
+    } catch (error: any) {
+      console.error('[WeeklyDataSync] ❌ Error auto-fetching creatives:', error.message);
+      // Don't throw - let it fail silently in background
+    }
   }
 
   /**
@@ -126,12 +177,59 @@ export class WeeklyDataSyncService {
       existingData.map((record) => record.weekStartDate)
     );
 
-    // Find missing weeks
+    // Find missing weeks (weeks with NO data at all)
     const missingWeeks = expectedWeeks.filter(
       (week) => !existingWeekStarts.has(week.weekStart)
     );
 
     return missingWeeks;
+  }
+
+  /**
+   * Find weeks that have data but are incomplete
+   * (week has ended but data was fetched before week ended)
+   */
+  private async findIncompleteWeeks(
+    clientId: string,
+    startDate: string,
+    endDate: string
+  ): Promise<Array<{ weekStart: string; weekEnd: string }>> {
+    // Get existing data from database
+    const existingData = await fbWeeklyAnalyticsRepository.getAnalyticsByDateRange(
+      clientId,
+      startDate,
+      endDate
+    );
+
+    if (existingData.length === 0) {
+      return []; // No data, will be caught by findMissingWeeks
+    }
+
+    const now = new Date();
+    const incompleteWeeksMap = new Map<string, { weekStart: string; weekEnd: string }>();
+
+    existingData.forEach((record) => {
+      const weekEnd = new Date(record.weekEndDate + 'T23:59:59Z');
+      
+      // ✅ Only check weeks that have already ended
+      if (weekEnd < now) {
+        // ✅ If week is not marked complete, it needs re-fetching
+        if (!record.isWeekComplete) {
+          incompleteWeeksMap.set(record.weekStartDate, {
+            weekStart: record.weekStartDate,
+            weekEnd: record.weekEndDate
+          });
+        }
+      }
+    });
+
+    const incompleteWeeks = Array.from(incompleteWeeksMap.values());
+    
+    if (incompleteWeeks.length > 0) {
+      console.log(`[WeeklyDataSync] 🔄 Found ${incompleteWeeks.length} incomplete weeks that need re-syncing`);
+    }
+
+    return incompleteWeeks;
   }
 
   /**

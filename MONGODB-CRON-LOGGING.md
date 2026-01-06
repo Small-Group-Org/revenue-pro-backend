@@ -11,7 +11,7 @@ The new system logs all cron job executions directly to MongoDB in the `leads_cr
 ### ✅ **MongoDB Storage**
 - All cron job logs are stored in the `leads_cron_logs` collection
 - Persistent storage that survives server restarts
-- Integrated with existing MongoDB connection
+- Integrated with existing MongoDB connection.
 
 ### ✅ **Comprehensive Logging**
 - **Job Start**: Logs when a cron job begins execution

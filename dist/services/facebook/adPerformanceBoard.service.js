@@ -59,9 +59,9 @@ export async function getAdPerformanceBoard(params) {
             ad_name: analytics.adName,
             creative: analytics.creative ? {
                 id: analytics.creative.id || null,
-                name: analytics.creative.name || null,
-                primary_text: analytics.creative.primaryText || null,
-                headline: analytics.creative.headline || null,
+                name: enrichedCreative?.name || analytics.creative.name || null,
+                primary_text: enrichedCreative?.primaryText || analytics.creative.primaryText || null,
+                headline: enrichedCreative?.headline || analytics.creative.headline || null,
                 raw: analytics.creative.raw || null,
                 // Add enriched creative data from creatives collection
                 ...(enrichedCreative && {
@@ -74,6 +74,8 @@ export async function getAdPerformanceBoard(params) {
                     videos: enrichedCreative.videos,
                     childAttachments: enrichedCreative.childAttachments,
                     callToAction: enrichedCreative.callToAction,
+                    description: enrichedCreative.description,
+                    body: enrichedCreative.body,
                 })
             } : null,
             lead_form: analytics.leadForm ? {
@@ -257,6 +259,10 @@ export async function getAdPerformanceBoard(params) {
                 numberOfEstimateSets: 0,
                 numberOfJobsBooked: 0,
                 numberOfUnqualifiedLeads: 0,
+                numberOfVirtualQuotes: 0,
+                numberOfEstimateCanceled: 0,
+                numberOfProposalPresented: 0,
+                numberOfJobLost: 0,
             });
         }
         const row = aggregationMap.get(groupKey);
@@ -347,6 +353,10 @@ export async function getAdPerformanceBoard(params) {
                 numberOfEstimateSets: 0,
                 numberOfJobsBooked: 0,
                 numberOfUnqualifiedLeads: 0,
+                numberOfVirtualQuotes: 0,
+                numberOfEstimateCanceled: 0,
+                numberOfProposalPresented: 0,
+                numberOfJobLost: 0,
             });
         }
         const row = aggregationMap.get(groupKey);
@@ -365,14 +375,33 @@ export async function getAdPerformanceBoard(params) {
         if (lead.status === 'estimate_set') {
             row.numberOfEstimateSets = (row.numberOfEstimateSets || 0) + 1;
         }
-        // Count jobs booked and revenue
-        if ((lead.jobBookedAmount ?? 0) > 0) {
+        // Count virtual quotes
+        if (lead.status === 'virtual_quote') {
+            row.numberOfVirtualQuotes = (row.numberOfVirtualQuotes || 0) + 1;
+        }
+        // Count proposal presented
+        if (lead.status === 'proposal_presented') {
+            row.numberOfProposalPresented = (row.numberOfProposalPresented || 0) + 1;
+        }
+        // Count jobs booked by status OR by amount (whichever indicates job was booked)
+        if (lead.status === 'job_booked' || (lead.jobBookedAmount ?? 0) > 0) {
             row.numberOfJobsBooked = (row.numberOfJobsBooked || 0) + 1;
+        }
+        // Track revenue separately
+        if ((lead.jobBookedAmount ?? 0) > 0) {
             row._totalRevenue = (row._totalRevenue || 0) + lead.jobBookedAmount;
         }
         // Count unqualified leads
         if (lead.status === 'unqualified') {
             row.numberOfUnqualifiedLeads = (row.numberOfUnqualifiedLeads || 0) + 1;
+        }
+        // Count estimate canceled
+        if (lead.status === 'estimate_canceled') {
+            row.numberOfEstimateCanceled = (row.numberOfEstimateCanceled || 0) + 1;
+        }
+        // Count job lost
+        if (lead.status === 'job_lost') {
+            row.numberOfJobLost = (row.numberOfJobLost || 0) + 1;
         }
     });
     // Step 8: Aggregate metrics from DB (use pre-calculated values from saveWeeklyAnalytics)
@@ -386,6 +415,10 @@ export async function getAdPerformanceBoard(params) {
         const estimateSets = row.numberOfEstimateSets || 0;
         const jobsBooked = row.numberOfJobsBooked || 0;
         const unqualifiedLeads = row.numberOfUnqualifiedLeads || 0;
+        const virtualQuotes = row.numberOfVirtualQuotes || 0;
+        const estimateCanceled = row.numberOfEstimateCanceled || 0;
+        const proposalPresented = row.numberOfProposalPresented || 0;
+        const jobLost = row.numberOfJobLost || 0;
         const count = row._count || 1; // Number of weekly records aggregated
         // Basic metrics (directly from DB)
         row.fb_spend = Number(totalSpend.toFixed(2));
@@ -429,9 +462,14 @@ export async function getAdPerformanceBoard(params) {
         row.costPerEstimateSet = estimateSets > 0 ? Number((totalSpend / estimateSets).toFixed(2)) : null;
         row.costPerJobBooked = jobsBooked > 0 ? Number((totalSpend / jobsBooked).toFixed(2)) : null;
         row.costOfMarketingPercent = totalRevenue > 0 ? Number(((totalSpend / totalRevenue) * 100).toFixed(2)) : null;
-        // Additional metrics - estimateSetRate uses estimateSets / (estimateSets + unqualifiedLeads)
-        const qualifiedLeads = estimateSets + unqualifiedLeads;
-        row.estimateSetRate = qualifiedLeads > 0 ? Number(((estimateSets / qualifiedLeads) * 100).toFixed(2)) : null;
+        // Additional metrics - estimateSetRate calculation
+        // netEstimates = estimateSets + virtualQuotes + proposalPresented + jobBooked
+        // netUnqualifieds = unqualified + estimateCanceled + jobLost
+        // estimateSetRate = netEstimates / (netEstimates + netUnqualifieds) * 100
+        const netEstimates = estimateSets + virtualQuotes + proposalPresented + jobsBooked;
+        const netUnqualifieds = unqualifiedLeads + estimateCanceled + jobLost;
+        const totalDecisionLeads = netEstimates + netUnqualifieds;
+        row.estimateSetRate = totalDecisionLeads > 0 ? Number(((netEstimates / totalDecisionLeads) * 100).toFixed(2)) : null;
         row.revenue = Number(totalRevenue.toFixed(2));
         // Convert service and zipCode sets to comma-separated strings
         row.service = row._services && row._services.size > 0 ? Array.from(row._services).sort().join(', ') : undefined;
@@ -572,6 +610,10 @@ export async function getAdPerformanceBoard(params) {
     let sumEstimateSets = 0;
     let sumJobsBooked = 0;
     let sumUnqualifiedLeads = 0;
+    let sumVirtualQuotes = 0;
+    let sumEstimateCanceled = 0;
+    let sumProposalPresented = 0;
+    let sumJobLost = 0;
     let sumRevenue = 0;
     aggregationMap.forEach((row) => {
         totalRows++;
@@ -586,6 +628,10 @@ export async function getAdPerformanceBoard(params) {
         sumEstimateSets += row.numberOfEstimateSets || 0;
         sumJobsBooked += row.numberOfJobsBooked || 0;
         sumUnqualifiedLeads += row.numberOfUnqualifiedLeads || 0;
+        sumVirtualQuotes += row.numberOfVirtualQuotes || 0;
+        sumEstimateCanceled += row.numberOfEstimateCanceled || 0;
+        sumProposalPresented += row.numberOfProposalPresented || 0;
+        sumJobLost += row.numberOfJobLost || 0;
         sumRevenue += row._totalRevenue || 0;
     });
     // Only include calculated averages (ratios/percentages), not sums
@@ -602,7 +648,12 @@ export async function getAdPerformanceBoard(params) {
         costPerEstimateSet: sumEstimateSets > 0 ? Number((sumSpend / sumEstimateSets).toFixed(2)) : null,
         costPerJobBooked: sumJobsBooked > 0 ? Number((sumSpend / sumJobsBooked).toFixed(2)) : null,
         costOfMarketingPercent: sumRevenue > 0 ? Number(((sumSpend / sumRevenue) * 100).toFixed(2)) : null,
-        estimateSetRate: (sumEstimateSets + sumUnqualifiedLeads) > 0 ? Number(((sumEstimateSets / (sumEstimateSets + sumUnqualifiedLeads)) * 100).toFixed(2)) : null,
+        estimateSetRate: (() => {
+            const totalNetEstimates = sumEstimateSets + sumVirtualQuotes + sumProposalPresented + sumJobsBooked;
+            const totalNetUnqualifieds = sumUnqualifiedLeads + sumEstimateCanceled + sumJobLost;
+            const totalDecisions = totalNetEstimates + totalNetUnqualifieds;
+            return totalDecisions > 0 ? Number(((totalNetEstimates / totalDecisions) * 100).toFixed(2)) : null;
+        })(),
     };
     return {
         rows: results,
