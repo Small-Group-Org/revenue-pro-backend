@@ -2,7 +2,7 @@ version: 1
 
 allowedMergeBranches:
   - main
-  - dev-phase2
+  - dev
   
 services:
   - name: revenue-pro-backend
