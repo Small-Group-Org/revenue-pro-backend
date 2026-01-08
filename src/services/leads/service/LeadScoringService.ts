@@ -13,6 +13,7 @@ import {
   type LeadKeyField,
   type UniqueKey
 } from "../utils/leads.util.js";
+import { isEstimateSetStatus, isUnqualifiedStatus } from "../utils/estimateSetConstants.js";
 
 // Types for scoring operations
 interface UpdateResult {
@@ -307,17 +308,12 @@ export class LeadScoringService {
     for (const lead of clientLeads) {
       if (!matches(lead)) continue;
 
-      // Count qualified/successful statuses
-      if (lead.status === 'estimate_set' ||
-          lead.status === 'virtual_quote' ||
-          lead.status === 'proposal_presented' ||
-          lead.status === 'job_booked') {
+      // Count qualified/successful statuses using centralized helper
+      if (isEstimateSetStatus(lead.status)) {
         netEstimates++;
       }
-      // Count unqualified/unsuccessful statuses
-      else if (lead.status === 'unqualified' ||
-               lead.status === 'estimate_canceled' ||
-               lead.status === 'job_lost') {
+      // Count unqualified/unsuccessful statuses using centralized helper
+      else if (isUnqualifiedStatus(lead.status)) {
         netUnqualifieds++;
       }
     }

@@ -1,6 +1,7 @@
 import LeadModel from './models/leads.model.js';
 import { ILead } from '../domain/leads.domain.js';
 import { ILeadAggregationRepository } from './interfaces.js';
+import { ESTIMATE_SET_STATUSES, UNQUALIFIED_STATUSES } from '../utils/estimateSetConstants.js';
 
 export class LeadAggregationRepository implements ILeadAggregationRepository {
   
@@ -74,7 +75,7 @@ export class LeadAggregationRepository implements ILeadAggregationRepository {
               netEstimateSet: {
                 $sum: {
                   $cond: [
-                    { $in: ["$_id", ["estimate_set", "virtual_quote", "proposal_presented", "job_booked"]] },
+                    { $in: ["$_id", [...ESTIMATE_SET_STATUSES]] },
                     "$count",
                     0
                   ]
@@ -83,7 +84,7 @@ export class LeadAggregationRepository implements ILeadAggregationRepository {
               netUnqualified: {
                 $sum: {
                   $cond: [
-                    { $in: ["$_id", ["unqualified", "estimate_canceled", "job_lost"]] },
+                    { $in: ["$_id", [...UNQUALIFIED_STATUSES]] },
                     "$count",
                     0
                   ]
