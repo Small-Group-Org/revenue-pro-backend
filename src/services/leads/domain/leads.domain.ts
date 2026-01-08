@@ -9,6 +9,7 @@ export type LeadStatus =
   | 'proposal_presented'
   | 'job_booked'
   | 'job_lost'
+  | 'estimate_rescheduled'
   | 'unqualified';
 
 export interface StatusHistoryEntry {

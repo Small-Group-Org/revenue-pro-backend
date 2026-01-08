@@ -156,7 +156,7 @@ if (req.query.clientId) {
     }
 
     // Validate status
-    const validStatuses = ["new", "in_progress", "estimate_set", "virtual_quote", "estimate_canceled", "proposal_presented", "job_booked", "job_lost", "unqualified"];
+    const validStatuses = ["new", "in_progress", "estimate_set", "virtual_quote", "estimate_canceled", "proposal_presented", "job_booked", "job_lost", "estimate_rescheduled", "unqualified"];
     if (!validStatuses.includes(status)) {
       utils.sendErrorResponse(res, {
         message: `Invalid status. Must be one of: ${validStatuses.join(", ")}`,
@@ -467,10 +467,10 @@ if (req.query.clientId) {
       payload.deletedAt = null;
 
       // Validate status
-      if (!["new", "in_progress", "estimate_set", "virtual_quote", "estimate_canceled", "proposal_presented", "job_booked", "job_lost", "unqualified"].includes(payload.status)) {
+      if (!["new", "in_progress", "estimate_set", "virtual_quote", "estimate_canceled", "proposal_presented", "job_booked", "job_lost", "estimate_rescheduled", "unqualified"].includes(payload.status)) {
         utils.sendErrorResponse(
           res,
-          `Invalid status '${payload.status}'. Must be one of: new, in_progress, estimate_set, virtual_quote, estimate_canceled, proposal_presented, job_booked, job_lost, unqualified`
+          `Invalid status '${payload.status}'. Must be one of: new, in_progress, estimate_set, virtual_quote, estimate_canceled, proposal_presented, job_booked, job_lost, estimate_rescheduled, unqualified`
         );
         return;
       }
@@ -517,7 +517,7 @@ if (req.query.clientId) {
 
       // If Validate status is provided
       if (status) {
-        const validStatuses = ["new", "in_progress", "estimate_set", "virtual_quote", "estimate_canceled", "proposal_presented", "job_booked", "job_lost", "unqualified"];
+        const validStatuses = ["new", "in_progress", "estimate_set", "virtual_quote", "estimate_canceled", "proposal_presented", "job_booked", "job_lost", "estimate_rescheduled", "unqualified"];
         if (!validStatuses.includes(status)) {
           utils.sendErrorResponse(
             res,

@@ -11,6 +11,12 @@ import {
   BoardParams, 
   BoardResponse 
 } from './domain/facebookAds.domain.js';
+import { 
+  calculateEstimateSetCount, 
+  calculateUnqualifiedCount, 
+  calculateEstimateSetRate,
+  isEstimateSetStatus
+} from '../leads/utils/estimateSetConstants.js';
 
 export async function getAdPerformanceBoard(
   params: BoardParams
@@ -144,7 +150,7 @@ export async function getAdPerformanceBoard(
   let filteredLeads = allLeads;
 
   if (filters.estimateSetLeads === true) {
-    filteredLeads = filteredLeads.filter((lead) => lead.status === 'estimate_set');
+    filteredLeads = filteredLeads.filter((lead) => isEstimateSetStatus(lead.status));
   }
 
   if (filters.jobBookedLeads === true) {
@@ -437,24 +443,24 @@ export async function getAdPerformanceBoard(
     // Count leads
     row.numberOfLeads = (row.numberOfLeads || 0) + 1;
 
-    // Count estimate sets
+    // Count individual statuses for estimate set categories
     if (lead.status === 'estimate_set') {
       row.numberOfEstimateSets = (row.numberOfEstimateSets || 0) + 1;
     }
-
-    // Count virtual quotes
     if (lead.status === 'virtual_quote') {
       row.numberOfVirtualQuotes = (row.numberOfVirtualQuotes || 0) + 1;
     }
-
-    // Count proposal presented
     if (lead.status === 'proposal_presented') {
       row.numberOfProposalPresented = (row.numberOfProposalPresented || 0) + 1;
     }
-
-    // Count jobs booked by status OR by amount (whichever indicates job was booked)
     if (lead.status === 'job_booked' || (lead.jobBookedAmount ?? 0) > 0) {
       row.numberOfJobsBooked = (row.numberOfJobsBooked || 0) + 1;
+    }
+    if (lead.status === 'estimate_canceled') {
+      row.numberOfEstimateCanceled = (row.numberOfEstimateCanceled || 0) + 1;
+    }
+    if (lead.status === 'job_lost') {
+      row.numberOfJobLost = (row.numberOfJobLost || 0) + 1;
     }
 
     // Track revenue separately
@@ -465,16 +471,6 @@ export async function getAdPerformanceBoard(
     // Count unqualified leads
     if (lead.status === 'unqualified') {
       row.numberOfUnqualifiedLeads = (row.numberOfUnqualifiedLeads || 0) + 1;
-    }
-
-    // Count estimate canceled
-    if (lead.status === 'estimate_canceled') {
-      row.numberOfEstimateCanceled = (row.numberOfEstimateCanceled || 0) + 1;
-    }
-
-    // Count job lost
-    if (lead.status === 'job_lost') {
-      row.numberOfJobLost = (row.numberOfJobLost || 0) + 1;
     }
   });
 
@@ -540,18 +536,24 @@ export async function getAdPerformanceBoard(
     
     // Lead cost metrics (calculate only lead-related costs, based on CRM leads)
     row.costPerLead = totalLeads > 0 ? Number((totalSpend / totalLeads).toFixed(2)) : null;
-    row.costPerEstimateSet = estimateSets > 0 ? Number((totalSpend / estimateSets).toFixed(2)) : null;
     row.costPerJobBooked = jobsBooked > 0 ? Number((totalSpend / jobsBooked).toFixed(2)) : null;
     row.costOfMarketingPercent = totalRevenue > 0 ? Number(((totalSpend / totalRevenue) * 100).toFixed(2)) : null;
     
-    // Additional metrics - estimateSetRate calculation
-    // netEstimates = estimateSets + virtualQuotes + proposalPresented + jobBooked
-    // netUnqualifieds = unqualified + estimateCanceled + jobLost
-    // estimateSetRate = netEstimates / (netEstimates + netUnqualifieds) * 100
-    const netEstimates = estimateSets + virtualQuotes + proposalPresented + jobsBooked;
-    const netUnqualifieds = unqualifiedLeads + estimateCanceled + jobLost;
-    const totalDecisionLeads = netEstimates + netUnqualifieds;
-    row.estimateSetRate = totalDecisionLeads > 0 ? Number(((netEstimates / totalDecisionLeads) * 100).toFixed(2)) : null;
+    // Calculate estimate set rate using centralized function
+    const netEstimates = calculateEstimateSetCount({
+      estimate_set: estimateSets,
+      virtual_quote: virtualQuotes,
+      proposal_presented: proposalPresented,
+      job_booked: jobsBooked,
+      estimate_canceled: estimateCanceled,
+      job_lost: jobLost
+    });
+    const netUnqualifieds = calculateUnqualifiedCount({
+      unqualified: unqualifiedLeads
+    });
+    
+    row.costPerEstimateSet = netEstimates > 0 ? Number((totalSpend / netEstimates).toFixed(2)) : null;
+    row.estimateSetRate = calculateEstimateSetRate(netEstimates, netUnqualifieds);
     row.revenue = Number(totalRevenue.toFixed(2));
     
     // Convert service and zipCode sets to comma-separated strings
@@ -703,14 +705,30 @@ export async function getAdPerformanceBoard(
     fb_cost_per_conversion: sumTotalConversions > 0 ? Number((sumSpend / sumTotalConversions).toFixed(2)) : 0,
     fb_cost_per_lead: sumTotalLeads > 0 ? Number((sumSpend / sumTotalLeads).toFixed(2)) : 0,
     costPerLead: sumNumberOfLeads > 0 ? Number((sumSpend / sumNumberOfLeads).toFixed(2)) : null,
-    costPerEstimateSet: sumEstimateSets > 0 ? Number((sumSpend / sumEstimateSets).toFixed(2)) : null,
     costPerJobBooked: sumJobsBooked > 0 ? Number((sumSpend / sumJobsBooked).toFixed(2)) : null,
     costOfMarketingPercent: sumRevenue > 0 ? Number(((sumSpend / sumRevenue) * 100).toFixed(2)) : null,
     estimateSetRate: (() => {
-      const totalNetEstimates = sumEstimateSets + sumVirtualQuotes + sumProposalPresented + sumJobsBooked;
-      const totalNetUnqualifieds = sumUnqualifiedLeads + sumEstimateCanceled + sumJobLost;
-      const totalDecisions = totalNetEstimates + totalNetUnqualifieds;
-      return totalDecisions > 0 ? Number(((totalNetEstimates / totalDecisions) * 100).toFixed(2)) : null;
+      const totalNetEstimates = calculateEstimateSetCount({
+        estimate_set: sumEstimateSets,
+        virtual_quote: sumVirtualQuotes,
+        proposal_presented: sumProposalPresented,
+        job_booked: sumJobsBooked,
+        estimate_canceled: sumEstimateCanceled,
+        job_lost: sumJobLost
+      });
+      const totalNetUnqualifieds = calculateUnqualifiedCount({ unqualified: sumUnqualifiedLeads });
+      return calculateEstimateSetRate(totalNetEstimates, totalNetUnqualifieds);
+    })(),
+    costPerEstimateSet: (() => {
+      const totalNetEstimates = calculateEstimateSetCount({
+        estimate_set: sumEstimateSets,
+        virtual_quote: sumVirtualQuotes,
+        proposal_presented: sumProposalPresented,
+        job_booked: sumJobsBooked,
+        estimate_canceled: sumEstimateCanceled,
+        job_lost: sumJobLost
+      });
+      return totalNetEstimates > 0 ? Number((sumSpend / totalNetEstimates).toFixed(2)) : null;
     })(),
   };
 

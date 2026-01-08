@@ -3,6 +3,15 @@ import { ILeadRepository, ILeadAggregationRepository } from "../repository/inter
 import { leadRepository } from "../repository/LeadRepository.js";
 import { leadAggregationRepository } from "../repository/LeadAggregationRepository.js";
 import { ANALYTICS } from "../utils/config.js";
+import { 
+  calculateEstimateSetCount, 
+  calculateUnqualifiedCount, 
+  calculateEstimateSetRateFormatted,
+  isEstimateSetStatus,
+  isUnqualifiedStatus,
+  countEstimateSetLeads,
+  countUnqualifiedLeads
+} from "../utils/estimateSetConstants.js";
 
 interface AnalyticsResult {
   overview: {
@@ -157,7 +166,7 @@ export class LeadAnalyticsService {
     const dayOfWeekData = await this.processDayOfWeekAnalysis(allLeads);
 
     // Calculate aggregated unqualifiedReasons for all leads
-    const unqualifiedLeads = allLeads.filter(lead => lead.status === 'unqualified');
+    const unqualifiedLeads = allLeads.filter(lead => lead.status && isUnqualifiedStatus(lead.status));
     const unqualifiedCount = unqualifiedLeads.length;
     const unqualifiedReasons = await this.processUnqualifiedReasonsAnalysis(
       unqualifiedLeads,
@@ -182,19 +191,9 @@ export class LeadAnalyticsService {
    */
   private async processLeadAnalytics(leads: any[], sort?: string): Promise<AnalyticsResult> {
     const totalLeads = leads.length;
-    // Count qualified statuses: estimate_set, virtual_quote, proposal_presented, job_booked
-    const estimateSetCount = leads.filter(lead =>
-      lead.status === 'estimate_set' ||
-      lead.status === 'virtual_quote' ||
-      lead.status === 'proposal_presented' ||
-      lead.status === 'job_booked'
-    ).length;
-    // Count unqualified statuses: unqualified, estimate_canceled, job_lost
-    const unqualifiedCount = leads.filter(lead =>
-      lead.status === 'unqualified' ||
-      lead.status === 'estimate_canceled' ||
-      lead.status === 'job_lost'
-    ).length;
+    // Use centralized helper functions for counting
+    const estimateSetCount = countEstimateSetLeads(leads);
+    const unqualifiedCount = countUnqualifiedLeads(leads);
 
     // Process each analytics section in parallel
     const [zipData, serviceData, dayOfWeekData, ulrData] = await Promise.all([
@@ -202,11 +201,7 @@ export class LeadAnalyticsService {
       this.processServiceAnalysis(leads),
       this.processDayOfWeekAnalysis(leads),
       this.processUnqualifiedReasonsAnalysis(
-        leads.filter(lead =>
-          lead.status === 'unqualified' ||
-          lead.status === 'estimate_canceled' ||
-          lead.status === 'job_lost'
-        ),
+        leads.filter(lead => lead.status && isUnqualifiedStatus(lead.status)),
         unqualifiedCount
       )
     ]);
@@ -271,13 +266,19 @@ export class LeadAnalyticsService {
     }
     const zipResults = Object.entries(zipGroups)
       .map(([zip, { estimateSet, unqualified, virtualQuote, estimateCanceled, proposalPresented, jobBooked, jobLost, totalJobBookedAmount, totalProposalAmount }]) => {
-        const netEstimates = estimateSet + virtualQuote + proposalPresented + jobBooked;
-        const netUnqualifieds = unqualified + estimateCanceled + jobLost;
-        const denominator = netEstimates + netUnqualifieds;
+        const netEstimates = calculateEstimateSetCount({
+          estimate_set: estimateSet,
+          virtual_quote: virtualQuote,
+          proposal_presented: proposalPresented,
+          job_booked: jobBooked,
+          estimate_canceled: estimateCanceled,
+          job_lost: jobLost
+        });
+        const netUnqualifieds = calculateUnqualifiedCount({ unqualified });
         return {
           zip,
           estimateSetCount: estimateSet,
-          estimateSetRate: denominator > 0 ? ((netEstimates / denominator) * 100).toFixed(1) : '0.0',
+          estimateSetRate: calculateEstimateSetRateFormatted(netEstimates, netUnqualifieds),
           jobBookedAmount: Math.round(totalJobBookedAmount * 100) / 100,
           proposalAmount: Math.round(totalProposalAmount * 100) / 100
         };
@@ -295,13 +296,8 @@ export class LeadAnalyticsService {
    * Process service analysis
    */
   private async processServiceAnalysis(leads: any[]) {
-    // Calculate total qualified leads (netEstimates) for the client
-    const clientEstimateSetCount = leads.filter(lead =>
-      lead.status === 'estimate_set' ||
-      lead.status === 'virtual_quote' ||
-      lead.status === 'proposal_presented' ||
-      lead.status === 'job_booked'
-    ).length;
+    // Calculate total qualified leads (netEstimates) for the client using helper
+    const clientEstimateSetCount = countEstimateSetLeads(leads);
     const serviceGroups: Record<string, {
       estimateSet: number;
       unqualified: number;
@@ -334,15 +330,19 @@ export class LeadAnalyticsService {
     }
     return Object.entries(serviceGroups)
       .map(([service, { estimateSet, unqualified, virtualQuote, estimateCanceled, proposalPresented, jobBooked, jobLost }]) => {
-        // estimateSetRate: netEstimates / (netEstimates + netUnqualifieds)
-        // percentage: netEstimatesOfService / TotalNetEstimates
-        const netEstimates = estimateSet + virtualQuote + proposalPresented + jobBooked;
-        const netUnqualifieds = unqualified + estimateCanceled + jobLost;
-        const denominator = netEstimates + netUnqualifieds;
+        const netEstimates = calculateEstimateSetCount({
+          estimate_set: estimateSet,
+          virtual_quote: virtualQuote,
+          proposal_presented: proposalPresented,
+          job_booked: jobBooked,
+          estimate_canceled: estimateCanceled,
+          job_lost: jobLost
+        });
+        const netUnqualifieds = calculateUnqualifiedCount({ unqualified });
         return {
           service,
           estimateSetCount: estimateSet,
-          estimateSetRate: denominator > 0 ? ((netEstimates / denominator) * 100).toFixed(1) : '0.0',
+          estimateSetRate: calculateEstimateSetRateFormatted(netEstimates, netUnqualifieds),
           percentage: clientEstimateSetCount > 0 ? ((netEstimates / clientEstimateSetCount) * 100).toFixed(1) : '0.0'
         };
       })
@@ -401,15 +401,20 @@ export class LeadAnalyticsService {
 
     return Object.entries(dayOfWeekAnalysis)
       .map(([day, data]: [string, any]) => {
-        const netEstimates = data.estimateSet + data.virtualQuote + data.proposalPresented + data.jobBooked;
-        const netUnqualifieds = data.unqualified + data.estimateCanceled + data.jobLost;
+        const netEstimates = calculateEstimateSetCount({
+          estimate_set: data.estimateSet,
+          virtual_quote: data.virtualQuote,
+          proposal_presented: data.proposalPresented,
+          job_booked: data.jobBooked,
+          estimate_canceled: data.estimateCanceled,
+          job_lost: data.jobLost
+        });
+        const netUnqualifieds = calculateUnqualifiedCount({ unqualified: data.unqualified });
         return {
           day,
           totalLeads: data.total,
           estimateSetCount: data.estimateSet,
-          estimateSetRate: (netEstimates + netUnqualifieds) > 0
-            ? ((netEstimates / (netEstimates + netUnqualifieds)) * 100).toFixed(1)
-            : '0.0'
+          estimateSetRate: calculateEstimateSetRateFormatted(netEstimates, netUnqualifieds)
         };
       })
       .sort((a, b) => {

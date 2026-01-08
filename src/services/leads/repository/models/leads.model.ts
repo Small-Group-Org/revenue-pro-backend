@@ -5,7 +5,7 @@ const statusHistoryEntrySchema = new Schema({
   status: {
     type: String,
     required: true,
-    enum: ['new', 'in_progress', 'estimate_set', 'virtual_quote', 'estimate_canceled', 'proposal_presented', 'job_booked', 'job_lost', 'unqualified']
+    enum: ['new', 'in_progress', 'estimate_set', 'virtual_quote', 'estimate_canceled', 'proposal_presented', 'job_booked', 'job_lost', 'estimate_rescheduled', 'unqualified']
   },
   timestamp: { type: Date, required: true, default: Date.now }
 }, { _id: false });
@@ -23,7 +23,7 @@ const leadSchema = new Schema<ILeadDocument>(
     status: { 
       type: String, 
       required: true,
-      enum: ['new', 'in_progress', 'estimate_set', 'virtual_quote', 'estimate_canceled', 'proposal_presented', 'job_booked', 'job_lost', 'unqualified'],
+      enum: ['new', 'in_progress', 'estimate_set', 'virtual_quote', 'estimate_canceled', 'proposal_presented', 'job_booked', 'job_lost', 'estimate_rescheduled', 'unqualified'],
       default: 'new'
     },
     clientId: { type: String, required: true },
