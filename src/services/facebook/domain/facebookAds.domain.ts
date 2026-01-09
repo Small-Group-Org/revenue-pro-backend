@@ -428,6 +428,7 @@ export interface BoardColumns {
   fb_video_views_100pct?: boolean;
   fb_video_avg_watch_time?: boolean;
   fb_video_play_actions?: boolean;
+  fb_video_continuous_2_sec_watched?: boolean;
   fb_total_conversions?: boolean;
   fb_conversion_value?: boolean;
   fb_cost_per_conversion?: boolean;
@@ -476,6 +477,7 @@ export interface BoardRow {
   fb_video_views_100pct?: number;
   fb_video_avg_watch_time?: number;
   fb_video_play_actions?: number;
+  fb_video_continuous_2_sec_watched?: number;
   fb_total_conversions?: number;
   fb_conversion_value?: number;
   fb_cost_per_conversion?: number;
@@ -495,6 +497,7 @@ export interface BoardRow {
   costOfMarketingPercent?: number | null;
   estimateSetRate?: number | null;
   revenue?: number;
+  optimizationGoal?: string;
   
   _groupKey?: string;
   _totalSpend?: number;
@@ -525,6 +528,7 @@ export interface BoardRow {
   _totalVideoViews100?: number;
   _totalVideoAvgWatchTime?: number;
   _totalVideoPlayActions?: number;
+  _totalVideoContinuous2SecWatched?: number;
   _totalConversions?: number;
   _totalConversionValue?: number;
   _totalCostPerConversion?: number;
