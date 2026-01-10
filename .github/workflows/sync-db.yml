@@ -24,7 +24,7 @@ jobs:
             mongodump --uri='${{ secrets.MONGO_PROD_URI }}' --archive=/dump/dump.gz --gzip &&
             
             echo 'Restoring to development database (revenue-pro-dev)...'
-            mongorestore --uri='${{ secrets.MONGO_DEV_URI }}' --archive=/dump/dump.gz --gzip --drop --nsFrom='revenue-pro' --nsTo='revenue-pro-dev'
+            mongorestore --uri='${{ secrets.MONGO_DEV_URI }}' --archive=/dump/dump.gz --gzip --drop --nsInclude='revenue-pro.*' --nsFrom='revenue-pro.*' --nsTo='revenue-pro-dev.*'
             
             echo 'Database sync completed successfully!'
           "
