@@ -443,6 +443,9 @@ export interface BoardColumns {
   costOfMarketingPercent?: boolean;
   estimateSetRate?: boolean;
   revenue?: boolean;
+  thumbstop_rate?: boolean;
+  conversion_rate?: boolean;
+  see_more_rate?: boolean;
 }
 
 export interface BoardRow {
@@ -495,6 +498,9 @@ export interface BoardRow {
   costOfMarketingPercent?: number | null;
   estimateSetRate?: number | null;
   revenue?: number;
+  thumbstop_rate?: number | null;
+  conversion_rate?: number | null;
+  see_more_rate?: number | null;
   
   _groupKey?: string;
   _totalSpend?: number;

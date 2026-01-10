@@ -556,6 +556,25 @@ export async function getAdPerformanceBoard(
     row.estimateSetRate = calculateEstimateSetRate(netEstimates, netUnqualifieds);
     row.revenue = Number(totalRevenue.toFixed(2));
     
+    // Calculate engagement rate metrics
+    // Thumbstop Rate: (Video Play Actions / Impressions) * 100
+    const videoPlayActions = row._totalVideoPlayActions || 0;
+    row.thumbstop_rate = totalImpressions > 0 ? Number(((videoPlayActions / totalImpressions) * 100).toFixed(2)) : null;
+    
+    // Conversion Rate: (FB Total Leads / Link Clicks) * 100
+    const fbLeads = row._totalLeads || 0;
+    const linkClicks = row._totalLinkClicks || 0;
+    row.conversion_rate = linkClicks > 0 ? Number(((fbLeads / linkClicks) * 100).toFixed(2)) : null;
+    
+    // See More Rate: (See More Clicks / Impressions) * 100
+    // See More Clicks = All Clicks - Link Clicks - Post Reactions - Post Comments - Post Shares
+    const allClicks = totalClicks;
+    const postReactions = row._totalPostReactions || 0;
+    const postComments = row._totalPostComments || 0;
+    const postShares = row._totalPostShares || 0;
+    const seeMoreClicks = allClicks - linkClicks - postReactions - postComments - postShares;
+    row.see_more_rate = totalImpressions > 0 ? Number(((seeMoreClicks / totalImpressions) * 100).toFixed(2)) : null;
+    
     // Convert service and zipCode sets to comma-separated strings
     row.service = row._services && row._services.size > 0 ? Array.from(row._services).sort().join(', ') : undefined;
     row.zipCode = row._zipCodes && row._zipCodes.size > 0 ? Array.from(row._zipCodes).sort().join(', ') : undefined;
@@ -636,6 +655,11 @@ export async function getAdPerformanceBoard(
     // Additional metrics
     if (columns.estimateSetRate) filteredRow.estimateSetRate = row.estimateSetRate;
     if (columns.revenue) filteredRow.revenue = row.revenue;
+    
+    // Engagement rate metrics
+    if (columns.thumbstop_rate) filteredRow.thumbstop_rate = row.thumbstop_rate;
+    if (columns.conversion_rate) filteredRow.conversion_rate = row.conversion_rate;
+    if (columns.see_more_rate) filteredRow.see_more_rate = row.see_more_rate;
 
     // Store internal fields for sorting
     (filteredRow as any)._totalSpend = row._totalSpend;
