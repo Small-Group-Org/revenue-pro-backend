@@ -118,8 +118,9 @@ export async function getAdPerformanceBoard(
         date_start: analytics.weekStartDate,
         date_stop: analytics.weekEndDate,
       },
-      // Store full metrics for aggregation
+      // Store full metrics and campaign settings for aggregation
       _fullMetrics: analytics.metrics,
+      _optimizationGoal: analytics.optimizationGoal,
     } as any;
   });
 
@@ -261,9 +262,12 @@ export async function getAdPerformanceBoard(
         rowData.campaignName = ad.campaign_name;
         rowData.adSetName = ad.adset_name;
         rowData.adName = ad.ad_name;
-        // Include creative data when grouping by ad
+        // Include creative data and optimization goal when grouping by ad
         if (ad.creative) {
           (rowData as any).creative = ad.creative;
+        }
+        if ((ad as any)._optimizationGoal) {
+          (rowData as any).optimizationGoal = (ad as any)._optimizationGoal;
         }
         break;
       default:
@@ -302,6 +306,7 @@ export async function getAdPerformanceBoard(
         _totalVideoViews100: 0,
         _totalVideoAvgWatchTime: 0,
         _totalVideoPlayActions: 0,
+        _totalVideoContinuous2SecWatched: 0,
         _totalConversions: 0,
         _totalConversionValue: 0,
         _totalCostPerConversion: 0,
@@ -354,6 +359,7 @@ export async function getAdPerformanceBoard(
     row._totalVideoViews100 = (row._totalVideoViews100 || 0) + (metrics.video_views_100pct || 0);
     row._totalVideoAvgWatchTime = (row._totalVideoAvgWatchTime || 0) + (metrics.video_avg_watch_time || 0);
     row._totalVideoPlayActions = (row._totalVideoPlayActions || 0) + (metrics.video_play_actions || 0);
+    row._totalVideoContinuous2SecWatched = (row._totalVideoContinuous2SecWatched || 0) + (metrics.video_continuous_2_sec_watched || 0);
     
     // Sum conversion metrics
     row._totalConversions = (row._totalConversions || 0) + (metrics.total_conversions || 0);
@@ -523,6 +529,7 @@ export async function getAdPerformanceBoard(
     row.fb_video_views_100pct = row._totalVideoViews100 || 0;
     row.fb_video_avg_watch_time = row._totalVideoAvgWatchTime || 0;
     row.fb_video_play_actions = row._totalVideoPlayActions || 0;
+    row.fb_video_continuous_2_sec_watched = row._totalVideoContinuous2SecWatched || 0;
     
     // Conversion metrics (from DB)
     row.fb_total_conversions = row._totalConversions || 0;
@@ -593,9 +600,12 @@ export async function getAdPerformanceBoard(
     if (columns.service) filteredRow.service = row.service;
     if (columns.zipCode) filteredRow.zipCode = row.zipCode;
     
-    // Always include creative data when available (for ad-level grouping)
+    // Always include creative data and optimization goal when available (for ad-level grouping)
     if ((row as any).creative) {
       (filteredRow as any).creative = (row as any).creative;
+    }
+    if ((row as any).optimizationGoal) {
+      (filteredRow as any).optimizationGoal = (row as any).optimizationGoal;
     }
     
     // Basic metrics
@@ -632,6 +642,7 @@ export async function getAdPerformanceBoard(
     if (columns.fb_video_views_100pct) filteredRow.fb_video_views_100pct = row.fb_video_views_100pct;
     if (columns.fb_video_avg_watch_time) filteredRow.fb_video_avg_watch_time = row.fb_video_avg_watch_time;
     if (columns.fb_video_play_actions) filteredRow.fb_video_play_actions = row.fb_video_play_actions;
+    if (columns.fb_video_continuous_2_sec_watched) filteredRow.fb_video_continuous_2_sec_watched = row.fb_video_continuous_2_sec_watched;
     
     // Conversion metrics
     if (columns.fb_total_conversions) filteredRow.fb_total_conversions = row.fb_total_conversions;

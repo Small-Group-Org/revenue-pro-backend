@@ -58,6 +58,18 @@ export async function saveWeeklyAnalyticsToDb({
         console.log(`[Save Weekly Analytics] ✓ Found ${ads.length} ads for this week`);
         console.log(`[Save Weekly Analytics] 🔄 Transforming ${ads.length} ads to database format...`);
 
+        // Check if this week has ended (to mark as complete)
+        const weekEndDate = new Date(weekEnd + 'T23:59:59Z');
+        const now = new Date();
+        const isWeekComplete = weekEndDate < now;
+        const lastSyncedAt = new Date();
+
+        if (isWeekComplete) {
+          console.log(`[Save Weekly Analytics] ✅ Week has ended - marking as complete`);
+        } else {
+          console.log(`[Save Weekly Analytics] ⏳ Week in progress - will re-sync after week ends`);
+        }
+
         // Transform to database format with readable field names
         const weeklyAnalytics = ads.map(ad => ({
           // Client & Account
@@ -228,6 +240,10 @@ export async function saveWeeklyAnalyticsToDb({
           // Week Period
           weekStartDate: weekStart,
           weekEndDate: weekEnd,
+          
+          // Week Completion Tracking
+          isWeekComplete,
+          lastSyncedAt,
           
           // Metadata
           dataSource: 'facebook_api' as const
